@@ -1,50 +1,38 @@
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
+import bodyParser from "body-parser";
+import textToSpeech from "@google-cloud/text-to-speech";
+import fs from "fs";
+import util from "util";
 
 const app = express();
-app.use(express.json());
 app.use(cors());
+app.use(bodyParser.json());
+
+const client = new textToSpeech.TextToSpeechClient();
 
 app.post("/", async (req, res) => {
   try {
-    const { text, voice = "it-IT-Wavenet-D" } = req.body;
+    const text = req.body.text || "Ciao dal server TTS!";
+    const voice = req.body.voice || "it-IT-Wavenet-D";
 
-    if (!text) {
-      return res.status(400).json({ error: "Missing text field" });
-    }
+    const request = {
+      input: { text },
+      voice: { languageCode: "it-IT", name: voice },
+      audioConfig: { audioEncoding: "MP3" },
+    };
 
-    const response = await fetch(
-      "https://texttospeech.googleapis.com/v1/text:synthesize?key=AIzaSyCQQII6mk1R4abKMIcck_xzHnb1dJ01ITk",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: { text },
-          voice: { languageCode: "it-IT", name: voice },
-          audioConfig: { audioEncoding: "MP3" },
-        }),
-      }
-    );
+    const [response] = await client.synthesizeSpeech(request);
+    const audioBase64 = response.audioContent.toString("base64");
 
-    const data = await response.json();
-
-    if (data.audioContent) {
-      return res.json({
-        audio_url: `data:audio/mp3;base64,${data.audioContent}`,
-      });
-    } else {
-      return res.status(500).json({ error: "No audio returned", details: data });
-    }
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Internal Server Error" });
+    res.status(200).json({
+      audio_url: `data:audio/mp3;base64,${audioBase64}`,
+    });
+  } catch (error) {
+    console.error("Errore TTS:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("Telegram TTS Server is running ✅");
-});
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server running on port ${port}`));
+const port = process.env.PORT || 8080;
+app.listen(port, () => console.log(`✅ Server TTS attivo su porta ${port}`));
