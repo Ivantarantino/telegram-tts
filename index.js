@@ -15,7 +15,7 @@ app.post("/", async (req, res) => {
     }
 
     const response = await fetch(
-      "https://texttospeech.googleapis.com/v1/text:synthesize?key=YOUR_GOOGLE_API_KEY",
+      "https://texttospeech.googleapis.com/v1/text:synthesize?key=AIzaSyCQQII6mk1R4abKMIcck_xzHnb1dJ01ITk",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
