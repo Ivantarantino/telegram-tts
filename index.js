@@ -1,32 +1,50 @@
 import express from "express";
-import bodyParser from "body-parser";
 import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
+app.use(cors());
 
-app.post("/webhook", async (req, res) => {
+app.post("/", async (req, res) => {
   try {
-    const { text, voice } = req.body;
+    const { text, voice = "it-IT-Wavenet-D" } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Missing text field" });
+    }
+
     const response = await fetch(
-      "https://google-tts-604623634011.europe-west1.run.app",
+      "https://texttospeech.googleapis.com/v1/text:synthesize?key=YOUR_GOOGLE_API_KEY",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice }),
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: "it-IT", name: voice },
+          audioConfig: { audioEncoding: "MP3" },
+        }),
       }
     );
 
     const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Errore interno");
+
+    if (data.audioContent) {
+      return res.json({
+        audio_url: `data:audio/mp3;base64,${data.audioContent}`,
+      });
+    } else {
+      return res.status(500).json({ error: "No audio returned", details: data });
+    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
 app.get("/", (req, res) => {
-  res.send("Server Telegram TTS attivo 🚀");
+  res.send("Telegram TTS Server is running ✅");
 });
 
-app.listen(3000, () => console.log("Server in esecuzione sulla porta 3000"));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server running on port ${port}`));
