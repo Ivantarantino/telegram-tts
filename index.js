@@ -1,38 +1,36 @@
+import TelegramBot from "node-telegram-bot-api";
 import express from "express";
-import cors from "cors";
-import bodyParser from "body-parser";
-import textToSpeech from "@google-cloud/text-to-speech";
-import fs from "fs";
-import util from "util";
+import fetch from "node-fetch";
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-const client = new textToSpeech.TextToSpeechClient();
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-app.post("/", async (req, res) => {
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+  if (!text) return;
+
   try {
-    const text = req.body.text || "Ciao dal server TTS!";
-    const voice = req.body.voice || "it-IT-Wavenet-D";
-
-    const request = {
-      input: { text },
-      voice: { languageCode: "it-IT", name: voice },
-      audioConfig: { audioEncoding: "MP3" },
-    };
-
-    const [response] = await client.synthesizeSpeech(request);
-    const audioBase64 = response.audioContent.toString("base64");
-
-    res.status(200).json({
-      audio_url: `data:audio/mp3;base64,${audioBase64}`,
+    const response = await fetch("https://telegram-tts.onrender.com/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
     });
+
+    const data = await response.json();
+    const base64Audio = data.audio_url.replace(/^data:audio\/mp3;base64,/, "");
+    const audioBuffer = Buffer.from(base64Audio, "base64");
+
+    await bot.sendVoice(chatId, audioBuffer, {}, { filename: "tts.mp3" });
   } catch (error) {
     console.error("Errore TTS:", error);
-    res.status(500).json({ error: error.message });
+    await bot.sendMessage(chatId, "⚠️ Errore nella generazione audio.");
   }
 });
 
-const port = process.env.PORT || 8080;
-app.listen(port, () => console.log(`✅ Server TTS attivo su porta ${port}`));
+app.get("/", (req, res) => res.send("Bot attivo e funzionante!"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server attivo su porta ${PORT}`));
