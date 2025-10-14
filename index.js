@@ -5,7 +5,8 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+// ✅ Usa la variabile d’ambiente corretta da Render
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
@@ -32,5 +33,5 @@ bot.on("message", async (msg) => {
 });
 
 app.get("/", (req, res) => res.send("Bot attivo e funzionante!"));
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server attivo su porta ${PORT}`));
