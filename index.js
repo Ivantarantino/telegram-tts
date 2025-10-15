@@ -68,9 +68,14 @@ app.use(express.json());
     }
     try {
       console.log(`DEBUG: Richiesta TTS per: ${text.substring(0, 50)}...`);
-      const url = googleTTS.get(text, "it", 1);
-      const audioResponse = await fetch(url);
-      if (!audioResponse.ok) throw new Error("TTS fetch failed");
+
+      // ✅ nuova sintassi google-tts-api
+      const url = googleTTS.getAudioUrl(text, { lang: "it", slow: false });
+      const audioResponse = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
+
+      if (!audioResponse.ok) throw new Error(`TTS fetch failed (${audioResponse.status})`);
       const audioBuffer = await audioResponse.arrayBuffer();
       const base64Audio = Buffer.from(audioBuffer).toString("base64");
       res.json({ audio_url: `data:audio/mp3;base64,${base64Audio}` });
@@ -87,8 +92,8 @@ app.use(express.json());
   });
 
   // === Start server ===
-  const PORT = process.env.PORT || 10000; // Default Render
-  app.listen(PORT, '0.0.0.0', () => {
+  const PORT = process.env.PORT || 10000;
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`DEBUG: Server attivo su porta ${PORT} (host 0.0.0.0)`);
   });
 })();
