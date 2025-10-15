@@ -1,17 +1,15 @@
 {
   "name": "telegram-tts",
   "version": "1.0.0",
+  "main": "index.js",
   "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "node-telegram-bot-api": "^0.61.0",
+    "google-tts-api": "^2.0.2"
+  },
   "scripts": {
     "start": "node index.js"
-  },
-  "dependencies": {
-    "node-telegram-bot-api": "^0.64.0",
-    "express": "^4.18.0",
-    "node-fetch": "^2.7.0",
-    "gtts": "^3.2.2"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }
