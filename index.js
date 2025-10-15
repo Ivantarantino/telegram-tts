@@ -1,7 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import express from "express";
 import fetch from "node-fetch";
-import googleTTS from "google-tts-api";
+import gTTS from "gtts";
 
 // === Express setup ===
 const app = express();
@@ -20,7 +20,7 @@ app.use(express.json());
 
   // Set webhook
   const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: false });
-  const webhookUrl = `https://telegram-tts.onrender.com/webhook`; // Aggiorna se dominio diverso
+  const webhookUrl = `https://telegram-tts.onrender.com/webhook`; // Aggiorna se il dominio è diverso
   try {
     await bot.setWebHook(webhookUrl);
     console.log(`DEBUG: Webhook impostato su ${webhookUrl}`);
@@ -44,7 +44,7 @@ app.use(express.json());
       if (!response.ok) throw new Error(`TTS: ${response.status}`);
       const data = await response.json();
       if (!data.audio_url) throw new Error("No audio");
-      const base64Audio = data.audio_url.replace(/^data:audio\/mp3;base64,/, ""); // Fix regex
+      const base64Audio = data.audio_url.replace(/^data:audio\/mp3;base64,/, "");
       const audioBuffer = Buffer.from(base64Audio, "base64");
       await bot.sendVoice(chatId, audioBuffer, {}, { filename: "tts.mp3" });
       console.log("DEBUG: Audio inviato con successo.");
@@ -62,11 +62,16 @@ app.use(express.json());
     }
     try {
       console.log(`DEBUG: Richiesta TTS per: ${text.substring(0, 50)}...`);
-      const url = googleTTS.get(text, "it", 1);
-      const audioResponse = await fetch(url);
-      if (!audioResponse.ok) throw new Error("TTS fetch failed");
-      const audioBuffer = await audioResponse.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString("base64");
+      const gtts = new gTTS(text, "it"); // 'it' per italiano
+      const audioBuffer = await new Promise((resolve, reject) => {
+        gtts.stream((err, stream) => {
+          if (err) return reject(err);
+          const chunks = [];
+          stream.on("data", chunk => chunks.push(chunk));
+          stream.on("end", () => resolve(Buffer.concat(chunks)));
+        });
+      });
+      const base64Audio = audioBuffer.toString("base64");
       res.json({ audio_url: `data:audio/mp3;base64,${base64Audio}` });
     } catch (error) {
       console.error("DEBUG: Errore TTS:", error.message);
