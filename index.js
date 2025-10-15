@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 
 // ✅ Usa la variabile d’ambiente corretta da Render
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
