@@ -1,15 +1,27 @@
 {
   "name": "telegram-tts",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Bot Telegram con Text-to-Speech (TTS) integrato",
   "type": "module",
-  "dependencies": {
-    "express": "^4.18.2",
-    "node-fetch": "^3.3.2",
-    "node-telegram-bot-api": "^0.61.0",
-    "google-tts-api": "^2.0.2"
-  },
+  "main": "index.js",
   "scripts": {
     "start": "node index.js"
-  }
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "tts",
+    "text-to-speech",
+    "google-translate-tts"
+  ],
+  "author": "Ivano",
+  "license": "MIT"
 }
