@@ -18,9 +18,9 @@ app.use(express.json());
   }
   console.log(`DEBUG: Token caricato (lunghezza: ${process.env.TELEGRAM_TOKEN.length}).`);
 
-  // Set webhook (usa il tuo dominio Render)
-  const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: false }); // Disattiva polling
-  const webhookUrl = `https://telegram-tts.onrender.com/webhook`; // Cambia se il dominio è diverso
+  // Set webhook
+  const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: false });
+  const webhookUrl = `https://telegram-tts.onrender.com/webhook`; // Aggiorna se dominio diverso
   try {
     await bot.setWebHook(webhookUrl);
     console.log(`DEBUG: Webhook impostato su ${webhookUrl}`);
@@ -44,7 +44,7 @@ app.use(express.json());
       if (!response.ok) throw new Error(`TTS: ${response.status}`);
       const data = await response.json();
       if (!data.audio_url) throw new Error("No audio");
-      const base64Audio = data.audio_url.replace(/^data:audio/mp3;base64,/, "");
+      const base64Audio = data.audio_url.replace(/^data:audio\/mp3;base64,/, ""); // Fix regex
       const audioBuffer = Buffer.from(base64Audio, "base64");
       await bot.sendVoice(chatId, audioBuffer, {}, { filename: "tts.mp3" });
       console.log("DEBUG: Audio inviato con successo.");
