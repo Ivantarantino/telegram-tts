@@ -1,9 +1,9 @@
 {
   "name": "telegram-tts",
   "version": "1.0.0",
-  "type": "module",  // Cruciale per ES6 import (non "commonjs")
+  "type": "module",
   "scripts": {
-    "start": "node index.js"  // O il nome del tuo file principale
+    "start": "node index.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
@@ -12,6 +12,6 @@
     "google-tts-api": "^2.2.3"
   },
   "engines": {
-    "node": ">=18"  // Specifica Node.js >=18 per compatibilità
+    "node": ">=18"
   }
 }
