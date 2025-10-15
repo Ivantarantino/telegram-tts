@@ -1,9 +1,9 @@
 {
   "name": "telegram-tts",
   "version": "1.0.0",
-  "description": "Bot Telegram con Text-to-Speech (TTS) integrato",
-  "type": "module",
+  "description": "Bot Telegram che usa OpenAI + Google TTS integrato via endpoint esterno",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
@@ -13,14 +13,14 @@
     "node-telegram-bot-api": "^0.66.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.0.0"
   },
   "keywords": [
     "telegram",
     "bot",
     "tts",
-    "text-to-speech",
-    "google-translate-tts"
+    "openai",
+    "render"
   ],
   "author": "Ivano",
   "license": "MIT"
