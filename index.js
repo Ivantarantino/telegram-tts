@@ -1,7 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import express from "express";
 import fetch from "node-fetch";
-import googleTTS from "google-tts-api";
+import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 
 // === Express setup ===
 const app = express();
@@ -9,14 +9,14 @@ app.use(express.json());
 
 // === Main async init ===
 (async () => {
-  // Debug: Controllo token (non stampa il valore reale)
+  // Debug: Controllo token
   const tokenExists = !!process.env.TELEGRAM_TOKEN;
   console.log(`DEBUG: Token presente? ${tokenExists ? 'SÌ' : 'NO'}`);
   if (!process.env.TELEGRAM_TOKEN) {
     console.error("FATAL: TELEGRAM_TOKEN non fornito!");
     process.exit(1);
   }
-  console.log("DEBUG: Token caricato con successo (lunghezza:", process.env.TELEGRAM_TOKEN.length, ").");
+  console.log(`DEBUG: Token caricato (lunghezza: ${process.env.TELEGRAM_TOKEN.length}).`);
 
   // Auto delete webhook
   try {
@@ -30,7 +30,7 @@ app.use(express.json());
   try {
     const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
     console.log("DEBUG: Bot Telegram inizializzato con polling.");
-    
+
     // === Bot Listener ===
     bot.on("message", async (msg) => {
       const chatId = msg.chat.id;
@@ -68,16 +68,14 @@ app.use(express.json());
     }
     try {
       console.log(`DEBUG: Richiesta TTS per: ${text.substring(0, 50)}...`);
-
-      // ✅ nuova sintassi google-tts-api
-      const url = googleTTS.getAudioUrl(text, { lang: "it", slow: false });
-      const audioResponse = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0" }
+      const client = new TextToSpeechClient();
+      const [response] = await client.synthesizeSpeech({
+        input: { text },
+        voice: { languageCode: "it-IT", ssmlGender: "NEUTRAL" },
+        audioConfig: { audioEncoding: "MP3" },
       });
-
-      if (!audioResponse.ok) throw new Error(`TTS fetch failed (${audioResponse.status})`);
-      const audioBuffer = await audioResponse.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString("base64");
+      const audioBuffer = response.audioContent;
+      const base64Audio = audioBuffer.toString("base64");
       res.json({ audio_url: `data:audio/mp3;base64,${base64Audio}` });
     } catch (error) {
       console.error("DEBUG: Errore TTS:", error.message);
@@ -85,7 +83,7 @@ app.use(express.json());
     }
   });
 
-  // === Health check con debug ===
+  // === Health check ===
   app.get("/", (req, res) => {
     console.log("DEBUG: Richiesta su / ricevuta.");
     res.send("Bot attivo e funzionante! ✅");
