@@ -1,7 +1,7 @@
 {
   "name": "telegram-tts",
   "version": "1.0.0",
-  "description": "Bot Telegram che usa OpenAI + Google TTS integrato via endpoint esterno",
+  "description": "Bot Telegram che usa un endpoint TTS esterno per generare audio.",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -19,8 +19,8 @@
     "telegram",
     "bot",
     "tts",
-    "openai",
-    "render"
+    "render",
+    "express"
   ],
   "author": "Ivano",
   "license": "MIT"
