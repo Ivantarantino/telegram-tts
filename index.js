@@ -30,7 +30,7 @@ app.use(express.json());
   try {
     const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
     console.log("DEBUG: Bot Telegram inizializzato con polling.");
-    
+
     // === Bot Listener ===
     bot.on("message", async (msg) => {
       const chatId = msg.chat.id;
@@ -47,3 +47,52 @@ app.use(express.json());
         const data = await response.json();
         if (!data.audio_url) throw new Error("No audio");
         const base64Audio = data.audio_url.replace(/^data:audio\/mp3;base64,/, "");
+        const audioBuffer = Buffer.from(base64Audio, "base64");
+        await bot.sendVoice(chatId, audioBuffer, {}, { filename: "tts.mp3" });
+        console.log("DEBUG: Audio inviato con successo.");
+      } catch (error) {
+        console.error("DEBUG: Errore bot:", error.message);
+        await bot.sendMessage(chatId, "⚠️ Errore audio. Riprova!");
+      }
+    });
+  } catch (error) {
+    console.error("FATAL: Errore init bot:", error.message);
+    process.exit(1);
+  }
+
+  // === TTS Endpoint ===
+  app.post("/tts", async (req, res) => {
+    const { text } = req.body;
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ error: "Testo mancante" });
+    }
+    try {
+      console.log(`DEBUG: Richiesta TTS per: ${text.substring(0, 50)}...`);
+      const url = googleTTS.getAudioUrl(text, {
+        lang: "it",
+        slow: false,
+        host: "https://translate.google.com",
+      });
+      const audioResponse = await fetch(url);
+      if (!audioResponse.ok) throw new Error("TTS fetch failed");
+      const audioBuffer = await audioResponse.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString("base64");
+      res.json({ audio_url: `data:audio/mp3;base64,${base64Audio}` });
+    } catch (error) {
+      console.error("DEBUG: Errore TTS:", error.message);
+      res.status(500).json({ error: "Generazione audio fallita" });
+    }
+  });
+
+  // === Health check con debug ===
+  app.get("/", (req, res) => {
+    console.log("DEBUG: Richiesta su / ricevuta.");
+    res.send("Bot attivo e funzionante! ✅");
+  });
+
+  // === Start server ===
+  const PORT = process.env.PORT || 10000; // Default Render
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`DEBUG: Server attivo su porta ${PORT} (host 0.0.0.0)`);
+  });
+})();
