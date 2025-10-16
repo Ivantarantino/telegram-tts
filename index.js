@@ -1,108 +1,109 @@
-// ✅ Fix per evitare warning Deprecation di Telegram
+// === Fix warning Telegram ===
 process.env.NTBA_FIX_350 = '1';
 
-import TelegramBot from "node-telegram-bot-api";
+// === Import principali ===
 import express from "express";
 import fetch from "node-fetch";
-import googleTTS from "google-tts-api";
+import TelegramBot from "node-telegram-bot-api";
+import textToSpeech from "@google-cloud/text-to-speech";
+import fs from "fs";
 
-// === Express setup ===
+// === Inizializzazione Express ===
 const app = express();
 app.use(express.json());
 
-// === Main async init ===
-(async () => {
-  // Debug: Controllo token
-  const tokenExists = !!process.env.TELEGRAM_TOKEN;
-  console.log(`DEBUG: Token presente? ${tokenExists ? 'SÌ' : 'NO'}`);
-  if (!process.env.TELEGRAM_TOKEN) {
-    console.error("FATAL: TELEGRAM_TOKEN non fornito!");
-    process.exit(1);
+// === Configurazione TTS Client ===
+const ttsClient = new textToSpeech.TextToSpeechClient();
+
+// === Variabili d'ambiente ===
+const TOKEN = process.env.TELEGRAM_TOKEN;
+const PORT = process.env.PORT || 10000;
+
+// === Controllo token ===
+if (!TOKEN) {
+  console.error("❌ ERRORE: manca TELEGRAM_TOKEN nelle variabili d'ambiente!");
+  process.exit(1);
+} else {
+  console.log("DEBUG: Token caricato con successo ✅");
+}
+
+// === Elimina webhook precedente ===
+try {
+  await fetch(`https://api.telegram.org/bot${TOKEN}/deleteWebhook`);
+  console.log("DEBUG: Webhook eliminato con successo.");
+} catch (err) {
+  console.error("⚠️ Errore durante deleteWebhook:", err.message);
+}
+
+// === Inizializza bot in polling ===
+const bot = new TelegramBot(TOKEN, { polling: true });
+console.log("DEBUG: Bot Telegram inizializzato con polling.");
+
+// === Endpoint principale TTS ===
+app.post("/tts", async (req, res) => {
+  const { text } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: "Testo mancante" });
   }
-  console.log("DEBUG: Token caricato con successo (lunghezza:", process.env.TELEGRAM_TOKEN.length, ").");
 
-  // === Rimuovi eventuale webhook per evitare errore 409 ===
+  console.log(`DEBUG: Richiesta TTS per: ${text}...`);
+
   try {
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/deleteWebhook`);
-    console.log("DEBUG: Webhook eliminato con successo.");
-  } catch (error) {
-    console.warn("DEBUG: Errore nel deleteWebhook:", error.message);
+    // Impostazioni voce femminile italiana
+    const request = {
+      input: { text },
+      voice: { languageCode: "it-IT", name: "it-IT-Wavenet-C", ssmlGender: "FEMALE" },
+      audioConfig: { audioEncoding: "MP3" },
+    };
+
+    const [response] = await ttsClient.synthesizeSpeech(request);
+    const base64Audio = response.audioContent.toString("base64");
+    res.json({ audio_url: `data:audio/mp3;base64,${base64Audio}` });
+
+  } catch (err) {
+    console.error("DEBUG: Errore Google TTS:", err);
+    res.status(500).json({ error: "Errore durante la generazione dell'audio" });
   }
+});
 
-  // === Inizializza bot ===
+// === Gestione messaggi Telegram ===
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text?.trim();
+
+  if (!text) return;
+
+  console.log(`DEBUG: Messaggio ricevuto: ${text}`);
+
   try {
-    const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-    console.log("DEBUG: Bot Telegram inizializzato con polling.");
-
-    // === Listener messaggi ===
-    bot.on("message", async (msg) => {
-      const chatId = msg.chat.id;
-      const text = msg.text;
-      if (!text) return;
-
-      try {
-        console.log(`DEBUG: Messaggio ricevuto: ${text.substring(0, 50)}...`);
-
-        const response = await fetch("https://telegram-tts.onrender.com/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-
-        if (!response.ok) throw new Error(`TTS: ${response.status}`);
-        const data = await response.json();
-        if (!data.audio_url) throw new Error("Nessun audio generato");
-
-        const base64Audio = data.audio_url.replace(/^data:audio\/mp3;base64,/, "");
-        const audioBuffer = Buffer.from(base64Audio, "base64");
-
-        await bot.sendVoice(chatId, audioBuffer, {}, { filename: "tts.mp3" });
-        console.log("DEBUG: Audio inviato con successo.");
-      } catch (error) {
-        console.error("DEBUG: Errore bot:", error.message);
-        await bot.sendMessage(chatId, "⚠️ Errore audio. Riprova!");
-      }
+    // Richiama il tuo stesso endpoint /tts su Render
+    const response = await fetch("https://telegram-tts.onrender.com/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
     });
+
+    if (!response.ok) throw new Error(`TTS HTTP ${response.status}`);
+
+    const { audio_url } = await response.json();
+    const base64Audio = audio_url.replace(/^data:audio\/mp3;base64,/, "");
+
+    await bot.sendVoice(chatId, Buffer.from(base64Audio, "base64"), {}, { filename: "tts.mp3" });
+    console.log("DEBUG: Audio inviato con successo ✅");
   } catch (error) {
-    console.error("FATAL: Errore init bot:", error.message);
-    process.exit(1);
+    console.error("DEBUG: Errore bot:", error);
+    bot.sendMessage(chatId, "⚠️ Errore durante la generazione dell'audio. Riprova più tardi.");
   }
+});
 
-  // === Endpoint TTS ===
-  app.post("/tts", async (req, res) => {
-    const { text } = req.body;
-    if (!text || typeof text !== "string") {
-      return res.status(400).json({ error: "Testo mancante" });
-    }
+// === Endpoint base per test ===
+app.get("/", (req, res) => {
+  console.log("DEBUG: Richiesta su / ricevuta.");
+  res.send("✅ Server TTS attivo.");
+});
 
-    try {
-      console.log(`DEBUG: Richiesta TTS per: ${text.substring(0, 50)}...`);
-      const url = googleTTS.getAudioUrl(text, {
-        lang: "it",
-        slow: false,
-        host: "https://translate.google.com",
-      });
+// === Avvio server ===
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`DEBUG: Server attivo su porta ${PORT}`);
+});
 
-      const audioResponse = await fetch(url);
-      if (!audioResponse.ok) throw new Error("TTS fetch failed");
-      const audioBuffer = await audioResponse.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString("base64");
-      res.json({ audio_url: `data:audio/mp3;base64,${base64Audio}` });
-    } catch (error) {
-      console.error("DEBUG: Errore TTS:", error.message);
-      res.status(500).json({ error: "Generazione audio fallita" });
-    }
-  });
-
-  // === Health check ===
-  app.get("/", (req, res) => {
-    console.log("DEBUG: Richiesta su / ricevuta.");
-    res.send("Bot attivo e funzionante! ✅");
-  });
-
-  // === Start server ===
-  const PORT = process.env.PORT || 10000;
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`DEBUG: Server attivo su porta ${PORT} (host 0.0.0.0)`);
-  });
-})();
