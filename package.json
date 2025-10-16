@@ -1,16 +1,15 @@
 {
   "name": "telegram-tts",
   "version": "1.0.0",
+  "description": "Telegram bot con integrazione Vapi per Text-to-Speech (Google TTS)",
   "main": "index.js",
   "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "node-fetch": "^3.3.2",
-    "node-telegram-bot-api": "^0.61.0",
-    "google-tts-api": "^2.0.2",
-    "@google-cloud/text-to-speech": "^5.0.0"
-  },
-  "scripts": {
-    "start": "node index.js"
+    "node-telegram-bot-api": "^0.61.0"
   }
 }
