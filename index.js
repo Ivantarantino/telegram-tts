@@ -14,9 +14,10 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const ttsClient = new textToSpeech.TextToSpeechClient();
 
 // === CONFIG DINAMICHE ===
-let currentVoice = "it-IT-Wavenet-B";   // Femminile calda
+let currentVoice = "it-IT-Wavenet-B";   // Voce femminile calda
 let currentModel = "gpt-4o-mini";       // Miglior rapporto qualità/prezzo
 let currentLanguage = "it-IT";          // Default: italiano
+const BOT_USERNAME = "iris";            // Nome del tuo bot senza '@'
 
 // === AVVIO ===
 (async () => {
@@ -28,7 +29,7 @@ let currentLanguage = "it-IT";          // Default: italiano
   // Elimina vecchi webhook
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/deleteWebhook`);
   const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-  console.log("🤖 Bot Telegram avviato con polling.");
+  console.log("🤖 Bot Telegram IRIS avviato con polling.");
 
   // === /voce ===
   bot.onText(/^\/voce (.+)/, async (msg, match) => {
@@ -54,12 +55,7 @@ let currentLanguage = "it-IT";          // Default: italiano
   bot.onText(/^\/lingua (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const lang = match[1].trim().toLowerCase();
-    const map = {
-      it: "it-IT",
-      en: "en-US",
-      es: "es-ES",
-      ru: "ru-RU"
-    };
+    const map = { it: "it-IT", en: "en-US", es: "es-ES", ru: "ru-RU" };
     if (!map[lang]) return bot.sendMessage(chatId, "🌍 Usa /lingua it | en | es | ru");
     currentLanguage = map[lang];
     currentVoice = `${currentLanguage}-Wavenet-B`;
@@ -91,7 +87,12 @@ let currentLanguage = "it-IT";          // Default: italiano
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
+
+    // ignora comandi e messaggi senza testo
     if (!text || text.startsWith("/")) return;
+
+    // in gruppi → risponde solo se menzionata
+    if (msg.chat.type.endsWith("group") && !text.toLowerCase().includes(`@${BOT_USERNAME.toLowerCase()}`)) return;
 
     try {
       console.log(`💬 Messaggio: ${text}`);
@@ -118,7 +119,7 @@ let currentLanguage = "it-IT";          // Default: italiano
 
       const writeFile = util.promisify(fs.writeFile);
       await writeFile("output.mp3", ttsResponse.audioContent, "binary");
-      await bot.sendVoice(chatId, fs.createReadStream("output.mp3"), {}, { filename: "risposta.mp3" });
+      await bot.sendVoice(chatId, fs.createReadStream("output.mp3"), {}, { filename: "iris.mp3" });
       console.log(`🎧 Risposta vocale inviata (${currentVoice}, ${currentModel}, ${currentLanguage})`);
     } catch (err) {
       console.error("❌ Errore:", err.message);
@@ -129,6 +130,11 @@ let currentLanguage = "it-IT";          // Default: italiano
   // === GESTIONE VOCALI ===
   bot.on("voice", async (msg) => {
     const chatId = msg.chat.id;
+    const caption = msg.caption || "";
+
+    // in gruppi → risponde solo se menzionata nel caption
+    if (msg.chat.type.endsWith("group") && !caption.toLowerCase().includes(`@${BOT_USERNAME.toLowerCase()}`)) return;
+
     try {
       const fileUrl = await bot.getFileLink(msg.voice.file_id);
       const oggRes = await fetch(fileUrl);
@@ -170,7 +176,7 @@ let currentLanguage = "it-IT";          // Default: italiano
 
       const writeFile = util.promisify(fs.writeFile);
       await writeFile("output.mp3", ttsResponse.audioContent, "binary");
-      await bot.sendVoice(chatId, fs.createReadStream("output.mp3"), {}, { filename: "risposta.mp3" });
+      await bot.sendVoice(chatId, fs.createReadStream("output.mp3"), {}, { filename: "iris.mp3" });
       console.log(`🎤 Vocale → testo → voce (${currentLanguage})`);
     } catch (err) {
       console.error("❌ Errore vocale:", err.message);
@@ -179,7 +185,7 @@ let currentLanguage = "it-IT";          // Default: italiano
   });
 
   // === ENDPOINT TEST ===
-  app.get("/", (req, res) => res.send("Bot Telegram AI attivo ✅"));
+  app.get("/", (req, res) => res.send("🤖 IRIS attiva e in ascolto ✅"));
   const PORT = process.env.PORT || 10000;
   app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server su porta ${PORT}`));
 })();
