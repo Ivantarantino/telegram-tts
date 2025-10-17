@@ -1,9 +1,11 @@
 import fs from "fs";
-import pkg from "pdf-parse";
-const pdfParse = pkg;
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
+
 dotenv.config();
 
 // ✅ CONFIGURAZIONE
@@ -16,7 +18,7 @@ const qdrant = new QdrantClient({
 const COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
 const FILE_PATH = "./M24 - IL PROGRAMMA KRIST.pdf";
 
-// 🔹 suddivide il testo in blocchi di circa 1000 caratteri
+// 🔹 Suddivide il testo in blocchi di circa 1000 caratteri
 function splitText(text, maxLength = 1000) {
   const chunks = [];
   let current = "";
