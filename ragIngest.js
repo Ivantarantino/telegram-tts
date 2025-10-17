@@ -4,7 +4,7 @@ import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+const pdfParse = require("pdf-parse").default || require("pdf-parse");
 
 dotenv.config();
 
