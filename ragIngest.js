@@ -1,0 +1,65 @@
+import fs from "fs";
+import pdfParse from "pdf-parse";
+import OpenAI from "openai";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import dotenv from "dotenv";
+dotenv.config();
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const qdrant = new QdrantClient({
+  url: "https://YOUR-QDRANT-URL", // esempio: https://xxxxx.eu-central.aws.cloud.qdrant.io
+  apiKey: process.env.QDRANT_API_KEY,
+});
+
+const COLLECTION = "iris_memory";
+const FILE_PATH = "./M24 - IL PROGRAMMA KRIST.pdf";
+
+// 🔹 suddivide il testo in blocchi di 1000 caratteri circa
+function splitText(text, maxLength = 1000) {
+  const chunks = [];
+  let current = "";
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  for (const s of sentences) {
+    if ((current + s).length > maxLength) {
+      chunks.push(current);
+      current = "";
+    }
+    current += s + " ";
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+async function ingestPDF() {
+  console.log("📘 Lettura del PDF...");
+  const dataBuffer = fs.readFileSync(FILE_PATH);
+  const pdfData = await pdfParse(dataBuffer);
+  const text = pdfData.text.replace(/\s+/g, " ").trim();
+  const chunks = splitText(text);
+
+  console.log(`📄 Frammenti estratti: ${chunks.length}`);
+
+  let vectors = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const embedding = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: chunk,
+    });
+    vectors.push({
+      id: i,
+      vector: embedding.data[0].embedding,
+      payload: {
+        source: "M24 - IL PROGRAMMA KRIST.pdf",
+        text: chunk,
+      },
+    });
+    console.log(`✅ Embedding ${i + 1}/${chunks.length}`);
+  }
+
+  console.log("🧠 Invio a Qdrant...");
+  await qdrant.upsert(COLLECTION, { points: vectors });
+  console.log("🚀 Ingestione completata!");
+}
+
+ingestPDF().catch(console.error);
