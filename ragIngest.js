@@ -8,7 +8,7 @@ dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const qdrant = new QdrantClient({
-  url: "https://YOUR-QDRANT-URL", // esempio: https://xxxxx.eu-central.aws.cloud.qdrant.io
+  url: "https://dc817ce9-c243-4a5e-b24a-3eb950c87706.europe-west3-0.gcp.cloud.qdrant.io",
   apiKey: process.env.QDRANT_API_KEY,
 });
 
