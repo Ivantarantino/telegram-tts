@@ -1,7 +1,6 @@
 // =============================
-// 🤖 IRIS 1.4 – Comandi lingua abbreviati (it / ru / en / es)
+// 🤖 IRIS 2.0 – Multilingue + RAG (Qdrant)
 // =============================
-
 import TelegramBot from "node-telegram-bot-api";
 import express from "express";
 import fs from "fs";
@@ -12,11 +11,13 @@ import OpenAI from "openai";
 import dotenv from "dotenv";
 dotenv.config();
 
+import { ensureCollection, upsertDocuments } from "./ragClient.js";
+import { answerWithRAG } from "./ragSearch.js";
+
 // === Variabili ambiente ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-
 if (!TELEGRAM_TOKEN || !OPENAI_API_KEY || !GOOGLE_APPLICATION_CREDENTIALS) {
   console.error("❌ ERRORE: variabili ambiente mancanti!");
   process.exit(1);
@@ -25,7 +26,7 @@ if (!TELEGRAM_TOKEN || !OPENAI_API_KEY || !GOOGLE_APPLICATION_CREDENTIALS) {
 // === Inizializzazione bot e servizi ===
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const client = new textToSpeech.TextToSpeechClient();
+const tts = new textToSpeech.TextToSpeechClient();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,7 +51,7 @@ const LANGUAGES = {
     name: "Русский",
     voice: "ru-RU-Standard-B",
     prompt:
-      "Ты ИРИС, мягкий и внимательный ассистент, говори только на русском языке, с теплом и пониманием.",
+      "Ты ИРИС, мягкий и внимательный ассистент, говори на русском языке, с теплом и пониманием.",
   },
   en: {
     code: "en-US",
@@ -72,7 +73,7 @@ const LANGUAGES = {
 function detectLanguage(text) {
   if (/[а-яА-ЯЁё]/.test(text)) return "ru";
   if (/[¿¡ñáéíóú]/i.test(text)) return "es";
-  if (/[a-zA-Z]/.test(text) && /the|and|you|hello/i.test(text)) return "en";
+  if (/[a-zA-Z]/.test(text) && /the|and|you|hello|what|how|why/i.test(text)) return "en";
   return "it";
 }
 
@@ -84,12 +85,12 @@ async function generateVoice(text, langKey) {
     voice: { languageCode: lang.code, name: lang.voice },
     audioConfig: { audioEncoding: "OGG_OPUS" },
   };
-  const [response] = await client.synthesizeSpeech(request);
+  const [response] = await tts.synthesizeSpeech(request);
   fs.writeFileSync(OUTPUT_PATH, response.audioContent, "binary");
   return OUTPUT_PATH;
 }
 
-// === Mente OpenAI ===
+// === Mente OpenAI “generale” (senza RAG) ===
 async function askOpenAI(prompt, langKey) {
   const lang = LANGUAGES[langKey] || LANGUAGES.it;
   try {
@@ -113,12 +114,13 @@ bot.on("message", async (msg) => {
   const text = msg.text;
   if (!text) return;
 
-  console.log(`💬 Messaggio da ${msg.from.username}: ${text}`);
+  console.log(`💬 ${msg.from?.username || msg.from?.first_name}: ${text}`);
 
-  // === Comandi ===
+  // Comando lingua
   if (text.startsWith("/lingua")) {
     const arg = text.split(" ")[1];
-    if (arg && LANGUAGES[arg]) {
+    const keys = Object.keys(LANGUAGES);
+    if (arg && keys.includes(arg)) {
       autoLang = false;
       languageCode = arg;
       bot.sendMessage(chatId, `🌍 Lingua forzata su: ${LANGUAGES[arg].name}`);
@@ -131,6 +133,16 @@ bot.on("message", async (msg) => {
     return;
   }
 
+  // Stato
+  if (text === "/stato") {
+    bot.sendMessage(
+      chatId,
+      `🧠 Stato IRIS:\nLingua: ${autoLang ? "Auto" : LANGUAGES[languageCode].name}\nVoce IT: ${voiceType}\nRAG: pronto`
+    );
+    return;
+  }
+
+  // Voce italiana (solo codice, per semplicità)
   if (text.startsWith("/voce")) {
     const arg = text.split(" ")[1];
     if (arg) {
@@ -142,25 +154,70 @@ bot.on("message", async (msg) => {
     return;
   }
 
-  if (text === "/stato") {
-    bot.sendMessage(
-      chatId,
-      `🧠 Stato di IRIS:\nLingua: ${
-        autoLang ? "Auto" : LANGUAGES[languageCode].name
-      }\nVoce: ${voiceType}`
-    );
+  // === RAG: inizializza con 3 frammenti di prova
+  if (text === "/ragtest") {
+    try {
+      await ensureCollection();
+      const count = await upsertDocuments([
+        {
+          id: 1,
+          text:
+            "La coscienza come Sognatore: la realtà è un sogno condiviso in cui il testimone si ricorda come fonte.",
+          meta: { fonte: "Appunti IRIS", tema: "coscienza" },
+        },
+        {
+          id: 2,
+          text:
+            "L'integrazione degli archetipi non è superamento, ma trasformazione: ogni energia diventa parte dell'orchestra interiore.",
+          meta: { fonte: "Appunti IRIS", tema: "archetipi" },
+        },
+        {
+          id: 3,
+          text:
+            "Il 'Daje' come chiamata al movimento: volontà e presenza che attivano il campo di manifestazione.",
+          meta: { fonte: "Appunti IRIS", tema: "prassi" },
+        },
+      ]);
+      bot.sendMessage(chatId, `✅ RAG inizializzato: inseriti ${count} frammenti di prova.`);
+    } catch (e) {
+      console.error(e);
+      bot.sendMessage(chatId, "❌ Errore durante l'inizializzazione RAG.");
+    }
     return;
   }
 
-  // === Determina lingua ===
-  const langKey = autoLang ? detectLanguage(text) : languageCode;
+  // === RAG: domanda
+  if (text.startsWith("/chiedi")) {
+    const question = text.replace("/chiedi", "").trim();
+    if (!question) {
+      bot.sendMessage(
+        chatId,
+        "👉 Usa: /chiedi <domanda>\nEsempio: /chiedi cos'è l'orchestra interiore?"
+      );
+      return;
+    }
 
-  // === Risposta GPT ===
+    const langKey = autoLang ? detectLanguage(question) : languageCode;
+    bot.sendChatAction(chatId, "typing");
+
+    try {
+      const answer = await answerWithRAG(question, langKey);
+      await bot.sendMessage(chatId, answer);
+      const audioPath = await generateVoice(answer, langKey);
+      await bot.sendVoice(chatId, fs.createReadStream(audioPath));
+    } catch (err) {
+      console.error(err);
+      bot.sendMessage(chatId, "❌ Errore nella risposta RAG.");
+    }
+    return;
+  }
+
+  // === Flusso standard (senza RAG)
+  const langKey = autoLang ? detectLanguage(text) : languageCode;
   bot.sendChatAction(chatId, "typing");
   const responseText = await askOpenAI(text, langKey);
   await bot.sendMessage(chatId, responseText);
 
-  // === Genera voce ===
   try {
     const audioPath = await generateVoice(responseText, langKey);
     await bot.sendVoice(chatId, fs.createReadStream(audioPath));
@@ -170,11 +227,11 @@ bot.on("message", async (msg) => {
   }
 });
 
-// === Server Express (per Render) ===
+// === Server Express (Render / Uptime) ===
 const app = express();
-app.get("/", (_, res) => res.send("IRIS Multilingue 1.4 attiva 🌍"));
+app.get("/", (_, res) => res.send("IRIS 2.0 – Multilingue + RAG (Qdrant)"));
 app.get("/health", (_, res) => res.json({ ok: true }));
 app.get("/uptime", (_, res) => res.json({ uptime_s: Math.round(process.uptime()) }));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`[IRIS] Multilingue attiva sulla porta ${PORT}`));
+app.listen(PORT, () => console.log(`[IRIS] Server attivo sulla porta ${PORT}`));
