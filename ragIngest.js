@@ -1,5 +1,6 @@
 import fs from "fs";
-import pdfParse from "pdf-parse";
+import pkg from "pdf-parse";
+const pdfParse = pkg;
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
