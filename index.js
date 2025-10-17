@@ -7,7 +7,7 @@ import OpenAI from "openai";
 
 const app = express();
 
-// === Variabili ambiente ===
+// === VARIABILI D'AMBIENTE ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -17,91 +17,75 @@ if (!TELEGRAM_TOKEN || !OPENAI_API_KEY || !GOOGLE_APPLICATION_CREDENTIALS) {
   process.exit(1);
 }
 
-// === Inizializzazioni ===
+// === INIZIALIZZAZIONI ===
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const client = new textToSpeech.TextToSpeechClient();
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// === Impostazioni voce Google TTS ===
+// === IMPOSTAZIONI DI DEFAULT ===
 let lingua = "it-IT";
-let voce = "it-IT-Standard-B"; // voce femminile naturale
+let voce = "it-IT-Standard-B"; // voce femminile calda e naturale
 let velocita = 1.0;
 
-// === Comandi Telegram ===
+// === COMANDI TELEGRAM ===
 bot.onText(/^\/voce (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const scelta = match[1].trim().toUpperCase();
-  const vociDisponibili = {
+  const voci = {
     A: "it-IT-Standard-A",
     B: "it-IT-Standard-B",
     C: "it-IT-Standard-C",
     D: "it-IT-Standard-D",
   };
 
-  if (vociDisponibili[scelta]) {
-    voce = vociDisponibili[scelta];
-    bot.sendMessage(chatId, `✅ Voce cambiata in ${voce}`);
+  if (voci[scelta]) {
+    voce = voci[scelta];
+    bot.sendMessage(chatId, `✅ Voce impostata su ${voce}`);
   } else {
-    bot.sendMessage(chatId, `❌ Voce non valida. Scegli tra A, B, C, D.`);
+    bot.sendMessage(chatId, "❌ Scelta non valida. Usa /voce A|B|C|D");
   }
 });
 
 bot.onText(/^\/lingua (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
-  const lang = match[1].trim().toLowerCase();
-  const supportate = ["it-IT", "en-US", "es-ES", "ru-RU"];
+  const nuovaLingua = match[1].trim();
+  const lingueSupportate = ["it-IT", "en-US", "es-ES", "ru-RU"];
 
-  if (supportate.includes(lang)) {
-    lingua = lang;
-    bot.sendMessage(chatId, `🌐 Lingua impostata su ${lang}`);
+  if (lingueSupportate.includes(nuovaLingua)) {
+    lingua = nuovaLingua;
+    bot.sendMessage(chatId, `🌐 Lingua impostata su ${lingua}`);
   } else {
-    bot.sendMessage(chatId, `❌ Lingua non valida. Usa: it-IT, en-US, es-ES, ru-RU`);
+    bot.sendMessage(chatId, "❌ Lingua non valida. Usa it-IT, en-US, es-ES o ru-RU.");
   }
 });
 
 bot.onText(/^\/stato/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    `🧭 Stato corrente:\nLingua: ${lingua}\nVoce: ${voce}\nVelocità: ${velocita}`
+    `🧭 Stato attuale:\nLingua: ${lingua}\nVoce: ${voce}\nVelocità: ${velocita}`
   );
 });
 
-bot.onText(/^\/aiuto/, (msg) => {
-  bot.sendMessage(
-    msg.chat.id,
-    `Comandi disponibili:\n/voce A|B|C|D\n/lingua it-IT|en-US|es-ES|ru-RU\n/stato\n`
-  );
-});
-
-// === Gestione messaggi testuali e vocali ===
+// === GESTIONE DEI MESSAGGI ===
 bot.on("message", async (msg) => {
   try {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Risponde solo se menzionata o attivata da comando vocale
-    const isMentioned =
-      msg.entities?.some((e) => e.type === "mention" && msg.text?.includes("@IRIS_I_K_BOT")) ||
-      (text && text.toLowerCase().startsWith("iris ascolta"));
-
-    if (!isMentioned) return;
-
-    // Estrai testo dopo la menzione o trigger
-    const cleanText = text.replace(/@IRIS_I_K_BOT/gi, "").replace(/iris ascolta/gi, "").trim();
-    if (!cleanText) return;
+    if (!text) return;
 
     bot.sendChatAction(chatId, "typing");
 
-    // === OpenAI risposta ===
+    // === Chiamata a OpenAI ===
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: cleanText }],
+      messages: [{ role: "user", content: text }],
     });
 
     const reply = response.choices[0].message.content;
-    console.log(`💬 Richiesta: ${cleanText}\n🔊 Risposta: ${reply}`);
+    console.log(`🗣️ Richiesta: ${text}\nRisposta: ${reply}`);
 
-    // === Google Cloud TTS ===
+    // === Sintesi vocale (Google Cloud TTS) ===
     const request = {
       input: { text: reply },
       voice: { languageCode: lingua, name: voce },
@@ -109,20 +93,20 @@ bot.on("message", async (msg) => {
     };
 
     const [ttsResponse] = await client.synthesizeSpeech(request);
-
     const writeFile = util.promisify(fs.writeFile);
-    const audioFile = `output_${Date.now()}.ogg`;
-    await writeFile(audioFile, ttsResponse.audioContent, "binary");
+    const audioFile = `tts_${Date.now()}.ogg`;
 
+    await writeFile(audioFile, ttsResponse.audioContent, "binary");
     await bot.sendVoice(chatId, fs.createReadStream(audioFile));
+
     fs.unlinkSync(audioFile);
   } catch (err) {
-    console.error("❌ Errore nel processo:", err);
+    console.error("❌ Errore:", err);
     bot.sendMessage(msg.chat.id, "Errore durante l'elaborazione della risposta.");
   }
 });
 
-// === Server Express per Render ===
+// === SERVER EXPRESS ===
 const PORT = process.env.PORT || 10000;
-app.get("/", (req, res) => res.send("IRIS è attiva e connessa 🔮"));
+app.get("/", (req, res) => res.send("IRIS è attiva e funzionante 🔮"));
 app.listen(PORT, () => console.log(`🚀 Server avviato sulla porta ${PORT}`));
