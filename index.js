@@ -1,191 +1,181 @@
-import TelegramBot from "node-telegram-bot-api";
-import express from "express";
-import fetch from "node-fetch";
-import textToSpeech from "@google-cloud/text-to-speech";
-import fs from "fs";
-import util from "util";
-import OpenAI from "openai";
+// === IRIS — Telegram Voice Assistant ===
+// Autore: Ivano + GPT-5
+// Ultimo aggiornamento: ottobre 2025
 
+import express from "express";
+import TelegramBot from "node-telegram-bot-api";
+import googleTTS from "google-tts-api";
+import OpenAI from "openai";
+import fetch from "node-fetch";
+import fs from "fs";
+import https from "https";
+
+// === CONFIG ===
 const app = express();
 app.use(express.json());
 
-// === CLIENT OPENAI & GOOGLE ===
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const ttsClient = new textToSpeech.TextToSpeechClient();
+const TOKEN = process.env.TELEGRAM_TOKEN;
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-// === CONFIG DINAMICHE ===
-let currentVoice = "it-IT-Wavenet-B";   // Voce femminile calda
-let currentModel = "gpt-4o-mini";       // Miglior rapporto qualità/prezzo
-let currentLanguage = "it-IT";          // Default: italiano
-const BOT_USERNAME = "iris";            // Nome del tuo bot senza '@'
+// === AVVIO BOT ===
+const bot = new TelegramBot(TOKEN, { polling: true });
+console.log("🤖 IRIS avviata e in ascolto...");
 
-// === AVVIO ===
-(async () => {
-  if (!process.env.TELEGRAM_TOKEN) {
-    console.error("❌ TELEGRAM_TOKEN mancante!");
-    process.exit(1);
+// === STATO MEMORIA CHAT ===
+const lastMessages = {}; // per gestire trigger vocali
+
+// === COMANDI BASE ===
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(
+    msg.chat.id,
+    "🌸 Ciao, sono IRIS.\nParlami o scrivimi, e ti risponderò con la mia voce.\nPuoi anche dirmi: *Iris ascolta* e poi mandarmi un vocale.",
+    { parse_mode: "Markdown" }
+  );
+});
+
+bot.onText(/\/help/, (msg) => {
+  bot.sendMessage(
+    msg.chat.id,
+    "💡 Comandi disponibili:\n\n" +
+      "• /start — Presentazione di IRIS\n" +
+      "• /voce — Cambia voce (A, B, C, D)\n" +
+      "• /modello — Mostra modello GPT in uso\n" +
+      "• /stato — Mostra stato connessione\n\n" +
+      "🎙️ Oppure scrivi *Iris ascolta* e poi inviami un vocale."
+  );
+});
+
+bot.onText(/\/stato/, (msg) => {
+  bot.sendMessage(msg.chat.id, "✅ IRIS è online e pronta.");
+});
+
+bot.onText(/\/modello/, (msg) => {
+  bot.sendMessage(msg.chat.id, "🧠 Sto usando il modello `gpt-4o-mini` di OpenAI.");
+});
+
+// === CAMBIO VOCE ===
+let voce = "it-IT-Standard-B"; // default: femminile calda
+
+bot.onText(/\/voce (.+)/, (msg, match) => {
+  const scelta = match[1].trim().toUpperCase();
+  const voci = {
+    A: "it-IT-Standard-A", // femminile più chiara
+    B: "it-IT-Standard-B", // femminile calda
+    C: "it-IT-Standard-C", // maschile neutro
+    D: "it-IT-Standard-D", // maschile profondo
+  };
+
+  if (voci[scelta]) {
+    voce = voci[scelta];
+    bot.sendMessage(msg.chat.id, `🔊 Voce cambiata in ${scelta}.`);
+  } else {
+    bot.sendMessage(msg.chat.id, "❌ Voce non valida. Usa: /voce A | B | C | D");
+  }
+});
+
+// === MESSAGGI TESTUALI ===
+bot.on("message", async (msg) => {
+  if (msg.text && !msg.text.startsWith("/")) {
+    lastMessages[msg.chat.id] = msg.text.toLowerCase();
+
+    // Se è in gruppo, risponde solo se menzionata
+    if (msg.chat.type !== "private" && !msg.text.toLowerCase().includes("@iris")) {
+      return;
+    }
+
+    const testo = msg.text.replace(/@iris/gi, "").trim();
+    if (!testo) return;
+
+    console.log(`🧠 Testo ricevuto: ${testo}`);
+
+    try {
+      const risposta = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Rispondi in modo naturale e caldo, tono femminile." },
+          { role: "user", content: testo },
+        ],
+      });
+
+      const output = risposta.choices[0].message.content;
+      console.log(`💬 Risposta: ${output}`);
+
+      const url = googleTTS.getAudioUrl(output, {
+        lang: "it",
+        slow: false,
+        host: "https://translate.google.com",
+        tld: "it",
+        voice: voce,
+      });
+
+      await bot.sendVoice(msg.chat.id, url);
+    } catch (err) {
+      console.error("Errore:", err);
+      bot.sendMessage(msg.chat.id, "⚠️ Errore nell'elaborazione del messaggio.");
+    }
+  }
+});
+
+// === TRIGGER VOCALE: "Iris ascolta" ===
+bot.on("voice", async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from.username || "utente";
+  const lastText = lastMessages[chatId] || "";
+
+  if (!lastText.includes("iris ascolta")) {
+    console.log(`🎧 Ignoro vocale da ${username} — nessun trigger trovato`);
+    return;
   }
 
-  // Elimina vecchi webhook
-  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/deleteWebhook`);
-  const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-  console.log("🤖 Bot Telegram IRIS avviato con polling.");
+  console.log(`🎙️ Ricevuto vocale da ${username} — elaborazione in corso...`);
 
-  // === /voce ===
-  bot.onText(/^\/voce (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const voce = match[1].trim().toUpperCase();
-    const valid = ["A", "B", "C", "D"];
-    if (!valid.includes(voce)) return bot.sendMessage(chatId, "⚙️ Usa /voce A | B | C | D");
-    currentVoice = `${currentLanguage}-Wavenet-${voce}`;
-    bot.sendMessage(chatId, `✅ Voce impostata su *${currentVoice}*`, { parse_mode: "Markdown" });
-  });
+  try {
+    // Scarica file audio Telegram
+    const fileId = msg.voice.file_id;
+    const fileUrl = await bot.getFileLink(fileId);
 
-  // === /modello ===
-  bot.onText(/^\/modello (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const model = match[1].trim();
-    const validModels = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"];
-    if (!validModels.includes(model)) return bot.sendMessage(chatId, "⚙️ Usa: gpt-4o-mini | gpt-4o | gpt-4-turbo");
-    currentModel = model;
-    bot.sendMessage(chatId, `🧠 Modello impostato su *${currentModel}*`, { parse_mode: "Markdown" });
-  });
+    // Trascrizione vocale → testo
+    const audioBuffer = await fetch(fileUrl).then((r) => r.arrayBuffer());
+    const audioResponse = await openai.audio.transcriptions.create({
+      file: new Blob([audioBuffer]),
+      model: "gpt-4o-mini-transcribe",
+    });
 
-  // === /lingua ===
-  bot.onText(/^\/lingua (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const lang = match[1].trim().toLowerCase();
-    const map = { it: "it-IT", en: "en-US", es: "es-ES", ru: "ru-RU" };
-    if (!map[lang]) return bot.sendMessage(chatId, "🌍 Usa /lingua it | en | es | ru");
-    currentLanguage = map[lang];
-    currentVoice = `${currentLanguage}-Wavenet-B`;
-    bot.sendMessage(chatId, `🌐 Lingua impostata su *${currentLanguage}*`, { parse_mode: "Markdown" });
-  });
+    const testo = audioResponse.text;
+    console.log(`📝 Trascrizione: ${testo}`);
 
-  // === /stato ===
-  bot.onText(/^\/stato/, async (msg) => {
-    bot.sendMessage(
-      msg.chat.id,
-      `📊 *STATO*\n\n🗣️ Voce: ${currentVoice}\n🌐 Lingua: ${currentLanguage}\n🧠 Modello: ${currentModel}`,
-      { parse_mode: "Markdown" }
-    );
-  });
+    // Elaborazione con GPT
+    const risposta = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Rispondi con tono calmo, voce femminile, empatica." },
+        { role: "user", content: testo },
+      ],
+    });
 
-  // === /help ===
-  bot.onText(/^\/help/, async (msg) => {
-    bot.sendMessage(msg.chat.id, `
-🧭 *Comandi disponibili*:
-/voce A|B|C|D – cambia voce Google
-/modello gpt-4o-mini|gpt-4o|gpt-4-turbo – cambia modello OpenAI
-/lingua it|en|es|ru – cambia lingua
-/stato – mostra impostazioni
-/help – mostra questo messaggio
-    `, { parse_mode: "Markdown" });
-  });
+    const output = risposta.choices[0].message.content;
+    console.log(`💬 Risposta: ${output}`);
 
-  // === GESTIONE TESTO ===
-  bot.on("message", async (msg) => {
-    const chatId = msg.chat.id;
-    const text = msg.text;
+    // Genera voce
+    const ttsUrl = googleTTS.getAudioUrl(output, {
+      lang: "it",
+      slow: false,
+      tld: "it",
+      voice: voce,
+    });
 
-    // ignora comandi e messaggi senza testo
-    if (!text || text.startsWith("/")) return;
+    await bot.sendVoice(chatId, ttsUrl);
+    console.log(`✅ Vocale inviato con successo a ${username}`);
+  } catch (error) {
+    console.error("❌ Errore durante l'elaborazione del vocale:", error);
+    await bot.sendMessage(chatId, "Errore durante l'elaborazione della risposta.");
+  }
+});
 
-    // in gruppi → risponde solo se menzionata
-    if (msg.chat.type.endsWith("group") && !text.toLowerCase().includes(`@${BOT_USERNAME.toLowerCase()}`)) return;
-
-    try {
-      console.log(`💬 Messaggio: ${text}`);
-
-      const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: currentModel,
-          messages: [{ role: "user", content: text }],
-        }),
-      });
-      const data = await aiResponse.json();
-      const answer = data.choices?.[0]?.message?.content || "Non ho capito.";
-
-      const [ttsResponse] = await ttsClient.synthesizeSpeech({
-        input: { text: answer },
-        voice: { languageCode: currentLanguage, name: currentVoice },
-        audioConfig: { audioEncoding: "MP3" },
-      });
-
-      const writeFile = util.promisify(fs.writeFile);
-      await writeFile("output.mp3", ttsResponse.audioContent, "binary");
-      await bot.sendVoice(chatId, fs.createReadStream("output.mp3"), {}, { filename: "iris.mp3" });
-      console.log(`🎧 Risposta vocale inviata (${currentVoice}, ${currentModel}, ${currentLanguage})`);
-    } catch (err) {
-      console.error("❌ Errore:", err.message);
-      await bot.sendMessage(chatId, "⚠️ Errore durante la generazione della risposta.");
-    }
-  });
-
-  // === GESTIONE VOCALI ===
-  bot.on("voice", async (msg) => {
-    const chatId = msg.chat.id;
-    const caption = msg.caption || "";
-
-    // in gruppi → risponde solo se menzionata nel caption
-    if (msg.chat.type.endsWith("group") && !caption.toLowerCase().includes(`@${BOT_USERNAME.toLowerCase()}`)) return;
-
-    try {
-      const fileUrl = await bot.getFileLink(msg.voice.file_id);
-      const oggRes = await fetch(fileUrl);
-      const oggBuf = Buffer.from(await oggRes.arrayBuffer());
-      const tmpPath = "/tmp/input.ogg";
-      fs.writeFileSync(tmpPath, oggBuf);
-
-      const tr = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tmpPath),
-        model: "whisper-1",
-        language: currentLanguage.split("-")[0],
-      });
-
-      const userText = (tr.text || "").trim();
-      if (!userText) {
-        await bot.sendMessage(chatId, "⚠️ Non ho capito il vocale, puoi ripetere?");
-        return;
-      }
-
-      const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: currentModel,
-          messages: [{ role: "user", content: userText }],
-        }),
-      });
-      const data = await aiResponse.json();
-      const answer = data.choices?.[0]?.message?.content || "Non ho capito.";
-
-      const [ttsResponse] = await ttsClient.synthesizeSpeech({
-        input: { text: answer },
-        voice: { languageCode: currentLanguage, name: currentVoice },
-        audioConfig: { audioEncoding: "MP3" },
-      });
-
-      const writeFile = util.promisify(fs.writeFile);
-      await writeFile("output.mp3", ttsResponse.audioContent, "binary");
-      await bot.sendVoice(chatId, fs.createReadStream("output.mp3"), {}, { filename: "iris.mp3" });
-      console.log(`🎤 Vocale → testo → voce (${currentLanguage})`);
-    } catch (err) {
-      console.error("❌ Errore vocale:", err.message);
-      await bot.sendMessage(chatId, "⚠️ Errore durante l'elaborazione del vocale.");
-    }
-  });
-
-  // === ENDPOINT TEST ===
-  app.get("/", (req, res) => res.send("🤖 IRIS attiva e in ascolto ✅"));
-  const PORT = process.env.PORT || 10000;
-  app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server su porta ${PORT}`));
-})();
+// === SERVER EXPRESS (necessario per Render) ===
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🌐 Server attivo su porta ${PORT}`);
+});
