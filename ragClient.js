@@ -1,85 +1,56 @@
 // =============================
-// 📦 ragClient.js – Qdrant + Embeddings OpenAI
+// 🧠 ragSearch.js – Costruzione risposta con RAG
 // =============================
-import { QdrantClient } from "@qdrant/js-client-rest";
 import OpenAI from "openai";
+import { semanticSearch } from "./ragClient.js";
 
-const {
-  QDRANT_URL,
-  QDRANT_API_KEY,
-  QDRANT_COLLECTION = "iris_memory",
-  OPENAI_API_KEY
-} = process.env;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-if (!QDRANT_URL || !QDRANT_API_KEY) {
-  console.error("❌ QDRANT_URL / QDRANT_API_KEY mancanti");
-}
-if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY mancante");
-}
+const PROMPTS = {
+  it: {
+    system:
+      "Sei IRIS. Rispondi in italiano. Usa SOLO le informazioni nel CONTENUTO fornito. Se la risposta non è presente, dillo chiaramente.",
+    notFound: "Non trovo informazioni nei documenti su questa domanda.",
+  },
+  ru: {
+    system:
+      "Ты ИРИС. Отвечай на русском. Используй ТОЛЬКО информацию из ПРЕДОСТАВЛЕННОГО КОНТЕНТА. Если данных нет — скажи об этом.",
+    notFound: "В документах нет информации по этому вопросу.",
+  },
+  en: {
+    system:
+      "You are IRIS. Answer in English. Use ONLY the information from the provided CONTENT. If not available, say so.",
+    notFound: "I cannot find information about this in the documents.",
+  },
+  es: {
+    system:
+      "Eres IRIS. Responde en español. Usa SOLO la información del CONTENIDO proporcionado. Si no está, indícalo.",
+    notFound: "No encuentro información sobre esto en los documentos.",
+  },
+};
 
-const qdrant = new QdrantClient({
-  url: QDRANT_URL,
-  apiKey: QDRANT_API_KEY,
-});
+// langKey: "it"|"ru"|"en"|"es"
+export async function answerWithRAG(question, langKey = "it") {
+  const cfg = PROMPTS[langKey] || PROMPTS.it;
 
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  const results = await semanticSearch(question, { limit: 5 });
+  if (!results.length) return cfg.notFound;
 
-// Modello embedding → 1536 dimensioni
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const VECTOR_SIZE = 1536;
+  const contextBlocks = results
+    .map((r, i) => `### Fonte ${i + 1}\n${r.text}`)
+    .join("\n\n");
 
-export async function ensureCollection() {
-  try {
-    await qdrant.getCollection(QDRANT_COLLECTION);
-    console.log(`✅ Collection esistente: ${QDRANT_COLLECTION}`);
-  } catch {
-    console.log(`ℹ️ Creo collection: ${QDRANT_COLLECTION}`);
-    await qdrant.createCollection(QDRANT_COLLECTION, {
-      vectors: { size: VECTOR_SIZE, distance: "Cosine" },
-    });
-    console.log(`✅ Collection creata: ${QDRANT_COLLECTION}`);
-  }
-}
+  const content =
+    `CONTENUTO RILEVANTE:\n\n${contextBlocks}\n\n---\nDOMANDA: ${question}\n` +
+    `ISTRUZIONI: rispondi in modo conciso citando/parafrasando SOLO il CONTENUTO. Se non è presente, dillo.`;
 
-export async function embedText(text) {
-  const res = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: text,
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: cfg.system },
+      { role: "user", content },
+    ],
   });
-  return res.data[0].embedding;
-}
 
-// Inserisce o aggiorna documenti [{id?, text, meta?}]
-export async function upsertDocuments(docs = []) {
-  if (!docs.length) return 0;
-  const points = [];
-  for (const doc of docs) {
-    const vector = await embedText(doc.text);
-    points.push({
-      id: doc.id ?? undefined,
-      vector,
-      payload: {
-        text: doc.text,
-        meta: doc.meta || {},
-      },
-    });
-  }
-  await qdrant.upsert(QDRANT_COLLECTION, { points });
-  return points.length;
-}
-
-export async function semanticSearch(query, { limit = 5 } = {}) {
-  const vector = await embedText(query);
-  const out = await qdrant.search(QDRANT_COLLECTION, {
-    vector,
-    limit,
-    with_payload: true,
-    with_vectors: false,
-  });
-  return out.map((r) => ({
-    score: r.score,
-    text: r.payload?.text || "",
-    meta: r.payload?.meta || {},
-  }));
+  return completion.choices[0].message.content.trim();
 }
