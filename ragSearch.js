@@ -49,4 +49,38 @@ export async function answerWithRAG(question, lang = "it") {
     return cfg.notFound;
   }
 
-  console.log(`📚 Frammenti rile
+  console.log(`📚 Frammenti rilevanti trovati: ${results.length}`);
+
+  // 2️⃣ Combina i frammenti più rilevanti
+  const context = results
+    .map((r) => r.payload?.text || r.text || "")
+    .filter(Boolean)
+    .join("\n\n");
+
+  // 3️⃣ Costruisci il prompt
+  const prompt = [
+    {
+      role: "system",
+      content: cfg.system,
+    },
+    {
+      role: "user",
+      content: `CONTENUTO:\n${context}\n\nDOMANDA:\n${question}`,
+    },
+  ];
+
+  // 4️⃣ Chiamata a OpenAI per generare risposta
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: prompt,
+  });
+
+  // 5️⃣ Estrai risposta
+  const answer = completion.choices[0].message.content.trim();
+
+  console.log("🧠 RISPOSTA DI IRIS:\n");
+  console.log(answer);
+  console.log("------------------------------------------------------");
+
+  return answer;
+}
