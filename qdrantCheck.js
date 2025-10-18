@@ -6,8 +6,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const client = new QdrantClient({
-  url: process.env.QDRANT_URL, // es. https://xxxxx.eu-central.aws.cloud.qdrant.io
-  apiKey: process.env.QDRANT_API_KEY,
+  url: process.env.QDRANT_URL, // esempio: https://xxxxx.eu-central.aws.cloud.qdrant.io
+  apiKey: process.env.QDRANT_API_KEY
 });
 
 async function checkQdrant() {
