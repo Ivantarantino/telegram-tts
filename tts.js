@@ -1,52 +1,37 @@
-// =============================
-// 🎤 tts.js – Sintesi vocale IRIS
-// =============================
-
+// tts.js — IRIS 3.0i — Generazione vocale OGG per Telegram
+import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
-import textToSpeech from "@google-cloud/text-to-speech";
-import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
-// Inizializza il client di Google Cloud TTS
-const client = new textToSpeech.TextToSpeechClient();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Percorso per salvare temporaneamente l’audio
-const TMP_DIR = "./tmp";
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
-
-/**
- * Converte testo in audio (MP3)
- * @param {string} text - Testo da convertire
- * @param {string} [lang="it-IT"] - Lingua di sintesi
- * @returns {Promise<string>} Percorso del file MP3 generato
- */
-export async function generateTTS(text, lang = "it-IT") {
+// Genera file vocale .ogg e restituisce il percorso locale
+export async function generateVoice(text, voice = "alloy") {
   try {
-    console.log(`🎙️ Generazione voce per: "${text.slice(0, 60)}..."`);
+    const dir = path.resolve(__dirname, "temp");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    const outputFile = path.resolve(dir, `iris_voice_${Date.now()}.ogg`);
 
-    const request = {
-      input: { text },
-      voice: {
-        languageCode: lang,
-        ssmlGender: "FEMALE", // Voce femminile
-      },
-      audioConfig: { audioEncoding: "MP3", speakingRate: 1.05 },
-    };
+    const response = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice,
+      input: text,
+      format: "ogg"
+    });
 
-    const [response] = await client.synthesizeSpeech(request);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(outputFile, buffer);
 
-    const filename = `iris_${Date.now()}.mp3`;
-    const filepath = path.join(TMP_DIR, filename);
-
-    fs.writeFileSync(filepath, response.audioContent, "binary");
-    console.log(`✅ File audio generato: ${filepath}`);
-
-    return filepath;
-  } catch (err) {
-    console.error("❌ Errore durante la sintesi vocale:", err);
-    throw err;
+    console.log(`🎧 File vocale generato: ${outputFile}`);
+    return outputFile;
+  } catch (error) {
+    console.error("❌ Errore in generateVoice:", error);
+    return null;
   }
 }
-
