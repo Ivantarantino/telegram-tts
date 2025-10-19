@@ -6,7 +6,11 @@ import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
 
 // === Env ===
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+const TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN ||
+  process.env.TELEGRAM_TOKEN || // <— compatibilità con la tua variabile
+  process.env.BOT_TOKEN ||
+  "";
 const PORT = parseInt(process.env.PORT || "10000", 10);
 const BASE_URL =
   process.env.RENDER_EXTERNAL_URL ||
@@ -14,7 +18,7 @@ const BASE_URL =
   "https://telegram-tts.onrender.com"; // fallback utile su Render
 
 if (!TOKEN) {
-  console.error("❌ TELEGRAM_BOT_TOKEN mancante nelle variabili d'ambiente.");
+  console.error("❌ TELEGRAM_TOKEN o TELEGRAM_BOT_TOKEN mancante nelle variabili d'ambiente.");
   process.exit(1);
 }
 
@@ -63,9 +67,7 @@ async function ensureWebhook() {
 // Route del webhook: rispondiamo SUBITO 200, poi processiamo l'update
 app.post(webhookPath, (req, res) => {
   try {
-    // 1) Risposta immediata a Telegram
-    res.sendStatus(200);
-    // 2) Processiamo l'update fuori dal ciclo di risposta
+    res.sendStatus(200); // risposta immediata a Telegram
     setImmediate(() => {
       try {
         const msg = req.body?.message;
@@ -83,24 +85,20 @@ app.post(webhookPath, (req, res) => {
     });
   } catch (err) {
     console.error("Errore nel webhook:", err);
-    // (abbiamo già mandato 200; eventuali errori sono solo loggati)
   }
 });
 
 // === HANDLERS DI BASE ===
-// Nota: in questo STEP non tocchiamo RAG/TTS. Solo ricezione stabile e log chiari.
+// (In questo STEP non tocchiamo RAG/TTS. Solo ricezione stabile e log chiari.)
 bot.on("message", async (msg) => {
   try {
     const chatId = msg.chat.id;
     const text = msg.text || "";
-    // Log essenziale
     console.log(`🧭 on.message → chat:${chatId} text:"${text}"`);
 
-    // Risposta minima per confermare la catena completa webhook→bot
-    // (Nel prossimo step reinseriremo RAG/TTS/comandi)
     await bot.sendMessage(
       chatId,
-      "👍 Ricevuto dal webhook. (Step 1: stabilizzazione canale)."
+      "👍 Ricevuto dal webhook. (Step 1B: stabilizzazione canale)."
     );
   } catch (err) {
     console.error("Errore handler on.message:", err);
