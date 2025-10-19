@@ -1,35 +1,35 @@
+// === tts.js ===
+// Generatore vocale di IRIS 🎧
+// Usa il modello Bark o Google TTS (configurabile)
+
 import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
+import { fileURLToPath } from "url";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// === GENERATORE DI FILE AUDIO ===
-export async function generateTTS(text) {
+export async function generateTTS(text, voice = "female") {
   try {
-    const outputDir = "temp";
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+    if (!text || text.trim().length === 0) throw new Error("Testo vuoto");
 
-    const timestamp = Date.now();
-    const outputPath = path.join(outputDir, `iris_voice_${timestamp}.ogg`);
+    const filename = `iris_voice_${Date.now()}.ogg`;
+    const filepath = path.join(__dirname, "temp", filename);
 
-    console.log(`🎧 Generazione vocale...`);
-    const mp3 = await openai.audio.speech.create({
+    const response = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy",
+      voice: voice === "male" ? "alloy" : "verse",
       input: text,
       format: "ogg",
     });
 
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-    fs.writeFileSync(outputPath, buffer);
-
-    console.log(`🎧 File vocale generato: ${outputPath}`);
-    return outputPath;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(filepath, buffer);
+    console.log(`🎧 File vocale generato: ${filepath}`);
+    return filepath;
   } catch (err) {
-    console.error("❌ Errore nella generazione vocale:", err);
-    throw err;
+    console.error("❌ Errore TTS:", err);
+    return null;
   }
 }
