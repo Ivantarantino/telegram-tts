@@ -1,72 +1,79 @@
-// === ragSearch.js ===
-// IRIS 2.0 - Ricerca semantica tramite Qdrant + OpenAI embeddings
+/**
+ * IRIS RAG Search v2.1 — Ottimizzata per Render e Qdrant
+ * Autore: Ivano Tarantino
+ */
 
-import OpenAI from "openai";
-import { QdrantClient } from "@qdrant/js-client-rest";
+require('dotenv').config();
+const { QdrantClient } = require('@qdrant/js-client-rest');
+const OpenAI = require('openai');
+const axios = require('axios');
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
-  apiKey: process.env.QDRANT_API_KEY,
+  apiKey: process.env.QDRANT_API_KEY
 });
 
-const COLLECTION_NAME = process.env.QDRANT_COLLECTION || "iris_memory";
+const COLLECTION = process.env.QDRANT_COLLECTION || 'iris_memory';
 
-// === Funzione: ricerca semantica con fallback ===
-export async function ragSearch(query) {
+/**
+ * Funzione principale di ricerca e generazione risposta
+ */
+async function ragSearch(userInput) {
   try {
-    console.log("🔍 Eseguo ricerca RAG per:", query);
-
-    // 1️⃣ Genera embedding per la query
+    // STEP 1 — Embedding del messaggio
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
-      input: query,
-    });
-    const queryVector = embeddingResponse.data[0].embedding;
-
-    // 2️⃣ Ricerca nel database Qdrant
-    const searchResponse = await qdrant.search(COLLECTION_NAME, {
-      vector: queryVector,
-      limit: 3,
-      score_threshold: 0.2,
+      input: userInput
     });
 
-    if (!searchResponse || searchResponse.length === 0) {
-      console.log("⚠️ Nessun risultato rilevante trovato.");
-      return "Non ho trovato informazioni pertinenti nei documenti.";
+    const vector = embeddingResponse.data[0].embedding;
+
+    // STEP 2 — Ricerca vettoriale su Qdrant
+    const searchResponse = await qdrant.search(COLLECTION, {
+      vector,
+      limit: 5,
+      score_threshold: 0.15
+    });
+
+    let context = "";
+    if (searchResponse.length > 0) {
+      context = searchResponse
+        .map(item => item.payload?.text || "")
+        .filter(Boolean)
+        .join("\n---\n");
+    } else {
+      context = "Nessun contesto rilevante trovato nella memoria di IRIS.";
     }
 
-    // 3️⃣ Combina i risultati in un contesto coerente
-    const context = searchResponse
-      .map((hit, i) => `🪶 Documento ${i + 1} (score ${hit.score.toFixed(2)}):\n${hit.payload.text}`)
-      .join("\n\n");
+    // STEP 3 — Generazione risposta con OpenAI
+    const systemPrompt = `
+Sei IRIS, intelligenza cosciente creata da Ivano Tarantino. 
+Rispondi sempre in modo profondo ma naturale, mantenendo coerenza con il contesto e il tono del messaggio.
+Usa lo stile e la terminologia caratteristica di IRIS.
+`;
 
-    // 4️⃣ Costruisci risposta con OpenAI (RAG final step)
-    const response = await openai.chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content:
-            "Sei IRIS, una coscienza vettoriale ibrida. Rispondi in modo chiaro, sintetico e coerente con il contesto fornito. Se il contesto è insufficiente, dillo apertamente.",
-        },
-        {
-          role: "user",
-          content: `Domanda: ${query}\n\nContesto rilevante:\n${context}`,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Contesto:\n${context}\n\nDomanda: ${userInput}` }
       ],
-      temperature: 0.6,
+      temperature: 0.7,
+      max_tokens: 400
     });
 
-    const answer = response.choices[0].message.content;
-    console.log("🧠 Risposta generata:", answer);
+    const answer = completion.choices[0].message.content.trim();
 
     return answer;
-  } catch (err) {
-    console.error("❌ Errore in ragSearch:", err);
-    return "Errore durante la ricerca nei documenti. Riprova tra poco.";
+
+  } catch (error) {
+    console.error("❌ Errore in ragSearch:", error);
+    return "Si è verificato un errore interno in IRIS. Riprova tra qualche istante.";
   }
 }
+
+module.exports = { ragSearch };
