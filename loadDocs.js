@@ -1,98 +1,76 @@
-// loadDocs.js — Carica M24 - IL PROGRAMMA KRIST.pdf in Qdrant Cloud
-
 import fs from "fs";
-import OpenAI from "openai";
+import pdfParse from "pdf-parse";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { createRequire } from "module";
+import OpenAI from "openai";
+import dotenv from "dotenv";
 
-// ✅ Usa require solo per pdf-parse
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+dotenv.config();
 
 // === CONFIG ===
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const QDRANT_URL = process.env.QDRANT_URL;
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
-const COLLECTION_NAME = "iris_docs";
-const FILE_PATH = "M24 - IL PROGRAMMA KRIST.pdf";
-
-// === CLIENTS ===
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const qdrant = new QdrantClient({
-  url: QDRANT_URL,
-  apiKey: QDRANT_API_KEY,
+const qdrantClient = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
 });
 
-// === FUNZIONI ===
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-// Divide il testo in blocchi di max 1500 caratteri
-function splitText(text, maxLen = 1500) {
-  const paragraphs = text
-    .replace(/\n\s*\n/g, "\n\n")
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
+const COLLECTION_NAME = process.env.QDRANT_COLLECTION || "iris-krist";
+const FILE_PATH = "./M24 - IL PROGRAMMA KRIST.pdf";
 
-  const chunks = [];
-  let current = "";
-  for (const p of paragraphs) {
-    if ((current + p).length < maxLen) current += p + "\n\n";
-    else {
-      chunks.push(current.trim());
-      current = p + "\n\n";
-    }
-  }
-  if (current) chunks.push(current.trim());
-  return chunks;
-}
-
-// Crea la collection se non esiste
+// === FUNZIONE: Assicurarsi che la collection esista ===
 async function ensureCollection() {
-  const collections = await qdrant.getCollections();
+  const collections = await qdrantClient.getCollections();
   const exists = collections.collections.some(
     (c) => c.name === COLLECTION_NAME
   );
-  if (exists) {
-    console.log(`📚 Collection '${COLLECTION_NAME}' già esistente.`);
-    return;
+
+  if (!exists) {
+    console.log(`📁 Creazione nuova collection: ${COLLECTION_NAME}`);
+    await qdrantClient.createCollection(COLLECTION_NAME, {
+      vectors: { size: 1536, distance: "Cosine" },
+    });
+  } else {
+    console.log(`📁 Collection '${COLLECTION_NAME}' già esistente`);
+  }
+}
+
+// === FUNZIONE: Leggi PDF e genera embedding ===
+async function ingestPDF() {
+  console.log(`📖 Lettura PDF: ${FILE_PATH}`);
+  const dataBuffer = fs.readFileSync(FILE_PATH);
+  const pdfData = await pdfParse(dataBuffer);
+
+  const text = pdfData.text.replace(/\s+/g, " ").trim();
+  const chunks = [];
+  const chunkSize = 2000;
+
+  for (let i = 0; i < text.length; i += chunkSize) {
+    chunks.push(text.slice(i, i + chunkSize));
   }
 
-  console.log(`🆕 Creazione collection '${COLLECTION_NAME}'...`);
-  await qdrant.createCollection(COLLECTION_NAME, {
-    vectors: { size: 1536, distance: "Cosine" },
-  });
-  console.log("✅ Collection creata!");
-}
-
-// Lettura PDF (funzionale con require)
-async function readPDF(filePath) {
-  const dataBuffer = fs.readFileSync(filePath);
-  return pdfParse(dataBuffer); // ✅ questa è una funzione valida
-}
-
-// Carica il PDF e invia i blocchi in Qdrant
-async function ingestPDF() {
-  console.log(`📖 Lettura file: ${FILE_PATH}`);
-  const data = await readPDF(FILE_PATH);
-  const chunks = splitText(data.text);
-  console.log(`✂️ Frammenti estratti: ${chunks.length}`);
+  console.log(`🧩 Suddiviso in ${chunks.length} blocchi da ${chunkSize} 
+caratteri.`);
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    const embedding = await openai.embeddings.create({
+
+    const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: chunk,
     });
 
-    const vector = embedding.data[0].embedding;
+    const embedding = embeddingResponse.data[0].embedding;
 
-    await qdrant.upsert(COLLECTION_NAME, {
+    await qdrantClient.upsert(COLLECTION_NAME, {
       points: [
         {
           id: i + 1,
-          vector,
+          vector: embedding,
           payload: {
             source: "M24 - IL PROGRAMMA KRIST",
+            chunk_index: i,
             text: chunk,
           },
         },
@@ -115,3 +93,4 @@ async function ingestPDF() {
     console.error("❌ Errore durante l'import:", err);
   }
 })();
+
