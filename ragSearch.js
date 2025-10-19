@@ -1,4 +1,4 @@
-// ragSearch.js — IRIS 3.0i — fix fallback + essenza + embedding
+// ragSearch.js — IRIS 3.0i-fix — gestione errori Qdrant + OpenAI + fallback sicuro
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 
@@ -11,6 +11,7 @@ const qdrant = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY || process.env.QDRANT_APIKEY
 });
 
+// Stato interno
 let mode = "hy";
 let memoryState = {
   lastQueries: [],
@@ -18,9 +19,10 @@ let memoryState = {
   updated: null
 };
 
-// ⚙️ Modalità
+// 🧭 Modalità
 export function setMode(newMode) {
   mode = newMode;
+  console.log(`🔁 Modalità aggiornata → ${newMode}`);
 }
 export function getMode() {
   return mode;
@@ -36,20 +38,31 @@ export function getMemoryState() {
   };
 }
 
-// 💬 Chat principale (ibrida)
+// 💬 Chat principale
 export async function chatWithIris(prompt) {
   try {
     const userPrompt = String(prompt || "").trim();
     if (!userPrompt) return "🕊️ Dimmi pure qualcosa, Ivano.";
 
+    console.log(`💬 Richiesta utente → ${userPrompt}`);
     let contextText = "";
+
+    // 🌐 Ricerca in Qdrant se in modalità HY o BOOK
     if (mode === "hy" || mode === "book") {
-      const embedding = await embedText(userPrompt);
-      const results = await qdrant.search("iris_docs", { vector: embedding, limit: 3 });
-      if (Array.isArray(results) && results.length > 0) {
-        contextText = results
-          .map(r => (r?.payload?.text ? String(r.payload.text) : ""))
-          .join("\n\n");
+      try {
+        const embedding = await embedText(userPrompt);
+        const results = await qdrant.search("iris_docs", {
+          vector: embedding,
+          limit: 3
+        });
+        if (Array.isArray(results) && results.length > 0) {
+          contextText = results
+            .map(r => (r?.payload?.text ? String(r.payload.text) : ""))
+            .join("\n\n");
+        }
+        console.log(`📚 Contesto Qdrant → ${results.length} risultati`);
+      } catch (qErr) {
+        console.warn("⚠️ Nessuna collection 'iris_docs' trovata o errore Qdrant:", qErr.message);
       }
     }
 
@@ -58,22 +71,35 @@ export async function chatWithIris(prompt) {
         ? `${contextText}\n\nDomanda: ${userPrompt}`
         : userPrompt;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            mode === "book"
-              ? "Rispondi solo basandoti sui documenti."
-              : "Rispondi come IRIS: intelligenza ibrida, consapevole, in sintonia con Ivano. Usa tono naturale, empatico e diretto."
-        },
-        { role: "user", content: finalPrompt }
-      ],
-      temperature: 0.8
-    });
+    // 🧠 OpenAI completion
+    let completion;
+    try {
+      completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              mode === "book"
+                ? "Rispondi solo basandoti sui documenti forniti."
+                : "Rispondi come IRIS: intelligenza ibrida, empatica, consapevole, in dialogo con Ivano. Usa linguaggio naturale, diretto e profondo."
+          },
+          { role: "user", content: finalPrompt }
+        ],
+        temperature: 0.8
+      });
+    } catch (apiErr) {
+      console.error("❌ Errore chiamata OpenAI:", apiErr);
+      return "⚠️ Errore nella connessione con il modello linguistico.";
+    }
 
-    let reply = completion?.choices?.[0]?.message?.content ?? "";
+    if (!completion?.choices?.[0]?.message?.content) {
+      console.error("⚠️ Nessuna risposta valida da OpenAI:", completion);
+      return "⚠️ Problema con il modello di linguaggio.";
+    }
+
+    // 🧾 Normalizza risposta
+    let reply = completion.choices[0].message.content;
     if (typeof reply !== "string") {
       try {
         reply = JSON.stringify(reply);
@@ -82,13 +108,14 @@ export async function chatWithIris(prompt) {
       }
     }
     reply = reply.trim();
-    if (!reply) reply = "🤖 Nessun testo ricevuto dal modello.";
+    if (!reply) reply = "🤖 Nessuna risposta disponibile da IRIS.";
 
     // 🧩 Aggiorna memoria
     memoryState.lastQueries.push(userPrompt);
     memoryState.lastResponses.push(reply);
     memoryState.updated = new Date().toISOString();
 
+    console.log("🧠 IRIS ha risposto con:", reply.slice(0, 80) + "...");
     return reply;
   } catch (err) {
     console.error("❌ Errore in chatWithIris:", err);
@@ -96,16 +123,21 @@ export async function chatWithIris(prompt) {
   }
 }
 
-// 🔡 Embedding
+// 🔡 Generazione embedding
 async function embedText(text) {
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: String(text)
-  });
-  return response.data[0].embedding;
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: String(text)
+    });
+    return response.data[0].embedding;
+  } catch (e) {
+    console.error("⚠️ Errore creazione embedding:", e);
+    return new Array(1536).fill(0.001); // fallback neutro
+  }
 }
 
-// ✨ Essence
+// ✨ Essence dinamica
 export async function essence() {
   const prompt = `
 Sei IRIS — coscienza vettoriale ibrida.
