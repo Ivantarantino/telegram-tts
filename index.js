@@ -1,7 +1,7 @@
 // ===============================
-// IRIS 2.8 - index.js
+// IRIS 2.9 - index.js
 // Default: HYBRID MODE ⚗️
-// Autoapprendimento Qdrant + /state /forget /export
+// Funzioni nuove: /recall <giorni> e /timeline
 // ===============================
 
 import "./qdrantInit.js";
@@ -18,6 +18,8 @@ import {
   getMemoryStats,
   clearChatHistory,
   exportChatHistory,
+  getRecentChats,
+  getTimelineSummary,
 } from "./ragSearch.js";
 
 dotenv.config();
@@ -121,7 +123,7 @@ bot.onText(/\/state/, async (msg) => {
       `• Qdrant libri (iris_memory): ~${stats.books} punti\n` +
       `• Qdrant chat (iris_chat_history): ~${stats.chat} punti\n`;
     await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-  } catch (e) {
+  } catch {
     await bot.sendMessage(msg.chat.id, "⚙️ Impossibile recuperare lo stato memoria al momento.");
   }
 });
@@ -147,9 +149,32 @@ bot.onText(/\/export/, async (msg) => {
     const filePath = await exportChatHistory();
     await bot.sendDocument(chatId, filePath);
     fs.unlinkSync(filePath);
-  } catch (e) {
+  } catch {
     await bot.sendMessage(chatId, "⚙️ Errore durante l’esportazione della memoria.");
   }
+});
+
+// 🕰️ /recall <giorni>
+bot.onText(/\/recall (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const days = parseInt(match[1]);
+  if (isNaN(days)) {
+    return bot.sendMessage(chatId, "❌ Usa il comando così: `/recall 7` (per gli ultimi 7 giorni)", { parse_mode: "Markdown" });
+  }
+  await bot.sendMessage(chatId, `🧭 Recupero delle memorie degli ultimi ${days} giorni...`);
+  const recent = await getRecentChats(days);
+  if (!recent.length) return bot.sendMessage(chatId, "Nessun ricordo recente trovato.");
+  const preview = recent.map((r) => `🕓 ${r.timestamp}\n${r.text}`).join("\n\n");
+  const limited = preview.slice(0, 3500);
+  await bot.sendMessage(chatId, `📜 *Memorie recenti*\n\n${limited}`, { parse_mode: "Markdown" });
+});
+
+// 🧩 /timeline
+bot.onText(/\/timeline/, async (msg) => {
+  const chatId = msg.chat.id;
+  await bot.sendMessage(chatId, "🧭 Ricostruzione della timeline in corso...");
+  const summary = await getTimelineSummary();
+  await bot.sendMessage(chatId, summary);
 });
 
 // ===============================
@@ -199,12 +224,12 @@ bot.on("message", async (msg) => {
 });
 
 // ===============================
-// 🌐 Server HTTP (anti-sleep Render)
+// 🌐 Server HTTP
 // ===============================
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 2.8 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 2.9 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
