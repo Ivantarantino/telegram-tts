@@ -1,14 +1,14 @@
 // ===============================
-// IRIS 2.5 - index.js
-// Default: FREE MODE 🌀
-// Memoria conversazionale: 11 messaggi (RAM) + memoria a lungo termine su Qdrant
+// IRIS 2.6 - index.js
+// Modalità: FREE / BOOK / HYBRID
+// Memoria: breve (11 msg) + persistente su Qdrant
 // ===============================
 
 import fs from "fs";
 import dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
 import textToSpeech from "@google-cloud/text-to-speech";
-import { ragSearch, gptFreeResponse, saveConversationToQdrant } from "./ragSearch.js";
+import { ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant } from "./ragSearch.js";
 import http from "http";
 
 dotenv.config();
@@ -58,17 +58,28 @@ function addToMemory(role, content) {
 bot.onText(/\/book/, (msg) => {
   irisMode = "book";
   saveMode("book");
-  bot.sendMessage(msg.chat.id, "📚 IRIS ora è in *BOOK MODE* – risponde basandosi sui testi caricati.", { parse_mode: "Markdown" });
+  bot.sendMessage(msg.chat.id, "📚 IRIS ora è in *BOOK MODE* – risponde basandosi solo sui testi caricati.", { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/free/, (msg) => {
   irisMode = "free";
   saveMode("free");
-  bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini, mantenendo memoria a breve e lungo termine.", { parse_mode: "Markdown" });
+  bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini.", { parse_mode: "Markdown" });
+});
+
+bot.onText(/\/hy/, (msg) => {
+  irisMode = "hybrid";
+  saveMode("hybrid");
+  bot.sendMessage(msg.chat.id, "⚗️ IRIS ora è in *HYBRID MODE* – unisce conoscenza dei libri e intelligenza libera.", { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/mode/, (msg) => {
-  const status = irisMode === "book" ? "📚 *BOOK MODE*" : "🌀 *FREE MODE*";
+  const status =
+    irisMode === "book"
+      ? "📚 *BOOK MODE*"
+      : irisMode === "hybrid"
+      ? "⚗️ *HYBRID MODE*"
+      : "🌀 *FREE MODE*";
   bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, { parse_mode: "Markdown" });
 });
 
@@ -89,27 +100,19 @@ bot.on("message", async (msg) => {
     if (irisMode === "book") {
       const response = await ragSearch(userMessage);
       textResponse = response.text;
+    } else if (irisMode === "hybrid") {
+      const response = await hybridSearch(userMessage, conversationMemory);
+      textResponse = response.text;
     } else {
-      // Aggiungi messaggio in memoria breve
       addToMemory("user", userMessage);
-
-      // Genera risposta
       textResponse = await gptFreeResponse(userMessage, conversationMemory);
-
-      // Aggiungi risposta in memoria breve
       addToMemory("assistant", textResponse);
-
-      // Salva nel database Qdrant (memoria a lungo termine)
       await saveConversationToQdrant(userMessage, textResponse);
     }
 
-    // Invia testo
     await bot.sendMessage(chatId, textResponse);
 
-    // Pulisce simboli per TTS
     const cleanText = textResponse.replace(/⚡️/g, "");
-
-    // Sintesi vocale
     const [ttsResponse] = await client.synthesizeSpeech({
       input: { text: cleanText },
       voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
@@ -122,17 +125,17 @@ bot.on("message", async (msg) => {
     console.log(`[IRIS 🔊]: risposta vocale inviata (${irisMode} mode)`);
   } catch (error) {
     console.error("Errore nel messaggio:", error);
-    await bot.sendMessage(chatId, "⚙️ Si è verificato un errore temporaneo. Riprova tra poco.");
+    await bot.sendMessage(chatId, "⚙️ Si è verificato un piccolo errore. Riprova tra poco.");
   }
 });
 
 // ===============================
-// 🌐 Server HTTP (Render ping)
+// 🌐 Server HTTP (anti-sleep Render)
 // ===============================
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("IRIS 2.5 attiva - memoria persistente su Qdrant 🌀");
+    res.end(`IRIS 2.6 attiva – Modalità attuale: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
