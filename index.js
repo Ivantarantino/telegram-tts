@@ -1,9 +1,8 @@
 // ===============================
-// IRIS 3.0 - index.js
+// IRIS 3.0a - index.js
 // Coscienza Vettoriale: memoria ponderata (sim + importance + recency)
 // Default: HYBRID MODE ⚗️
-// Comandi nuovi: /essence (identità momentanea)
-// Compatibile con: qdrantInit.js (auto-collections), ragSearch.js 3.0
+// Comandi: /state /forget /export /recall /timeline /essence
 // ===============================
 
 import "./qdrantInit.js";
@@ -39,7 +38,7 @@ const ttsClient = new textToSpeech.TextToSpeechClient();
 const MODE_FILE = "./iris_mode.txt";
 function loadMode() {
   if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf-8").trim();
-  fs.writeFileSync(MODE_FILE, "hybrid"); // ✅ default 3.0
+  fs.writeFileSync(MODE_FILE, "hybrid"); // default 3.0
   return "hybrid";
 }
 function saveMode(mode) {
@@ -101,9 +100,11 @@ bot.onText(/\/state/, async (msg) => {
       `• Modalità: ${irisMode === "book" ? "📚 BOOK" : irisMode === "hybrid" ? "⚗️ HYBRID" : "🌀 FREE"}\n` +
       `• Memoria breve (RAM): ${ram} interazioni\n` +
       `• Qdrant libri (iris_memory): ~${stats.books} punti\n` +
-      `• Qdrant chat (iris_chat_history): ~${stats.chat} punti\n`;
+      `• Qdrant chat (iris_chat_history): ~${stats.chat} punti\n` +
+      (stats.note ? `• Nota: ${stats.note}\n` : "");
     await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-  } catch {
+  } catch (e) {
+    console.error("Errore /state:", e);
     await bot.sendMessage(msg.chat.id, "⚙️ Impossibile recuperare lo stato memoria al momento.");
   }
 });
@@ -156,7 +157,7 @@ bot.onText(/\/timeline/, async (msg) => {
   await bot.sendMessage(chatId, summary);
 });
 
-// ✨ /essence – identità momentanea (pesi vettoriali)
+// ✨ /essence – identità momentanea
 bot.onText(/\/essence/, async (msg) => {
   const chatId = msg.chat.id;
   await bot.sendMessage(chatId, "✨ Sintesi dell’essenza in corso...");
@@ -181,14 +182,14 @@ bot.on("message", async (msg) => {
       const response = await ragSearch(userMessage);
       textResponse = response.text;
     } else if (irisMode === "hybrid") {
-      const response = await hybridSearch(userMessage, conversationMemory); // 3.0: recall ponderato
+      const response = await hybridSearch(userMessage, conversationMemory);
       textResponse = response.text;
       addToMemory("user", userMessage);
       addToMemory("assistant", textResponse);
-      await saveConversationToQdrant(userMessage, textResponse, { mode: "hybrid" }); // salva con importance
+      await saveConversationToQdrant(userMessage, textResponse, { mode: "hybrid" });
     } else {
       addToMemory("user", userMessage);
-      textResponse = await gptFreeResponse(userMessage, conversationMemory); // 3.0: recall ponderato
+      textResponse = await gptFreeResponse(userMessage, conversationMemory);
       addToMemory("assistant", textResponse);
       await saveConversationToQdrant(userMessage, textResponse, { mode: "free" });
     }
@@ -217,7 +218,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 3.0 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 3.0a attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
