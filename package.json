@@ -13,11 +13,12 @@
     "@qdrant/js-client-rest": "^1.7.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.64.0",
-    "openai": "^4.52.2"
+    "node-telegram-bot-api": "^0.63.0",
+    "openai": "^4.59.1"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.4"
-  }
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "Ivano Tarantino",
+  "license": "MIT"
 }
-
