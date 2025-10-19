@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 3.0c - ragSearch.js
-// Coscienza Vettoriale + getMemoryStats con fallback garantito (fixato)
+// IRIS 3.0d - ragSearch.js
+// Coscienza Vettoriale + getMemoryStats fallback totale
 // ===============================
 
 import OpenAI from "openai";
@@ -242,6 +242,7 @@ export async function getMemoryStats() {
   let chat = 0;
   let note = "";
 
+  // 🔹 Primo tentativo: count()
   try {
     const [booksC, chatC] = await Promise.all([
       qdrant.count(BOOK_COLLECTION, { exact: true }),
@@ -251,10 +252,11 @@ export async function getMemoryStats() {
     chat = chatC.count ?? 0;
     return { books, chat, note };
   } catch (e) {
-    console.warn("⚙️ count() non disponibile, uso fallback scroll():", e?.message || e);
-    note = "count() non disponibile: stima tramite scroll()";
+    console.warn("⚙️ count() non disponibile, provo con scroll:", e?.message || e);
+    note = "count() non disponibile: uso scroll()";
   }
 
+  // 🔹 Secondo tentativo: scroll()
   try {
     const [booksScroll, chatScroll] = await Promise.all([
       qdrant.scroll(BOOK_COLLECTION, { limit: 1000, with_payload: false }),
@@ -263,12 +265,14 @@ export async function getMemoryStats() {
     books = booksScroll?.points?.length || 0;
     chat = chatScroll?.points?.length || 0;
     if (booksScroll?.next_page_offset) note += " (risultati parziali)";
+    return { books, chat, note };
   } catch (e2) {
-    console.error("⚙️ Errore anche nel fallback scroll():", e2?.message || e2);
-    note += " – impossibile accedere a Qdrant.";
+    console.warn("⚙️ scroll() non supportato, uso fallback totale:", e2?.message || e2);
   }
 
-  return { books, chat, note };
+  // 🔹 Fallback totale
+  note = "Nessun accesso diretto a Qdrant disponibile (modalità diagnostica).";
+  return { books: 0, chat: 0, note };
 }
 
 export async function clearChatHistory() {
