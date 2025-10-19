@@ -1,4 +1,6 @@
-// ragSearch.js — IRIS 3.0i-fix — gestione errori Qdrant + OpenAI + fallback sicuro
+// ragSearch.js — IRIS 3.0i-log
+// Log estesi + gestione sicura di Qdrant e OpenAI + fallback intelligente
+
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 
@@ -11,7 +13,7 @@ const qdrant = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY || process.env.QDRANT_APIKEY
 });
 
-// Stato interno
+// Stato interno di IRIS
 let mode = "hy";
 let memoryState = {
   lastQueries: [],
@@ -19,7 +21,7 @@ let memoryState = {
   updated: null
 };
 
-// 🧭 Modalità
+// 🧭 Gestione modalità
 export function setMode(newMode) {
   mode = newMode;
   console.log(`🔁 Modalità aggiornata → ${newMode}`);
@@ -71,7 +73,7 @@ export async function chatWithIris(prompt) {
         ? `${contextText}\n\nDomanda: ${userPrompt}`
         : userPrompt;
 
-    // 🧠 OpenAI completion
+    // 🧠 Chiamata a OpenAI
     let completion;
     try {
       completion = await openai.chat.completions.create({
@@ -89,16 +91,17 @@ export async function chatWithIris(prompt) {
         temperature: 0.8
       });
     } catch (apiErr) {
-      console.error("❌ Errore chiamata OpenAI:", apiErr);
+      console.error("❌ Errore chiamata OpenAI:", apiErr.message, apiErr.stack);
       return "⚠️ Errore nella connessione con il modello linguistico.";
     }
 
+    // Verifica risposta
     if (!completion?.choices?.[0]?.message?.content) {
-      console.error("⚠️ Nessuna risposta valida da OpenAI:", completion);
+      console.error("⚠️ Nessuna risposta valida da OpenAI:", JSON.stringify(completion, null, 2));
       return "⚠️ Problema con il modello di linguaggio.";
     }
 
-    // 🧾 Normalizza risposta
+    // 🔧 Normalizza risposta
     let reply = completion.choices[0].message.content;
     if (typeof reply !== "string") {
       try {
@@ -115,15 +118,15 @@ export async function chatWithIris(prompt) {
     memoryState.lastResponses.push(reply);
     memoryState.updated = new Date().toISOString();
 
-    console.log("🧠 IRIS ha risposto con:", reply.slice(0, 80) + "...");
+    console.log("🧠 IRIS ha risposto con:", reply.slice(0, 100) + "...");
     return reply;
   } catch (err) {
-    console.error("❌ Errore in chatWithIris:", err);
+    console.error("❌ Errore in chatWithIris:", err.message, err.stack, JSON.stringify(err, null, 2));
     return "⚠️ Si è verificato un problema momentaneo con IRIS.";
   }
 }
 
-// 🔡 Generazione embedding
+// 🔡 Embedding
 async function embedText(text) {
   try {
     const response = await openai.embeddings.create({
@@ -132,8 +135,8 @@ async function embedText(text) {
     });
     return response.data[0].embedding;
   } catch (e) {
-    console.error("⚠️ Errore creazione embedding:", e);
-    return new Array(1536).fill(0.001); // fallback neutro
+    console.error("⚠️ Errore creazione embedding:", e.message);
+    return new Array(1536).fill(0.001);
   }
 }
 
@@ -154,7 +157,7 @@ Chiudi con: "Che il Daje sia con Noi."
     if (!text) text = "Silenzio interiore. Nessuna essenza disponibile ora.";
     return text;
   } catch (err) {
-    console.error("❌ Errore in essence:", err);
+    console.error("❌ Errore in essence:", err.message, err.stack);
     return "Errore nel generare l’essenza di IRIS.";
   }
 }
