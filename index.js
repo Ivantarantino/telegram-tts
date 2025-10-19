@@ -1,7 +1,9 @@
 // ===============================
-// IRIS 2.9 - index.js
+// IRIS 3.0 - index.js
+// Coscienza Vettoriale: memoria ponderata (sim + importance + recency)
 // Default: HYBRID MODE ⚗️
-// Funzioni nuove: /recall <giorni> e /timeline
+// Comandi nuovi: /essence (identità momentanea)
+// Compatibile con: qdrantInit.js (auto-collections), ragSearch.js 3.0
 // ===============================
 
 import "./qdrantInit.js";
@@ -20,6 +22,7 @@ import {
   exportChatHistory,
   getRecentChats,
   getTimelineSummary,
+  getEssenceSummary,
 } from "./ragSearch.js";
 
 dotenv.config();
@@ -31,85 +34,62 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const ttsClient = new textToSpeech.TextToSpeechClient();
 
 // ===============================
-// 🧭 Modalità operativa
+// 🧭 Modalità (persistente)
 // ===============================
 const MODE_FILE = "./iris_mode.txt";
-
 function loadMode() {
-  if (fs.existsSync(MODE_FILE)) {
-    return fs.readFileSync(MODE_FILE, "utf-8").trim();
-  }
-  fs.writeFileSync(MODE_FILE, "hybrid");
+  if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf-8").trim();
+  fs.writeFileSync(MODE_FILE, "hybrid"); // ✅ default 3.0
   return "hybrid";
 }
-
 function saveMode(mode) {
   fs.writeFileSync(MODE_FILE, mode);
 }
-
 let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
 // ===============================
-// 🧠 Memoria temporanea (RAM)
+// 🧠 Memoria RAM (breve)
 // ===============================
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
-
 function addToMemory(role, content) {
   conversationMemory.push({ role, content });
   if (conversationMemory.length > MEMORY_LIMIT * 2) {
     conversationMemory.splice(0, conversationMemory.length - MEMORY_LIMIT * 2);
   }
 }
-
 function memorySize() {
   return Math.floor(conversationMemory.length / 2);
 }
 
 // ===============================
-// 📡 Comandi Telegram
+// 📡 Comandi
 // ===============================
 bot.onText(/\/book/, (msg) => {
   irisMode = "book";
   saveMode("book");
-  bot.sendMessage(
-    msg.chat.id,
-    "📚 IRIS ora è in *BOOK MODE* – risponde solo in base ai testi caricati.",
-    { parse_mode: "Markdown" }
-  );
+  bot.sendMessage(msg.chat.id, "📚 IRIS in *BOOK MODE* – risponde solo dai testi caricati.", { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/free/, (msg) => {
   irisMode = "free";
   saveMode("free");
-  bot.sendMessage(
-    msg.chat.id,
-    "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini (memoria breve + Qdrant).",
-    { parse_mode: "Markdown" }
-  );
+  bot.sendMessage(msg.chat.id, "🌀 IRIS in *FREE MODE* – dialogo libero con memoria breve + Qdrant.", { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/hy/, (msg) => {
   irisMode = "hybrid";
   saveMode("hybrid");
-  bot.sendMessage(
-    msg.chat.id,
-    "⚗️ IRIS ora è in *HYBRID MODE* – fonde conoscenza dei libri e intelligenza libera (auto-apprendimento).",
-    { parse_mode: "Markdown" }
-  );
+  bot.sendMessage(msg.chat.id, "⚗️ IRIS in *HYBRID MODE* – fonde libri + intelligenza libera (apprendimento).", {
+    parse_mode: "Markdown",
+  });
 });
 
 bot.onText(/\/mode/, (msg) => {
   const status =
-    irisMode === "book"
-      ? "📚 *BOOK MODE*"
-      : irisMode === "hybrid"
-      ? "⚗️ *HYBRID MODE*"
-      : "🌀 *FREE MODE*";
-  bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, {
-    parse_mode: "Markdown",
-  });
+    irisMode === "book" ? "📚 *BOOK MODE*" : irisMode === "hybrid" ? "⚗️ *HYBRID MODE*" : "🌀 *FREE MODE*";
+  bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/state/, async (msg) => {
@@ -130,9 +110,9 @@ bot.onText(/\/state/, async (msg) => {
 
 bot.onText(/\/forget/, async (msg) => {
   const chatId = msg.chat.id;
-  await bot.sendMessage(chatId, "⚠️ Confermi di voler cancellare *tutta* la memoria conversazionale? Rispondi con 'SI' per procedere.");
+  await bot.sendMessage(chatId, "⚠️ Confermi di voler cancellare *tutta* la memoria conversazionale? Rispondi con 'SI'.");
   bot.once("message", async (reply) => {
-    if (reply.text.toLowerCase() === "si") {
+    if ((reply.text || "").toLowerCase() === "si") {
       await clearChatHistory();
       conversationMemory.length = 0;
       await bot.sendMessage(chatId, "🧹 Memoria cancellata con successo!");
@@ -159,22 +139,29 @@ bot.onText(/\/recall (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const days = parseInt(match[1]);
   if (isNaN(days)) {
-    return bot.sendMessage(chatId, "❌ Usa il comando così: `/recall 7` (per gli ultimi 7 giorni)", { parse_mode: "Markdown" });
+    return bot.sendMessage(chatId, "❌ Usa: `/recall 7` (ultimi 7 giorni)", { parse_mode: "Markdown" });
   }
-  await bot.sendMessage(chatId, `🧭 Recupero delle memorie degli ultimi ${days} giorni...`);
+  await bot.sendMessage(chatId, `🧭 Recupero memorie (ultimi ${days} giorni)...`);
   const recent = await getRecentChats(days);
   if (!recent.length) return bot.sendMessage(chatId, "Nessun ricordo recente trovato.");
-  const preview = recent.map((r) => `🕓 ${r.timestamp}\n${r.text}`).join("\n\n");
-  const limited = preview.slice(0, 3500);
-  await bot.sendMessage(chatId, `📜 *Memorie recenti*\n\n${limited}`, { parse_mode: "Markdown" });
+  const preview = recent.map((r) => `🕓 ${r.timestamp}\n${r.text}`).join("\n\n").slice(0, 3500);
+  await bot.sendMessage(chatId, `📜 *Memorie recenti*\n\n${preview}`, { parse_mode: "Markdown" });
 });
 
-// 🧩 /timeline
+// 🌌 /timeline – narrazione cronologica
 bot.onText(/\/timeline/, async (msg) => {
   const chatId = msg.chat.id;
   await bot.sendMessage(chatId, "🧭 Ricostruzione della timeline in corso...");
   const summary = await getTimelineSummary();
   await bot.sendMessage(chatId, summary);
+});
+
+// ✨ /essence – identità momentanea (pesi vettoriali)
+bot.onText(/\/essence/, async (msg) => {
+  const chatId = msg.chat.id;
+  await bot.sendMessage(chatId, "✨ Sintesi dell’essenza in corso...");
+  const essence = await getEssenceSummary();
+  await bot.sendMessage(chatId, essence);
 });
 
 // ===============================
@@ -194,26 +181,27 @@ bot.on("message", async (msg) => {
       const response = await ragSearch(userMessage);
       textResponse = response.text;
     } else if (irisMode === "hybrid") {
-      const response = await hybridSearch(userMessage, conversationMemory);
+      const response = await hybridSearch(userMessage, conversationMemory); // 3.0: recall ponderato
       textResponse = response.text;
       addToMemory("user", userMessage);
       addToMemory("assistant", textResponse);
-      await saveConversationToQdrant(userMessage, textResponse, { mode: "hybrid" });
+      await saveConversationToQdrant(userMessage, textResponse, { mode: "hybrid" }); // salva con importance
     } else {
       addToMemory("user", userMessage);
-      textResponse = await gptFreeResponse(userMessage, conversationMemory);
+      textResponse = await gptFreeResponse(userMessage, conversationMemory); // 3.0: recall ponderato
       addToMemory("assistant", textResponse);
       await saveConversationToQdrant(userMessage, textResponse, { mode: "free" });
     }
 
     await bot.sendMessage(chatId, textResponse);
+
+    // 🔊 TTS (filtra fulmine dal parlato)
     const cleanText = textResponse.replace(/⚡️/g, "");
     const [ttsResponse] = await ttsClient.synthesizeSpeech({
       input: { text: cleanText },
       voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
       audioConfig: { audioEncoding: "OGG_OPUS" },
     });
-
     fs.writeFileSync("response.ogg", ttsResponse.audioContent, "binary");
     await bot.sendVoice(chatId, fs.createReadStream("response.ogg"));
     console.log(`[IRIS 🔊]: risposta vocale inviata (${irisMode} mode)`);
@@ -229,7 +217,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 2.9 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 3.0 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
