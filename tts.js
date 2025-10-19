@@ -1,37 +1,35 @@
-// tts.js — IRIS 3.0i — Generazione vocale OGG per Telegram
-import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Genera file vocale .ogg e restituisce il percorso locale
-export async function generateVoice(text, voice = "alloy") {
+// === GENERATORE DI FILE AUDIO ===
+export async function generateTTS(text) {
   try {
-    const dir = path.resolve(__dirname, "temp");
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    const outputFile = path.resolve(dir, `iris_voice_${Date.now()}.ogg`);
+    const outputDir = "temp";
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
-    const response = await openai.audio.speech.create({
+    const timestamp = Date.now();
+    const outputPath = path.join(outputDir, `iris_voice_${timestamp}.ogg`);
+
+    console.log(`🎧 Generazione vocale...`);
+    const mp3 = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice,
+      voice: "alloy",
       input: text,
-      format: "ogg"
+      format: "ogg",
     });
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(outputFile, buffer);
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    fs.writeFileSync(outputPath, buffer);
 
-    console.log(`🎧 File vocale generato: ${outputFile}`);
-    return outputFile;
-  } catch (error) {
-    console.error("❌ Errore in generateVoice:", error);
-    return null;
+    console.log(`🎧 File vocale generato: ${outputPath}`);
+    return outputPath;
+  } catch (err) {
+    console.error("❌ Errore nella generazione vocale:", err);
+    throw err;
   }
 }
