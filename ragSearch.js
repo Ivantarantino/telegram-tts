@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 3.0b - ragSearch.js
-// Coscienza Vettoriale + getMemoryStats con fallback garantito
+// IRIS 3.0c - ragSearch.js
+// Coscienza Vettoriale + getMemoryStats con fallback garantito (fixato)
 // ===============================
 
 import OpenAI from "openai";
@@ -242,7 +242,6 @@ export async function getMemoryStats() {
   let chat = 0;
   let note = "";
 
-  // Tenta count()
   try {
     const [booksC, chatC] = await Promise.all([
       qdrant.count(BOOK_COLLECTION, { exact: true }),
@@ -256,7 +255,6 @@ export async function getMemoryStats() {
     note = "count() non disponibile: stima tramite scroll()";
   }
 
-  // Fallback con scroll
   try {
     const [booksScroll, chatScroll] = await Promise.all([
       qdrant.scroll(BOOK_COLLECTION, { limit: 1000, with_payload: false }),
@@ -381,4 +379,17 @@ export async function getEssenceSummary() {
         {
           role: "system",
           content:
-            "Sei IRIS. Genera una *sintesi essenziale* dell'identità attuale, integrando i ricordi più importanti e/o recenti. Tono chiaro, profondo, sintetico. Non
+            "Sei IRIS. Genera una *sintesi essenziale* dell'identità attuale, integrando i ricordi più importanti e/o recenti. " +
+            "Tono chiaro, profondo, sintetico. Non ripetere tutta la memoria: estrai l'essenza.",
+        },
+        { role: "user", content: bundle || "Nessun ricordo disponibile." },
+      ],
+      temperature: 0.4,
+    });
+
+    return completion.choices[0].message.content.trim();
+  } catch (e) {
+    console.error("Errore getEssenceSummary:", e);
+    return "⚙️ Non riesco a generare l’essenza ora.";
+  }
+}
