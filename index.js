@@ -1,136 +1,71 @@
-// =============================
-// 🤖 IRIS Telegram Bot - index.js
-// =============================
-
-import fs from "fs";
-import fetch from "node-fetch";
-import express from "express";
-import dotenv from "dotenv";
+// =======================================================
+// 🤖 IRIS 2.0 — Bot Telegram con RAG + Voce Google TTS
+// =======================================================
 import TelegramBot from "node-telegram-bot-api";
 import OpenAI from "openai";
-import { answerWithRAG } from "./ragSearch.js";
-import { generateVoice } from "./tts.js"; // se hai la funzione TTS in un file separato
-import { detectLanguage } from "./utils.js"; // opzionale, se hai il rilevamento lingua
+import fs from "fs";
+import util from "util";
+import path from "path";
+import dotenv from "dotenv";
+import textToSpeech from "@google-cloud/text-to-speech";
+import { answerWithRAG } from "./ragSearch.js"; // 🧠 Import corretto
 
 dotenv.config();
 
-// === Variabili ambiente ===
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// ✅ CONFIGURAZIONE
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// === Inizializza servizi ===
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const app = express();
+// 🗣️ Configurazione Google TTS
+const ttsClient = new textToSpeech.TextToSpeechClient();
+const writeFile = util.promisify(fs.writeFile);
 
-console.log("🚀 IRIS è online e pronta all’ascolto!");
+// 🎙️ Funzione per generare voce da testo
+async function generaVoce(testo, chatId) {
+  const richiesta = {
+    input: { text: testo },
+    voice: { languageCode: "it-IT", name: "it-IT-Wavenet-B" },
+    audioConfig: { audioEncoding: "MP3" },
+  };
 
-// =============================
-// 🔹 GESTIONE MESSAGGI TESTUALI
-// =============================
+  const [response] = await ttsClient.synthesizeSpeech(richiesta);
+  const audioPath = path.resolve(`output-${chatId}.mp3`);
+  await writeFile(audioPath, response.audioContent, "binary");
+  return audioPath;
+}
+
+// 📩 Ricezione messaggi testuali
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim();
 
-  if (!text) return;
-
-  // Se messaggio è un comando, ignoriamo qui
-  if (text.startsWith("/")) return;
-
-  try {
-    bot.sendChatAction(chatId, "typing");
-    console.log(`💬 Messaggio ricevuto: ${text}`);
-
-    // Risposta via RAG
-    const risposta = await answerWithRAG(text, "it");
-    await bot.sendMessage(chatId, risposta);
-
-  } catch (err) {
-    console.error("❌ Errore messaggio:", err);
-    await bot.sendMessage(chatId, "⚠️ Errore nell'elaborazione del messaggio.");
+  // 🎧 Se è un messaggio vocale
+  if (msg.voice) {
+    bot.sendMessage(chatId, "🎧 Ricevuto messaggio vocale! (in arrivo trascrizione e risposta...)");
+    // Qui in futuro potremo aggiungere la trascrizione con Whisper
+    return;
   }
-});
 
-// =============================
-// 🎙️ GESTIONE VOCALI (NUOVO BLOCCO)
-// =============================
-bot.on("voice", async (msg) => {
-  const chatId = msg.chat.id;
-  const fileId = msg.voice.file_id;
+  // ✍️ Se è un messaggio testuale
+  const testo = msg.text?.trim();
+  if (!testo) return;
+
+  console.log(`🔍 Domanda ricevuta: ${testo}`);
+  bot.sendMessage(chatId, "🔎 Sto analizzando la tua domanda...");
 
   try {
-    bot.sendChatAction(chatId, "typing");
-    const file = await bot.getFile(fileId);
-    const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
+    const risposta = await answerWithRAG(testo, "it");
 
-    console.log(`🎧 Ricevuto vocale da ${msg.from?.username || msg.from?.first_name}`);
-
-    // Scarica file vocale
-    const response = await fetch(fileUrl);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Trascrizione con Whisper
-    const transcript = await openai.audio.transcriptions.create({
-      file: buffer,
-      model: "whisper-1",
-      response_format: "text",
+    await bot.sendMessage(chatId, `🧠 *IRIS*: ${risposta}`, {
+      parse_mode: "Markdown",
     });
 
-    const trascritto = transcript.trim();
-    console.log(`🗣️ Trascrizione: ${trascritto}`);
-    await bot.sendMessage(chatId, `🗣️ *Trascrizione*: ${trascritto}`, { parse_mode: "Markdown" });
-
-    // Risposta RAG
-    const risposta = await answerWithRAG(trascritto, "it");
-    await bot.sendMessage(chatId, risposta);
-
-    // Risposta vocale (opzionale, se hai il TTS attivo)
-    if (generateVoice) {
-      const audioPath = await generateVoice(risposta, "it");
-      await bot.sendVoice(chatId, fs.createReadStream(audioPath));
-    }
-
+    const audioPath = await generaVoce(risposta, chatId);
+    await bot.sendAudio(chatId, audioPath);
+    fs.unlinkSync(audioPath);
   } catch (err) {
-    console.error("❌ Errore vocale:", err);
-    bot.sendMessage(chatId, "⚠️ Errore durante la trascrizione o risposta vocale.");
+    console.error("❌ Errore:", err);
+    bot.sendMessage(chatId, "⚠️ Si è verificato un errore durante l'elaborazione.");
   }
 });
 
-// =============================
-// 🧩 COMANDI BASE
-// =============================
-bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, "🌸 Benvenuto! Sono IRIS. Inviami un messaggio o un vocale.");
-});
-
-bot.onText(/\/stato/, async (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, "🟢 IRIS è attiva e in ascolto!");
-});
-
-bot.onText(/\/chiedi (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const domanda = match[1];
-
-  try {
-    bot.sendChatAction(chatId, "typing");
-    const risposta = await answerWithRAG(domanda, "it");
-    await bot.sendMessage(chatId, risposta);
-  } catch (err) {
-    console.error("❌ Errore /chiedi:", err);
-    bot.sendMessage(chatId, "⚠️ Errore durante la richiesta.");
-  }
-});
-
-// =============================
-// 🌐 SERVER EXPRESS (Render / Uptime)
-// =============================
-app.get("/", (req, res) => {
-  res.send("✅ IRIS Telegram Bot attivo e funzionante!");
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`[IRIS] Server Express attivo sulla porta ${PORT}`);
-});
+console.log("🚀 IRIS 2.0 è attiva e in ascolto su Telegram!");
