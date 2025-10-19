@@ -1,21 +1,22 @@
 {
   "name": "telegram-tts",
   "version": "2.0.0",
-  "description": "🤖 IRIS 2.0 — Bot Telegram con RAG, OpenAI e Google TTS",
+  "description": "Telegram bot con IRIS, TTS e memoria Qdrant",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test:rag": "node testRAG.js \"Spiegami cos'è il Programma Krist\""
+    "start": "node -r dotenv/config triggerLoad.js"
   },
   "dependencies": {
-    "@google-cloud/text-to-speech": "^5.3.0",
-    "@qdrant/js-client-rest": "^1.7.0",
-    "dotenv": "^16.6.1",
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.63.0",
-    "openai": "^4.59.1"
+    "node-fetch": "^3.3.2",
+    "openai": "^4.22.0",
+    "pdf-parse": "^1.1.1",
+    "qdrant-js": "^1.8.2",
+    "telegraf": "^4.15.0",
+    "node-telegram-bot-api": "^0.61.0"
   },
   "engines": {
     "node": ">=20.0.0"
