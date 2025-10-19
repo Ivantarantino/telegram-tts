@@ -8,16 +8,17 @@ dotenv.config();
 
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 
-// === Stato iniziale IRIS ===
+// === Stato IRIS ===
 let irisState = {
-  mode: "both", // default: both → testo + vocale
+  mode: "both", // Modalità predefinita
   lastUser: null,
 };
 
+// === Avvio ===
 console.log("🌍 Server attivo su Render o locale");
 console.log(`🧭 Modalità iniziale: ${irisState.mode.toUpperCase()}`);
 
-// === Comandi di gestione ===
+// === /help ===
 bot.onText(/\/help/, (msg) => {
   const helpText = `
 🤖 *Comandi disponibili*:
@@ -34,6 +35,7 @@ bot.onText(/\/help/, (msg) => {
   bot.sendMessage(msg.chat.id, helpText, { parse_mode: "Markdown" });
 });
 
+// === /mode ===
 bot.onText(/\/mode (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const newMode = match[1].toLowerCase();
@@ -51,6 +53,7 @@ bot.onText(/\/mode (.+)/, (msg, match) => {
   });
 });
 
+// === /state ===
 bot.onText(/\/state/, (msg) => {
   const chatId = msg.chat.id;
   const stateText = `
@@ -61,17 +64,18 @@ Ultimo utente: *${irisState.lastUser || "Nessuno"}*
   bot.sendMessage(chatId, stateText, { parse_mode: "Markdown" });
 });
 
-// === Gestione messaggi utente ===
+// === Gestione messaggi ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text?.trim();
 
-  if (!text || text.startsWith("/")) return; // ignora comandi
+  // Ignora comandi e messaggi vuoti
+  if (!text || text.startsWith("/")) return;
+
   irisState.lastUser = msg.from.first_name || "Sconosciuto";
+  console.log(`💬 Richiesta utente → ${text}`);
 
   try {
-    console.log(`💬 Richiesta utente → ${text}`);
-
     // Genera risposta tramite RAG
     const aiResponse = await ragSearch(text);
 
