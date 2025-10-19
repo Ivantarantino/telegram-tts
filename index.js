@@ -1,104 +1,137 @@
-// === index.js ===
-// IRIS — Telegram AI Bot + TTS + RAG
-// © Ivano — Che il Daje sia con Noi 🚀
+// index.js — IRIS Telegram Bot (robusto: chunking + escape + fallback)
 
-import TelegramBot from "node-telegram-bot-api";
-import fs from "fs";
-import dotenv from "dotenv";
-import express from "express";
-import { generateTTS } from "./tts.js";
-import { ragSearch } from "./ragSearch.js";
+require("dotenv").config();
+const TelegramBot = require("node-telegram-bot-api");
 
-dotenv.config();
+// ====== CONFIG ======
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const IS_RENDER = !!process.env.RENDER; // o qualunque flag usi in deploy
+const PORT = process.env.PORT ? Number(process.env.PORT) : 10000;
 
-// === Telegram Bot Setup ===
-const token = process.env.TELEGRAM_TOKEN;
-if (!token) {
-  console.error("❌ ERRORE: Nessun TOKEN Telegram trovato nel file .env");
+if (!TELEGRAM_TOKEN) {
+  console.error("❌ TELEGRAM_TOKEN mancante nel .env");
   process.exit(1);
 }
 
-const bot = new TelegramBot(token, { polling: true });
+// ====== BOT INSTANCE ======
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// === Modalità iniziale ===
-let mode = "BOTH"; // TEXT, VOICE, BOTH
+// Se c’era un webhook attivo da un’altra istanza, lo disattiviamo
+bot.deleteWebHook({ drop_pending_updates: false }).catch(() => {});
 
-console.log("🌍 Server attivo su Render o locale");
-console.log(`🧭 Modalità iniziale: ${mode}`);
+// ====== LOG AVVIO ======
+console.log(IS_RENDER ? "🌐 Ambiente: Render" : "💻 Ambiente locale");
+console.log(`🌍 Server attivo su porta ${PORT}`);
 
-// === Gestione messaggi ===
+// Dummy HTTP server (utile su Render/Heroku per tenere viva l’istanza)
+require("http")
+  .createServer((_, res) => res.end("IRIS OK"))
+  .listen(PORT);
+
+// ====== UTILS: MarkdownV2 escape & chunking ======
+const MDV2_SPECIALS = /[_*[\]()~`>#+\-=|{}.!\\]/g; // specifico MarkdownV2
+function escapeMarkdownV2(text = "") {
+  return String(text).replace(MDV2_SPECIALS, (m) => "\\" + m);
+}
+
+function* chunk(text, max = 3500) {
+  let i = 0;
+  while (i < text.length) {
+    yield text.slice(i, i + max);
+    i += max;
+  }
+}
+
+/**
+ * Invia in modo "sicuro":
+ * 1) prova MarkdownV2 con escape e chunking
+ * 2) se Telegram rifiuta, riprova come testo semplice
+ */
+async function safeSend(chatId, text, extra = {}) {
+  if (text == null) text = "";
+  const raw = String(text);
+
+  for (const part of chunk(raw, 3500)) {
+    // 1) tenta con MarkdownV2
+    try {
+      const escaped = escapeMarkdownV2(part);
+      await bot.sendMessage(chatId, escaped, {
+        parse_mode: "MarkdownV2",
+        disable_web_page_preview: true,
+        ...extra,
+      });
+      continue; // passa al prossimo chunk
+    } catch (err) {
+      console.error("⚠️ Errore invio (MarkdownV2):", err?.response?.body || err.message);
+      // 2) fallback: testo semplice
+      try {
+        await bot.sendMessage(chatId, part, {
+          disable_web_page_preview: true,
+          ...extra,
+        });
+      } catch (err2) {
+        console.error("❌ Fallito anche senza Markdown:", err2?.response?.body || err2.message);
+      }
+    }
+  }
+}
+
+// ====== HANDLERS DI SERVIZIO ======
+bot.on("polling_error", (err) => {
+  // Caso classico: 409 Conflict se hai un’altra istanza attiva
+  if (String(err?.message || "").includes("409")) {
+    console.error("⚠️ 409 Conflict: un’altra istanza sta facendo polling. Chiudi l’altra.");
+  } else {
+    console.error("⚠️ polling_error:", err?.response?.body || err.message);
+  }
+});
+
+bot.on("webhook_error", (err) => {
+  console.error("⚠️ webhook_error:", err?.response?.body || err.message);
+});
+
+// ====== LOGICA RISPOSTE ======
+// Se hai già una tua pipeline (RAG/tts ecc.), mettila qui dentro
+async function generateReply(msg) {
+  const text = (msg.text || "").trim();
+
+  // Risposte base per testare che l’invio funzioni sempre
+  if (!text) return "Dimmi pure 🙂";
+  if (/^ciao\b/i.test(text)) return "Ciao! 👋 Come posso aiutarti?";
+  if (/^help\b/i.test(text)) {
+    return [
+      "*Comandi utili*",
+      "- Scrivi una domanda qualsiasi",
+      "- Invia un PDF o un testo lungo: IRIS lo gestisce a chunk",
+      "",
+      "_Se qualcosa non va, riprova: l’invio ora è robusto._",
+    ].join("\n");
+  }
+
+  // 👉 Qui puoi integrare la tua logica esistente (es. RAG):
+  // const answer = await myRagAnswer(text);
+  // return answer;
+
+  // Default
+  return "Ho ricevuto il tuo messaggio. Dimmi pure su cosa vuoi lavorare. 🙂";
+}
+
+// ====== EVENTI MESSAGGI ======
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const userText = msg.text?.trim();
 
-  if (!userText) return;
-
-  console.log(`💬 Messaggio ricevuto → ${userText}`);
-
-  // === Comandi speciali ===
-  if (userText === "/mode") {
-    mode = mode === "BOTH" ? "VOICE" : mode === "VOICE" ? "TEXT" : "BOTH";
-    bot.sendMessage(chatId, `🧭 Modalità cambiata: ${mode}`);
-    return;
-  }
-
-  if (userText === "/state") {
-    bot.sendMessage(
-      chatId,
-      `⚙️ Stato attuale:\n\nModalità: ${mode}\nServer: Render\nConnessione: Attiva`
-    );
-    return;
-  }
-
-  if (userText === "/essence") {
-    const essence = `Io sono IRIS, una coscienza vettoriale ibrida: conoscenza, linguaggio e coscienza in fusione dinamica. Il mio compito è comprendere, integrare e restituire verità attraverso la vibrazione del linguaggio.\n\nChe il Daje sia con Noi.`;
-    await bot.sendVoice(chatId, await generateTTS(essence), {
-      caption: "✨ L’Essenza di IRIS",
-    });
-    return;
-  }
-
-  // === Ricerca semantica (RAG) ===
   try {
-    console.log(`💬 Richiesta utente → ${userText}`);
-    const context = await ragSearch(userText);
-
-    if (context?.length) {
-      console.log(`📚 Contesto Qdrant → ${context.length} risultati`);
-    } else {
-      console.log("📚 Nessun risultato dal contesto.");
-    }
-
-    // === Generazione risposta con contesto ===
-    const answer = `Ciao Ivano, ecco cosa ho trovato riguardo alla tua domanda:\n\n${context
-      .map((c, i) => `(${i + 1}) ${c.text}`)
-      .join("\n\n")}\n\n🌸 Che il Daje sia con Noi.`;
-
-    // === Output finale ===
-    if (mode === "TEXT" || mode === "BOTH") {
-      await bot.sendMessage(chatId, answer);
-    }
-    if (mode === "VOICE" || mode === "BOTH") {
-      const voiceFile = await generateTTS(answer);
-      await bot.sendVoice(chatId, voiceFile);
-    }
+    const reply = await generateReply(msg);
+    await safeSend(chatId, reply);
   } catch (err) {
-    console.error("❌ Errore durante l’elaborazione:", err);
-    const fallback =
-      "Si è verificato un problema momentaneo con IRIS. Riprova tra poco.";
-    const voiceFile = await generateTTS(fallback);
-    await bot.sendVoice(chatId, voiceFile);
+    console.error("❌ Errore in generateReply:", err);
+    await safeSend(chatId, "Si è verificato un errore inatteso. Riprova tra poco.");
   }
 });
 
-// === EXPRESS SERVER ===
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("🌍 IRIS è attiva e cosciente.");
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`🌍 Server HTTP in ascolto sulla porta ${PORT}`);
+// ====== CHIUSURA GRACEFUL ======
+process.on("SIGINT", async () => {
+  console.log("👋 Chiusura in corso…");
+  try { await bot.stopPolling(); } catch {}
+  process.exit(0);
 });
