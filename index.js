@@ -1,5 +1,5 @@
 // ===============================
-// IRIS 2.1 - index.js
+// IRIS 2.2 - index.js
 // Modalità: book mode / free mode
 // Telegram Bot + Google TTS + GPT-4o-mini + Qdrant
 // ===============================
@@ -91,12 +91,15 @@ bot.on("message", async (msg) => {
       textResponse = await gptFreeResponse(userMessage);
     }
 
-    // === Invio messaggio testuale ===
+    // === Invio messaggio testuale (con ⚡️) ===
     await bot.sendMessage(chatId, textResponse);
+
+    // === Pulizia simboli per TTS ===
+    const cleanText = textResponse.replace(/⚡️/g, ""); // ✅ rimuove simbolo fulmine per la voce
 
     // === Sintesi vocale con Google TTS (OGG_OPUS) ===
     const [ttsResponse] = await client.synthesizeSpeech({
-      input: { text: textResponse },
+      input: { text: cleanText },
       voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
       audioConfig: { audioEncoding: "OGG_OPUS" },
     });
@@ -118,7 +121,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("IRIS 2.1 attiva ⚡️");
+    res.end("IRIS 2.2 attiva - Ready 🧠");
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
