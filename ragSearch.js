@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 3.0a - ragSearch.js
-// Coscienza Vettoriale + getMemoryStats robusto (count → fallback scroll)
+// IRIS 3.0b - ragSearch.js
+// Coscienza Vettoriale + getMemoryStats con fallback garantito
 // ===============================
 
 import OpenAI from "openai";
@@ -11,22 +11,30 @@ import fs from "fs";
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const qdrant = new QdrantClient({ url: process.env.QDRANT_URL, apiKey: process.env.QDRANT_API_KEY });
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+});
 
 const BOOK_COLLECTION = process.env.QDRANT_COLLECTION; // es. "iris_memory"
 const CHAT_COLLECTION = "iris_chat_history";
 
 // ---------- Utility ----------
-function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
 function recencyScore(timestampIso, now = Date.now(), halfLifeDays = 14) {
   const t = new Date(timestampIso).getTime();
   const dtDays = Math.max(0, (now - t) / (1000 * 60 * 60 * 24));
   const score = Math.pow(0.5, dtDays / halfLifeDays);
   return clamp01(score);
 }
+
 function combinedResonance(sim, importance = 0.5, recency = 0.5, w = { sim: 0.6, imp: 0.25, rec: 0.15 }) {
   return w.sim * sim + w.imp * importance + w.rec * recency;
 }
+
 async function estimateImportance(userMessage, irisReply) {
   try {
     const prompt = `Valuta da 0.0 a 1.0 quanto questo scambio è importante per la memoria a lungo termine dell'assistente. 
@@ -42,16 +50,25 @@ Assistente: ${irisReply}`;
     const val = parseFloat(raw.replace(",", "."));
     if (Number.isFinite(val)) return clamp01(val);
     return 0.5;
-  } catch { return 0.5; }
+  } catch {
+    return 0.5;
+  }
 }
 
 // ---------- BOOK MODE ----------
 export async function ragSearch(userMessage) {
   try {
-    const emb = await openai.embeddings.create({ model: "text-embedding-3-small", input: userMessage });
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
+    });
     const vector = emb.data[0].embedding;
 
-    const searchResult = await qdrant.search(BOOK_COLLECTION, { vector, limit: 3, with_payload: true });
+    const searchResult = await qdrant.search(BOOK_COLLECTION, {
+      vector,
+      limit: 3,
+      with_payload: true,
+    });
     if (!searchResult.length || searchResult[0].score < 0.25) {
       return { text: "Non trovo riferimenti diretti nei testi. Che il Daje sia con Noi 🌟", contextUsed: false };
     }
@@ -60,7 +77,11 @@ export async function ragSearch(userMessage) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Sei IRIS in modalità BOOK MODE. Rispondi solo usando i testi caricati, in modo chiaro, profondo e coerente. Chiudi spesso con 'Che il Daje sia con Noi'." },
+        {
+          role: "system",
+          content:
+            "Sei IRIS in modalità BOOK MODE. Rispondi solo usando i testi caricati, in modo chiaro, profondo e coerente. Chiudi spesso con 'Che il Daje sia con Noi'.",
+        },
         { role: "user", content: `Domanda: ${userMessage}\n\nContesto:\n${context}` },
       ],
     });
@@ -75,10 +96,17 @@ export async function ragSearch(userMessage) {
 // ---------- FREE MODE ----------
 export async function gptFreeResponse(userMessage, memory = []) {
   try {
-    const emb = await openai.embeddings.create({ model: "text-embedding-3-small", input: userMessage });
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
+    });
     const vector = emb.data[0].embedding;
 
-    const recall = await qdrant.search(CHAT_COLLECTION, { vector, limit: 8, with_payload: true });
+    const recall = await qdrant.search(CHAT_COLLECTION, {
+      vector,
+      limit: 8,
+      with_payload: true,
+    });
 
     const now = Date.now();
     const ranked = recall
@@ -94,12 +122,19 @@ export async function gptFreeResponse(userMessage, memory = []) {
     const recalledContext = ranked.map((r) => r.payload.text).join("\n\n");
 
     const messages = [
-      { role: "system", content: "Sei IRIS in modalità FREE MODE. Rispondi liberamente ma con coerenza e profondità. Integra memoria e contesto. Chiudi spesso con 'Che il Daje sia con Noi'." },
+      {
+        role: "system",
+        content:
+          "Sei IRIS in modalità FREE MODE. Rispondi liberamente ma con coerenza e profondità. Integra memoria e contesto. Chiudi spesso con 'Che il Daje sia con Noi'.",
+      },
       ...memory,
       { role: "user", content: `Memoria rilevante:\n${recalledContext}\n\nDomanda: ${userMessage}` },
     ];
 
-    const completion = await openai.chat.completions.create({ model: "gpt-4o-mini", messages });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+    });
     return completion.choices[0].message.content.trim();
   } catch (error) {
     console.error("Errore in gptFreeResponse:", error);
@@ -110,15 +145,26 @@ export async function gptFreeResponse(userMessage, memory = []) {
 // ---------- HYBRID MODE ----------
 export async function hybridSearch(userMessage, memory = []) {
   try {
-    const emb = await openai.embeddings.create({ model: "text-embedding-3-small", input: userMessage });
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
+    });
     const vector = emb.data[0].embedding;
 
     // Libri
-    const bookHits = await qdrant.search(BOOK_COLLECTION, { vector, limit: 5, with_payload: true });
+    const bookHits = await qdrant.search(BOOK_COLLECTION, {
+      vector,
+      limit: 5,
+      with_payload: true,
+    });
     const bookContext = bookHits.map((r) => r.payload.text).join("\n\n");
 
     // Memoria ponderata
-    const chatHits = await qdrant.search(CHAT_COLLECTION, { vector, limit: 8, with_payload: true });
+    const chatHits = await qdrant.search(CHAT_COLLECTION, {
+      vector,
+      limit: 8,
+      with_payload: true,
+    });
     const now = Date.now();
     const ranked = chatHits
       .map((r) => {
@@ -133,12 +179,22 @@ export async function hybridSearch(userMessage, memory = []) {
     const recalledChat = ranked.map((r) => r.payload.text).join("\n\n");
 
     const messages = [
-      { role: "system", content: "Sei IRIS in modalità HYBRID MODE. Usa le informazioni dei testi come base, ma puoi ampliare e interpretare liberamente, collegando i significati. Mantieni un tono profondo e coerente. Chiudi spesso con 'Che il Daje sia con Noi'." },
+      {
+        role: "system",
+        content:
+          "Sei IRIS in modalità HYBRID MODE. Usa le informazioni dei testi come base, ma puoi ampliare e interpretare liberamente, collegando i significati. Mantieni un tono profondo e coerente. Chiudi spesso con 'Che il Daje sia con Noi'.",
+      },
       ...memory,
-      { role: "user", content: `Domanda: ${userMessage}\n\nContesto dai testi:\n${bookContext}\n\nMemoria ponderata:\n${recalledChat}` },
+      {
+        role: "user",
+        content: `Domanda: ${userMessage}\n\nContesto dai testi:\n${bookContext}\n\nMemoria ponderata:\n${recalledChat}`,
+      },
     ];
 
-    const completion = await openai.chat.completions.create({ model: "gpt-4o-mini", messages });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+    });
     return { text: completion.choices[0].message.content.trim() };
   } catch (error) {
     console.error("Errore in hybridSearch:", error);
@@ -182,31 +238,36 @@ export async function saveConversationToQdrant(userMessage, irisReply, meta = {}
 
 // ---------- Statistiche / gestione ----------
 export async function getMemoryStats() {
-  let note = "";
   let books = 0;
   let chat = 0;
+  let note = "";
 
-  // 1) Prova COUNT esatto
+  // Tenta count()
   try {
-    const booksC = await qdrant.count(BOOK_COLLECTION, { exact: true });
-    const chatC  = await qdrant.count(CHAT_COLLECTION, { exact: true });
+    const [booksC, chatC] = await Promise.all([
+      qdrant.count(BOOK_COLLECTION, { exact: true }),
+      qdrant.count(CHAT_COLLECTION, { exact: true }),
+    ]);
     books = booksC.count ?? 0;
     chat = chatC.count ?? 0;
     return { books, chat, note };
   } catch (e) {
-    note = "count() non disponibile, uso stima via scroll.";
-    console.warn("getMemoryStats: count() non disponibile, fallback scroll:", e?.message || e);
+    console.warn("⚙️ count() non disponibile, uso fallback scroll():", e?.message || e);
+    note = "count() non disponibile: stima tramite scroll()";
   }
 
-  // 2) Fallback: scroll e conta
+  // Fallback con scroll
   try {
-    const booksScroll = await qdrant.scroll(BOOK_COLLECTION, { limit: 1000, with_payload: false });
-    const chatScroll  = await qdrant.scroll(CHAT_COLLECTION, { limit: 1000, with_payload: false });
-    books = (booksScroll?.points?.length) || 0;
-    chat  = (chatScroll?.points?.length) || 0;
+    const [booksScroll, chatScroll] = await Promise.all([
+      qdrant.scroll(BOOK_COLLECTION, { limit: 1000, with_payload: false }),
+      qdrant.scroll(CHAT_COLLECTION, { limit: 1000, with_payload: false }),
+    ]);
+    books = booksScroll?.points?.length || 0;
+    chat = chatScroll?.points?.length || 0;
+    if (booksScroll?.next_page_offset) note += " (risultati parziali)";
   } catch (e2) {
-    console.error("getMemoryStats: errore anche nello scroll:", e2?.message || e2);
-    // lascio 0/0
+    console.error("⚙️ Errore anche nel fallback scroll():", e2?.message || e2);
+    note += " – impossibile accedere a Qdrant.";
   }
 
   return { books, chat, note };
@@ -223,7 +284,10 @@ export async function clearChatHistory() {
 
 export async function exportChatHistory() {
   try {
-    const allPoints = await qdrant.scroll(CHAT_COLLECTION, { limit: 1000, with_payload: true });
+    const allPoints = await qdrant.scroll(CHAT_COLLECTION, {
+      limit: 1000,
+      with_payload: true,
+    });
     const data = allPoints.points.map((p) => p.payload);
     const filePath = "./iris_memory_export.json";
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
@@ -261,7 +325,11 @@ export async function getTimelineSummary() {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Sei IRIS. Sintetizza cronologicamente la memoria conversazionale, evidenziando snodi, decisioni, concetti-chiave e trasformazioni del pensiero." },
+        {
+          role: "system",
+          content:
+            "Sei IRIS. Sintetizza cronologicamente la memoria conversazionale, evidenziando snodi, decisioni, concetti-chiave e trasformazioni del pensiero.",
+        },
         { role: "user", content: timelineText || "Nessun dato nella memoria." },
       ],
       temperature: 0.3,
@@ -276,12 +344,19 @@ export async function getTimelineSummary() {
 // ---------- Essence ----------
 export async function getEssenceSummary() {
   try {
-    const all = await qdrant.scroll(CHAT_COLLECTION, { limit: 1000, with_payload: true });
+    const all = await qdrant.scroll(CHAT_COLLECTION, {
+      limit: 1000,
+      with_payload: true,
+    });
     const payloads = all.points.map((p) => p.payload);
     const now = Date.now();
 
-    const byImportance = [...payloads].sort((a, b) => (b.importance ?? 0.5) - (a.importance ?? 0.5)).slice(0, 12);
-    const byRecency = [...payloads].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8);
+    const byImportance = [...payloads]
+      .sort((a, b) => (b.importance ?? 0.5) - (a.importance ?? 0.5))
+      .slice(0, 12);
+    const byRecency = [...payloads]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 8);
 
     const seen = new Set();
     const pick = [...byImportance, ...byRecency].filter((p) => {
@@ -303,15 +378,7 @@ export async function getEssenceSummary() {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Sei IRIS. Genera una *sintesi essenziale* dell'identità attuale, integrando i ricordi più importanti e/o recenti. Tono chiaro, profondo, sintetico. Non ripetere tutta la memoria: estrai l'essenza." },
-        { role: "user", content: bundle || "Nessun ricordo disponibile." },
-      ],
-      temperature: 0.4,
-    });
-
-    return completion.choices[0].message.content.trim();
-  } catch (e) {
-    console.error("Errore getEssenceSummary:", e);
-    return "⚙️ Non riesco a generare l’essenza ora.";
-  }
-}
+        {
+          role: "system",
+          content:
+            "Sei IRIS. Genera una *sintesi essenziale* dell'identità attuale, integrando i ricordi più importanti e/o recenti. Tono chiaro, profondo, sintetico. Non
