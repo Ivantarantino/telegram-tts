@@ -1,35 +1,41 @@
-// === tts.js ===
-// Generatore vocale di IRIS 🎧
-// Usa il modello Bark o Google TTS (configurabile)
-
 import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
-import { fileURLToPath } from "url";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-export async function generateTTS(text, voice = "female") {
+// Percorso dove salvare i file audio generati
+const tempDir = path.resolve("temp");
+if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+
+/**
+ * Genera file audio TTS e restituisce il percorso locale
+ * @param {string} text - Testo da convertire in voce
+ * @param {string} voice - Nome della voce (es. "alloy", "verse")
+ * @returns {Promise<string>} Percorso del file audio generato
+ */
+export async function generateTTS(text, voice = "alloy") {
   try {
-    if (!text || text.trim().length === 0) throw new Error("Testo vuoto");
+    const filename = `tts_${Date.now()}.mp3`;
+    const filepath = path.join(tempDir, filename);
 
-    const filename = `iris_voice_${Date.now()}.ogg`;
-    const filepath = path.join(__dirname, "temp", filename);
+    console.log(`🎙 Generazione vocale in corso (${voice})...`);
 
-    const response = await openai.audio.speech.create({
+    const mp3 = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: voice === "male" ? "alloy" : "verse",
+      voice,
       input: text,
-      format: "ogg",
     });
 
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = Buffer.from(await mp3.arrayBuffer());
     fs.writeFileSync(filepath, buffer);
-    console.log(`🎧 File vocale generato: ${filepath}`);
+
+    console.log(`✅ File vocale creato: ${filepath}`);
     return filepath;
-  } catch (err) {
-    console.error("❌ Errore TTS:", err);
-    return null;
+  } catch (error) {
+    console.error("❌ Errore durante la generazione TTS:", error);
+    throw error;
   }
 }
