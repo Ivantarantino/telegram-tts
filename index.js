@@ -1,90 +1,117 @@
-// index.js — IRIS 3.0i — versione stabile con TTS OGG + gestione fallback
-import TelegramBot from "node-telegram-bot-api";
+// index.js — IRIS 3.0i-clean
 import fs from "fs";
+import path from "path";
+import TelegramBot from "node-telegram-bot-api";
+import OpenAI from "openai";
 import express from "express";
-import { chatWithIris, getMode, setMode, essence } from "./ragSearch.js";
-import { generateVoice } from "./tts.js";
+import {
+  chatWithIris,
+  setMode,
+  getMode,
+  getMemoryState,
+  essence
+} from "./ragSearch.js";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const token =
-  process.env.TELEGRAM_TOKEN ||
-  process.env.TELEGRAM_BOT_TOKEN ||
-  process.env.TELEGRAM_API_TOKEN;
+// === Variabili d'ambiente ===
+const TELEGRAM_TOKEN =
+  process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-if (!token) {
-  console.error("❌ ERRORE FATALE: nessun token Telegram trovato!");
-  process.exit(1);
-}
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-const bot = new TelegramBot(token, { polling: true });
+// === Stato interno ===
+let warnedOnce = false;
 
-// 🌐 server per Render
-app.get("/", (req, res) => res.send("🌍 IRIS attiva su Render."));
+// === Avvio server Express ===
+app.get("/", (req, res) => res.send("🌐 IRIS 3.0i-clean attivo."));
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
+  console.log("🧭 Modalità iniziale: HY MODE");
 });
 
-// 🧭 Modalità corrente
-console.log(`🧭 Modalità iniziale: ${getMode().toUpperCase()} MODE`);
-
-// 📩 Gestione messaggi Telegram
+// === Gestione messaggi Telegram ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text ? msg.text.trim() : "";
+  if (!text) return;
 
+  console.log(`💬 Messaggio ricevuto → ${text}`);
+
+  // Comandi speciali
+  if (text.toLowerCase() === "/mode") {
+    await bot.sendMessage(chatId, `🔁 Modalità corrente: ${getMode()}`);
+    return;
+  }
+  if (text.toLowerCase().startsWith("/setmode ")) {
+    const mode = text.split(" ")[1];
+    setMode(mode);
+    await bot.sendMessage(chatId, `🧭 Modalità impostata su: ${mode}`);
+    return;
+  }
+  if (text.toLowerCase() === "/memory") {
+    const mem = getMemoryState();
+    await bot.sendMessage(chatId, JSON.stringify(mem, null, 2));
+    return;
+  }
+  if (text.toLowerCase() === "/essence") {
+    const e = await essence();
+    await bot.sendMessage(chatId, e);
+    return;
+  }
+
+  // === Chat standard ===
+  let reply;
   try {
-    if (!text) {
-      await bot.sendMessage(chatId, "🕊️ Messaggio vuoto ricevuto.");
-      return;
-    }
-
-    // 🔄 Comandi di controllo
-    if (text.toLowerCase() === "/start") {
-      await bot.sendMessage(
-        chatId,
-        "Ciao Ivano 🌿, sono IRIS. Modalità attuale: " + getMode().toUpperCase()
-      );
-      return;
-    }
-
-    if (text.startsWith("/mode")) {
-      const newMode = text.split(" ")[1];
-      if (["hy", "book", "free"].includes(newMode)) {
-        setMode(newMode);
-        await bot.sendMessage(chatId, `🔁 Modalità impostata su ${newMode.toUpperCase()}.`);
-      } else {
-        await bot.sendMessage(chatId, "Modalità non valida. Usa: /mode hy | book | free");
-      }
-      return;
-    }
-
-    if (text.toLowerCase().includes("/essence")) {
-      const ess = await essence();
-      await bot.sendMessage(chatId, ess);
-      return;
-    }
-
-    // 💬 Risposta IRIS
-    const reply = await chatWithIris(text);
-
-    if (!reply || typeof reply !== "string") {
-      await bot.sendMessage(chatId, "⚠️ Errore nella risposta di IRIS.");
-      return;
-    }
-
-    // 🔊 Genera voce .ogg
-    const voiceFile = await generateVoice(reply);
-
-    if (voiceFile && fs.existsSync(voiceFile)) {
-      await bot.sendVoice(chatId, fs.createReadStream(voiceFile));
-      fs.unlinkSync(voiceFile); // pulizia temp
-    } else {
-      await bot.sendMessage(chatId, reply);
-    }
+    reply = await chatWithIris(text);
   } catch (err) {
-    console.error("❌ Errore in Telegram handler:", err);
-    await bot.sendMessage(chatId, "⚠️ Errore interno. Riprova tra poco.");
+    console.error("❌ Errore chatWithIris:", err.message);
+    reply = "⚠️ Si è verificato un problema momentaneo con IRIS.";
+  }
+
+  // === Generazione vocale ===
+  try {
+    const ttsPath = path.join(
+      "temp",
+      `iris_voice_${Date.now()}.ogg`
+    );
+    const tts = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: "alloy",
+      format: "ogg",
+      input: reply
+    });
+
+    const buffer = Buffer.from(await tts.arrayBuffer());
+    fs.mkdirSync("temp", { recursive: true });
+    fs.writeFileSync(ttsPath, buffer);
+    console.log(`🎧 File vocale generato: ${ttsPath}`);
+
+    await bot.sendVoice(chatId, fs.createReadStream(ttsPath));
+
+    // 🧹 elimina file dopo invio
+    fs.unlink(ttsPath, (e) => {
+      if (e) console.warn("⚠️ Impossibile cancellare file vocale:", e.message);
+    });
+  } catch (err) {
+    console.error("❌ Errore generazione vocale:", err.message);
+    await bot.sendMessage(
+      chatId,
+      "⚠️ Si è verificato un problema momentaneo con IRIS."
+    );
+  }
+});
+
+// === Log filtrato per Qdrant ===
+process.on("warning", (w) => {
+  if (w.message.includes("iris_docs") && warnedOnce) return;
+  if (w.message.includes("iris_docs")) {
+    warnedOnce = true;
+    console.warn("⚠️ Qdrant: collection 'iris_docs' non trovata (avviso singolo).");
+  } else {
+    console.warn("⚠️", w.name, w.message);
   }
 });
