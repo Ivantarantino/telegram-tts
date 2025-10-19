@@ -1,7 +1,6 @@
-// ===============================
-// IRIS - qdrantInit.js
-// Inizializzazione automatica Qdrant
-// ===============================
+// ==========================================================
+// ⚙️ qdrantInit.js – Inizializzazione automatica delle collection IRIS
+// ==========================================================
 
 import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
@@ -10,54 +9,41 @@ dotenv.config();
 
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
-  apiKey: process.env.QDRANT_API_KEY,
+  apiKey: process.env.QDRANT_API_KEY
 });
 
-const BOOK_COLLECTION = process.env.QDRANT_COLLECTION;
-const CHAT_COLLECTION = "iris_chat_history";
+// ==========================================================
+// 🧠 Funzione principale: initializeQdrant()
+// ==========================================================
+export async function initializeQdrant() {
+  console.log("🔍 Controllo delle collection in Qdrant...");
 
-// ===============================
-// 🔧 Funzione di creazione automatica
-// ===============================
-async function ensureCollections() {
   try {
-    console.log("🔍 Controllo delle collection in Qdrant...");
+    const collections = await qdrant.getCollections();
+    const existing = collections.collections.map(c => c.name);
 
-    const existing = await qdrant.getCollections();
-    const names = existing.collections.map((c) => c.name);
-
-    // BOOK COLLECTION (per i testi PDF)
-    if (!names.includes(BOOK_COLLECTION)) {
-      console.log(`📚 Creazione della collection: ${BOOK_COLLECTION}`);
-      await qdrant.createCollection(BOOK_COLLECTION, {
-        vectors: {
-          size: 1536,
-          distance: "Cosine",
-        },
+    // Se non esiste, crea la collection iris_memory
+    if (!existing.includes("iris_memory")) {
+      console.log("📚 Creazione collection 'iris_memory'...");
+      await qdrant.createCollection("iris_memory", {
+        vectors: { size: 3072, distance: "Cosine" }
       });
     } else {
-      console.log(`📚 Collection '${BOOK_COLLECTION}' già esistente`);
+      console.log("📚 Collection 'iris_memory' già esistente");
     }
 
-    // CHAT COLLECTION (per memoria conversazionale)
-    if (!names.includes(CHAT_COLLECTION)) {
-      console.log(`💬 Creazione della collection: ${CHAT_COLLECTION}`);
-      await qdrant.createCollection(CHAT_COLLECTION, {
-        vectors: {
-          size: 1536,
-          distance: "Cosine",
-        },
+    // Se non esiste, crea la collection iris_chat_history
+    if (!existing.includes("iris_chat_history")) {
+      console.log("💬 Creazione collection 'iris_chat_history'...");
+      await qdrant.createCollection("iris_chat_history", {
+        vectors: { size: 3072, distance: "Cosine" }
       });
     } else {
-      console.log(`💬 Collection '${CHAT_COLLECTION}' già esistente`);
+      console.log("💬 Collection 'iris_chat_history' già esistente");
     }
 
     console.log("✅ Tutte le collection sono pronte!");
   } catch (error) {
-    console.error("❌ Errore durante l'inizializzazione Qdrant:", error);
+    console.error("❌ Errore durante l’inizializzazione di Qdrant:", error);
   }
 }
-
-// Esegui la funzione
-ensureCollections();
-
