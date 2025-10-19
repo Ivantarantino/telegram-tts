@@ -1,8 +1,13 @@
 // loadDocs.js — Carica M24 - IL PROGRAMMA KRIST.pdf in Qdrant Cloud
+
 import fs from "fs";
-import pdf from "pdf-parse";
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
+import { createRequire } from "module";
+
+// ✅ Usa require solo per pdf-parse
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 
 // === CONFIG ===
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -59,11 +64,16 @@ async function ensureCollection() {
   console.log("✅ Collection creata!");
 }
 
+// Lettura PDF (funzionale con require)
+async function readPDF(filePath) {
+  const dataBuffer = fs.readFileSync(filePath);
+  return pdfParse(dataBuffer); // ✅ questa è una funzione valida
+}
+
 // Carica il PDF e invia i blocchi in Qdrant
 async function ingestPDF() {
   console.log(`📖 Lettura file: ${FILE_PATH}`);
-  const dataBuffer = fs.readFileSync(FILE_PATH);
-  const data = await pdf(dataBuffer);
+  const data = await readPDF(FILE_PATH);
   const chunks = splitText(data.text);
   console.log(`✂️ Frammenti estratti: ${chunks.length}`);
 
