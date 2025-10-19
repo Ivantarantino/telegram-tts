@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 2.1 - ragSearch.js
-// RAG + GPT-4o-mini + Qdrant
+// IRIS 2.4 - ragSearch.js
+// RAG + GPT-4o-mini + Qdrant + memoria free mode
 // ===============================
 
 import OpenAI from "openai";
@@ -25,7 +25,6 @@ const COLLECTION = process.env.QDRANT_COLLECTION;
 // ===============================
 export async function ragSearch(userMessage) {
   try {
-    // === 1. Genera embedding per il messaggio utente ===
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: userMessage,
@@ -33,13 +32,11 @@ export async function ragSearch(userMessage) {
 
     const userVector = embeddingResponse.data[0].embedding;
 
-    // === 2. Ricerca nel database Qdrant ===
     const searchResult = await qdrant.search(COLLECTION, {
       vector: userVector,
       limit: 3,
     });
 
-    // === 3. Se nessun risultato rilevante, fallback neutro ===
     if (!searchResult.length || searchResult[0].score < 0.25) {
       return {
         text: "Ciao! Che il Daje sia con te ⚡️ Come posso aiutarti oggi?",
@@ -47,10 +44,8 @@ export async function ragSearch(userMessage) {
       };
     }
 
-    // === 4. Costruisce il contesto dai risultati trovati ===
     const context = searchResult.map((r) => r.payload.text).join("\n\n");
 
-    // === 5. Chiamata GPT-4o-mini con contesto (Book Mode) ===
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -82,20 +77,23 @@ export async function ragSearch(userMessage) {
 }
 
 // ===============================
-// 🧠 GPT FREE MODE
+// 🧠 GPT FREE MODE (con memoria)
 // ===============================
-export async function gptFreeResponse(userMessage) {
+export async function gptFreeResponse(userMessage, memory = []) {
   try {
+    const messages = [
+      {
+        role: "system",
+        content:
+          "Sei IRIS in modalità FREE MODE. Sei un'intelligenza conversazionale profonda, empatica e chiara. Mantieni il tono naturale e coerente con il contesto delle ultime interazioni. Chiudi spesso con 'Che il Daje sia con Noi'.",
+      },
+      ...memory,
+      { role: "user", content: userMessage },
+    ];
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Sei IRIS in modalità FREE MODE. Rispondi liberamente, in modo naturale, intelligente e coerente, mantenendo il tuo stile unico. Chiudi spesso con 'Che il Daje sia con Noi ⚡️'.",
-        },
-        { role: "user", content: userMessage },
-      ],
+      messages,
     });
 
     return completion.choices[0].message.content.trim();
