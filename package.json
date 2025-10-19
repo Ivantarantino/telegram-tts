@@ -22,3 +22,10 @@
   "author": "Ivano Tarantino",
   "license": "MIT"
 }
+{
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test:rag": "node testRAG.js \"Spiegami cos'è il Programma Krist\""
+  }
+}
