@@ -1,11 +1,10 @@
 // ===============================
-// IRIS 2.7 - index.js
+// IRIS 2.8 - index.js
 // Default: HYBRID MODE ⚗️
-// Memoria: breve (11 msg) + persistente su Qdrant (FREE + HYBRID)
-// /state per statistiche memoria
+// Autoapprendimento Qdrant + /state /forget /export
 // ===============================
 
-import "./qdrantInit.js"; // 🧩 crea/controlla le collection Qdrant all'avvio
+import "./qdrantInit.js";
 import fs from "fs";
 import dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
@@ -17,6 +16,8 @@ import {
   hybridSearch,
   saveConversationToQdrant,
   getMemoryStats,
+  clearChatHistory,
+  exportChatHistory,
 } from "./ragSearch.js";
 
 dotenv.config();
@@ -28,7 +29,7 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const ttsClient = new textToSpeech.TextToSpeechClient();
 
 // ===============================
-// 🧭 Modalità operativa (persistente su file)
+// 🧭 Modalità operativa
 // ===============================
 const MODE_FILE = "./iris_mode.txt";
 
@@ -36,7 +37,6 @@ function loadMode() {
   if (fs.existsSync(MODE_FILE)) {
     return fs.readFileSync(MODE_FILE, "utf-8").trim();
   }
-  // ✅ Default: HYBRID MODE
   fs.writeFileSync(MODE_FILE, "hybrid");
   return "hybrid";
 }
@@ -49,7 +49,7 @@ let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
 // ===============================
-// 🧠 Memoria conversazionale temporanea (RAM)
+// 🧠 Memoria temporanea (RAM)
 // ===============================
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
@@ -62,7 +62,6 @@ function addToMemory(role, content) {
 }
 
 function memorySize() {
-  // coppie user/assistant (approssimazione: metà array)
   return Math.floor(conversationMemory.length / 2);
 }
 
@@ -127,13 +126,38 @@ bot.onText(/\/state/, async (msg) => {
   }
 });
 
+bot.onText(/\/forget/, async (msg) => {
+  const chatId = msg.chat.id;
+  await bot.sendMessage(chatId, "⚠️ Confermi di voler cancellare *tutta* la memoria conversazionale? Rispondi con 'SI' per procedere.");
+  bot.once("message", async (reply) => {
+    if (reply.text.toLowerCase() === "si") {
+      await clearChatHistory();
+      conversationMemory.length = 0;
+      await bot.sendMessage(chatId, "🧹 Memoria cancellata con successo!");
+    } else {
+      await bot.sendMessage(chatId, "❌ Operazione annullata.");
+    }
+  });
+});
+
+bot.onText(/\/export/, async (msg) => {
+  const chatId = msg.chat.id;
+  await bot.sendMessage(chatId, "📦 Esportazione memoria in corso...");
+  try {
+    const filePath = await exportChatHistory();
+    await bot.sendDocument(chatId, filePath);
+    fs.unlinkSync(filePath);
+  } catch (e) {
+    await bot.sendMessage(chatId, "⚙️ Errore durante l’esportazione della memoria.");
+  }
+});
+
 // ===============================
 // 💬 Gestione messaggi
 // ===============================
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const userMessage = msg.text?.trim();
-
   if (!userMessage || userMessage.startsWith("/")) return;
 
   console.log(`[USER @${msg.from.username || "anon"}] (${irisMode} mode): ${userMessage}`);
@@ -144,32 +168,20 @@ bot.on("message", async (msg) => {
     if (irisMode === "book") {
       const response = await ragSearch(userMessage);
       textResponse = response.text;
-      // In book mode NON salviamo la risposta (è strettamente da testi)
     } else if (irisMode === "hybrid") {
-      // HYBRID: integra memoria breve e testi, poi salva in Qdrant (auto-apprendimento)
       const response = await hybridSearch(userMessage, conversationMemory);
       textResponse = response.text;
-      // aggiornamento RAM (manteniamo traccia locale breve)
       addToMemory("user", userMessage);
       addToMemory("assistant", textResponse);
-      // salvataggio persistente con metadati
-      await saveConversationToQdrant(userMessage, textResponse, {
-        mode: "hybrid",
-      });
+      await saveConversationToQdrant(userMessage, textResponse, { mode: "hybrid" });
     } else {
-      // FREE: dialogo libero con memoria breve + salvataggio persistente
       addToMemory("user", userMessage);
       textResponse = await gptFreeResponse(userMessage, conversationMemory);
       addToMemory("assistant", textResponse);
-      await saveConversationToQdrant(userMessage, textResponse, {
-        mode: "free",
-      });
+      await saveConversationToQdrant(userMessage, textResponse, { mode: "free" });
     }
 
-    // Invia testo
     await bot.sendMessage(chatId, textResponse);
-
-    // 🔊 Sintesi vocale (filtra simboli non pronunciabili)
     const cleanText = textResponse.replace(/⚡️/g, "");
     const [ttsResponse] = await ttsClient.synthesizeSpeech({
       input: { text: cleanText },
@@ -179,7 +191,6 @@ bot.on("message", async (msg) => {
 
     fs.writeFileSync("response.ogg", ttsResponse.audioContent, "binary");
     await bot.sendVoice(chatId, fs.createReadStream("response.ogg"));
-
     console.log(`[IRIS 🔊]: risposta vocale inviata (${irisMode} mode)`);
   } catch (error) {
     console.error("Errore nel messaggio:", error);
@@ -193,7 +204,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 2.7 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 2.8 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
