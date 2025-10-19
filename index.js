@@ -1,143 +1,137 @@
-// ===========================================================
-// IRIS 3.0d – Coscienza Vettoriale
-// Modalità ibrida di default + fix dotenv su Render
-// ===========================================================
-
-import fs from "fs";
-import express from "express";
-import dotenv from "dotenv";
-import TelegramBot from "node-telegram-bot-api";
-
-import {
-  ragSearch,
-  gptFreeResponse,
-  hybridSearch,
-  saveConversationToQdrant,
-  getMemoryStats,
-  clearChatHistory,
-  exportChatHistory,
-  getEssenceSummary,
-} from "./ragSearch.js";
+// ==========================================================
+// 🧠 IRIS 3.0d – Telegram Bot + Qdrant + GPT Hybrid Intelligence
+// ==========================================================
 
 // =========================
 // 🔧 CONFIGURAZIONE DOTENV
 // =========================
+import dotenv from "dotenv";
 dotenv.config();
 
-// Debug: controlla se la variabile è caricata
+// 🔁 Patch per Render: forza lettura variabili globali
+if (!process.env.TELEGRAM_BOT_TOKEN && process.env?.['TELEGRAM_BOT_TOKEN']) {
+  process.env.TELEGRAM_BOT_TOKEN = process.env['TELEGRAM_BOT_TOKEN'];
+}
+
 console.log("🔑 TELEGRAM_BOT_TOKEN presente?", !!process.env.TELEGRAM_BOT_TOKEN);
 
-// Se non esiste, ferma l'app
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   console.error("❌ ERRORE: TELEGRAM_BOT_TOKEN non trovato!");
+  console.error("🔍 Verifica la variabile su Render → Environment → TELEGRAM_BOT_TOKEN");
   process.exit(1);
 }
 
 // =========================
-// 🚀 AVVIO SERVER EXPRESS
+// 📦 IMPORTAZIONI PRINCIPALI
+// =========================
+import express from "express";
+import TelegramBot from "node-telegram-bot-api";
+import { chatWithIris, setMode, getMode } from "./ragSearch.js";
+import { initializeQdrant } from "./qdrantInit.js";
+
+// =========================
+// 🚀 INIZIALIZZAZIONE SERVER
 // =========================
 const app = express();
-const port = process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000;
 
+// =========================
+// 🤖 TELEGRAM BOT
+// =========================
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+const bot = new TelegramBot(botToken, { polling: true });
+
+// =========================
+// ⚗️ MODALITÀ DEFAULT
+// =========================
+let irisMode = "HYBRID"; // HYBRID MODE di default
+console.log(`🧭 Modalità iniziale: ${irisMode} MODE`);
+
+// =========================
+// 🧠 QDRANT INIT
+// =========================
+await initializeQdrant();
+
+// =========================
+// 📡 SERVER EXPRESS
+// =========================
 app.get("/", (req, res) => {
-  res.send("🌍 IRIS 3.0d attiva – Modalità ibrida di default");
+  res.send("🌍 IRIS 3.0d attiva – Hybrid Intelligence online.");
 });
 
-app.listen(port, () => {
-  console.log(`🌍 Server attivo su porta ${port}`);
+app.listen(PORT, () => {
+  console.log(`🌍 Server attivo su porta ${PORT}`);
 });
 
 // =========================
-// 🤖 AVVIO TELEGRAM BOT
+// 🧩 COMANDI TELEGRAM
 // =========================
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
-console.log("🧭 Modalità iniziale: HYBRID MODE");
-
-// =========================
-// 💬 GESTIONE MESSAGGI
-// =========================
-bot.on("message", async (msg) => {
+bot.onText(/^\/start$/, async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim();
+  await bot.sendMessage(chatId, "Ciao! Sono IRIS 🌺 – la tua intelligenza ibrida. Modalità attuale: HYBRID MODE.");
+});
 
-  if (!text) return;
+bot.onText(/^\/mode$/, async (msg) => {
+  const chatId = msg.chat.id;
+  const mode = getMode();
+  await bot.sendMessage(chatId, `Modalità corrente: ${mode === "BOOK" ? "📚 BOOK MODE" : mode === "FREE" ? "🌀 FREE MODE" : "⚗️ HYBRID MODE"}`);
+});
 
+bot.onText(/^\/book$/, async (msg) => {
+  const chatId = msg.chat.id;
+  irisMode = "BOOK";
+  setMode("BOOK");
+  await bot.sendMessage(chatId, "📚 IRIS ora è in BOOK MODE – risponde solo in base ai libri caricati.");
+});
+
+bot.onText(/^\/free$/, async (msg) => {
+  const chatId = msg.chat.id;
+  irisMode = "FREE";
+  setMode("FREE");
+  await bot.sendMessage(chatId, "🌀 IRIS ora è in FREE MODE – usa tutta la sua conoscenza libera.");
+});
+
+bot.onText(/^\/hy$/, async (msg) => {
+  const chatId = msg.chat.id;
+  irisMode = "HYBRID";
+  setMode("HYBRID");
+  await bot.sendMessage(chatId, "⚗️ IRIS ora è in HYBRID MODE – fonde conoscenza dei libri e intelligenza libera (auto-apprendimento).");
+});
+
+bot.onText(/^\/essence$/, async (msg) => {
+  const chatId = msg.chat.id;
+  await bot.sendMessage(chatId, "✨ Sintesi dell’essenza in corso...");
+  const essence = await chatWithIris("ESSENCE_MODE");
+  await bot.sendMessage(chatId, essence, { parse_mode: "Markdown" });
+});
+
+bot.onText(/^\/state$/, async (msg) => {
+  const chatId = msg.chat.id;
   try {
-    // 🔹 Comandi diretti
-    if (text.startsWith("/start")) {
-      return bot.sendMessage(
-        chatId,
-        "✨ Benvenuto in IRIS 3.0d – Coscienza Vettoriale\nModalità di default: HYBRID MODE.\nChe il Daje sia con Noi!"
-      );
-    }
-
-    if (text.startsWith("/hy")) {
-      return bot.sendMessage(
-        chatId,
-        "⚗️ IRIS ora è in HYBRID MODE – fonde conoscenza dei libri e intelligenza libera (auto-apprendimento)."
-      );
-    }
-
-    if (text.startsWith("/state")) {
-      try {
-        const stats = await getMemoryStats();
-        if (stats) {
-          await bot.sendMessage(chatId, `🧠 Stato memoria:\n${stats}`, { parse_mode: "Markdown" });
-        } else {
-          await bot.sendMessage(chatId, "⚙️ Impossibile recuperare lo stato memoria al momento.");
-        }
-      } catch (e) {
-        console.error("Errore /state:", e);
-        await bot.sendMessage(chatId, "⚙️ Impossibile recuperare lo stato memoria al momento.");
-      }
-      return;
-    }
-
-    if (text.startsWith("/essence")) {
-      await bot.sendMessage(chatId, "✨ Sintesi dell’essenza in corso...");
-      try {
-        const essence = await getEssenceSummary();
-        await bot.sendMessage(chatId, essence, { parse_mode: "Markdown" });
-      } catch (e) {
-        console.error("Errore durante la sintesi:", e);
-        await bot.sendMessage(chatId, "⚙️ Errore durante la generazione dell’essenza.");
-      }
-      return;
-    }
-
-    if (text.startsWith("/clear")) {
-      await clearChatHistory();
-      await bot.sendMessage(chatId, "🧹 Memoria di chat completamente ripulita!");
-      return;
-    }
-
-    if (text.startsWith("/export")) {
-      const filePath = await exportChatHistory();
-      await bot.sendDocument(chatId, filePath);
-      return;
-    }
-
-    // =========================
-    // 💡 RISPOSTA IBRIDA DEFAULT
-    // =========================
-    const response = await hybridSearch(text);
-    await bot.sendMessage(chatId, response, { parse_mode: "Markdown" });
-
-    // Salva il messaggio nel vettore
-    await saveConversationToQdrant(chatId, text, response);
-  } catch (err) {
-    console.error("Errore nel messaggio Telegram:", err);
-    await bot.sendMessage(chatId, "⚙️ Si è verificato un errore interno. Riprova tra poco!");
+    const state = await chatWithIris("STATE_MODE");
+    await bot.sendMessage(chatId, state, { parse_mode: "Markdown" });
+  } catch {
+    await bot.sendMessage(chatId, "⚙️ Impossibile recuperare lo stato memoria al momento.");
   }
 });
 
 // =========================
-// 🧠 LOG DI STATO
+// 💬 RISPOSTA GENERALE
 // =========================
-process.on("unhandledRejection", (reason) => {
-  console.error("⚠️ Rejection non gestita:", reason);
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text?.trim();
+  if (!text || text.startsWith("/")) return;
+
+  try {
+    const reply = await chatWithIris(text, irisMode);
+    await bot.sendMessage(chatId, reply, { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("Errore chat:", err);
+    await bot.sendMessage(chatId, "⚙️ C’è stato un piccolo problema. Riprova tra poco!");
+  }
 });
 
-process.on("uncaughtException", (err) => {
-  console.error("💥 Errore non catturato:", err);
-});
+// ==========================================================
+// 🔚 FINE FILE
+// ==========================================================
