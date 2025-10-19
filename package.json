@@ -3,7 +3,6 @@
   "version": "2.0.0",
   "description": "Telegram bot con IRIS, TTS e memoria Qdrant",
   "main": "index.js",
-  "type": "module",
   "scripts": {
     "start": "node -r dotenv/config index.js"
   },
