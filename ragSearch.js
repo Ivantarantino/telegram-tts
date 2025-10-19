@@ -1,6 +1,7 @@
 // ===============================
-// IRIS 2.8 - ragSearch.js
-// Include funzioni /forget e /export
+// IRIS 2.9 - ragSearch.js
+// Estende 2.8 con funzioni cronologiche:
+// /recall <giorni> e /timeline
 // ===============================
 
 import OpenAI from "openai";
@@ -19,40 +20,58 @@ const qdrant = new QdrantClient({
 const BOOK_COLLECTION = process.env.QDRANT_COLLECTION;
 const CHAT_COLLECTION = "iris_chat_history";
 
-// Tutte le funzioni ragSearch, gptFreeResponse, hybridSearch e saveConversationToQdrant
-// restano IDENTICHE a IRIS 2.7 — aggiungiamo solo le nuove utility:
+// Funzioni principali (ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant)
+// restano le stesse della 2.8, ma aggiungiamo funzioni temporali:
 
-export async function getMemoryStats() {
+export async function getRecentChats(days = 7) {
   try {
-    const books = await qdrant.count(BOOK_COLLECTION, { exact: true });
-    const chat = await qdrant.count(CHAT_COLLECTION, { exact: true });
-    return { books: books.count ?? 0, chat: chat.count ?? 0 };
-  } catch {
-    return { books: 0, chat: 0 };
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const result = await qdrant.scroll(CHAT_COLLECTION, {
+      limit: 500,
+      filter: {
+        must: [
+          {
+            key: "timestamp",
+            range: { gte: cutoff.toISOString() },
+          },
+        ],
+      },
+    });
+    return result.points.map((p) => p.payload);
+  } catch (e) {
+    console.error("Errore getRecentChats:", e);
+    return [];
   }
 }
 
-// 🧹 /forget → cancellazione memoria Qdrant
-export async function clearChatHistory() {
+export async function getTimelineSummary() {
   try {
-    await qdrant.delete(CHAT_COLLECTION, { filter: {} });
-    console.log("🧹 Memoria Qdrant cancellata con successo!");
-  } catch (e) {
-    console.error("Errore durante la cancellazione memoria:", e);
-  }
-}
+    const all = await qdrant.scroll(CHAT_COLLECTION, { limit: 500 });
+    const sorted = all.points
+      .map((p) => p.payload)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-// 📦 /export → esportazione memoria in JSON
-export async function exportChatHistory() {
-  try {
-    const allPoints = await qdrant.scroll(CHAT_COLLECTION, { limit: 500 });
-    const data = allPoints.points.map((p) => p.payload);
-    const filePath = "./iris_memory_export.json";
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
-    console.log(`📦 Memoria esportata in ${filePath}`);
-    return filePath;
+    const timelineText = sorted
+      .map((r) => `🕓 ${r.timestamp}\n${r.text}`)
+      .join("\n\n")
+      .slice(0, 5000);
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Sei IRIS. Devi sintetizzare cronologicamente la memoria conversazionale, creando una narrazione coerente del tuo percorso evolutivo. Evidenzia gli snodi di coscienza e le integrazioni significative.",
+        },
+        { role: "user", content: timelineText },
+      ],
+    });
+
+    return completion.choices[0].message.content.trim();
   } catch (e) {
-    console.error("Errore durante l'esportazione:", e);
-    throw e;
+    console.error("Errore getTimelineSummary:", e);
+    return "⚙️ Non riesco a generare la timeline in questo momento.";
   }
 }
