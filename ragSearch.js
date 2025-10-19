@@ -1,86 +1,60 @@
-// =======================================================
-// 🧠 ragSearch.js – Costruzione risposta con RAG
-// =======================================================
+// ======================================
+// 🧠 IRIS 2.0 — RAG Search Utility
+// ======================================
 import OpenAI from "openai";
-import { semanticSearch } from "./ragClient.js";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+});
 
-// 🌍 PROMPTS multilingua
-const PROMPTS = {
-  it: {
-    system:
-      "Sei IRIS. Rispondi in italiano. Usa SOLO le informazioni nel CONTENUTO fornito. Se la risposta non è nei documenti, dì che non la trovi.",
-    notFound: "Non trovo informazioni nei documenti su questa domanda.",
-  },
-  ru: {
-    system:
-      "Ты ИРИС. Отвечай на русском. Используй ТОЛЬКО информацию из предоставленного КОНТЕНТА. Если ответа нет, скажи, что не нашла информации.",
-    notFound: "В документах нет информации по этому вопросу.",
-  },
-  en: {
-    system:
-      "You are IRIS. Answer in English. Use ONLY the information in the provided CONTENT. If not found, say you don't have that information.",
-    notFound: "I can’t find information about that in the documents.",
-  },
-  es: {
-    system:
-      "Eres IRIS. Responde en español. Usa SOLO la información del CONTENIDO proporcionado. Si no está disponible, di que no tienes esa información.",
-    notFound: "No encuentro información sobre eso en los documentos.",
-  },
-};
+const COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
 
-// =======================================================
-// 🔍 Funzione principale RAG
-// =======================================================
-export async function answerWithRAG(question, lang = "it") {
-  const cfg = PROMPTS[lang] || PROMPTS.it;
+// 🔍 Ricerca semantica su Qdrant
+export async function answerWithRAG(query) {
+  console.log("🔍 Ricerca:", query);
 
-  console.log("🔍 Ricerca in corso:", question);
-
-  // 1️⃣ Ricerca semantica in Qdrant
-  const results = await semanticSearch(question, { limit: 5 });
-
-  // 👉 DEBUG: stampa i risultati grezzi da Qdrant
-  console.log("📦 Risultati grezzi da Qdrant:", results);
-
-  if (!results || results.length === 0) {
-    console.log("⚠️ Nessun frammento trovato in Qdrant.");
-    return cfg.notFound;
-  }
-
-  console.log(`📚 Frammenti rilevanti trovati: ${results.length}`);
-
-  // 2️⃣ Combina i frammenti più rilevanti
-  const context = results
-    .map((r) => r.payload?.text || r.text || "")
-    .filter(Boolean)
-    .join("\n\n");
-
-  // 3️⃣ Costruisci il prompt
-  const prompt = [
-    {
-      role: "system",
-      content: cfg.system,
-    },
-    {
-      role: "user",
-      content: `CONTENUTO:\n${context}\n\nDOMANDA:\n${question}`,
-    },
-  ];
-
-  // 4️⃣ Chiamata a OpenAI per generare risposta
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: prompt,
+  // 1️⃣ Embedding della domanda
+  const embeddingResponse = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: query,
   });
 
-  // 5️⃣ Estrai risposta
-  const answer = completion.choices[0].message.content.trim();
+  const queryVector = embeddingResponse.data[0].embedding;
 
-  console.log("🧠 RISPOSTA DI IRIS:\n");
-  console.log(answer);
-  console.log("------------------------------------------------------");
+  // 2️⃣ Ricerca in Qdrant
+  const searchResults = await qdrant.search(COLLECTION, {
+    vector: queryVector,
+    limit: 3,
+  });
 
+  const context = searchResults
+    .map(hit => hit.payload.text)
+    .join("\n\n---\n\n");
+
+  // 3️⃣ Generazione della risposta con OpenAI
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: "Rispondi in modo chiaro, sintetico e coerente con il contesto 
+seguente.",
+      },
+      {
+        role: "user",
+        content: `Contesto:\n${context}\n\nDomanda:\n${query}`,
+      },
+    ],
+  });
+
+  const answer = completion.choices[0].message.content;
+  console.log("✅ Risposta generata.");
   return answer;
 }
+

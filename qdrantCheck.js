@@ -1,22 +1,22 @@
-import dotenv from "dotenv";
+// =======================================================
+// 🧠 QdrantCheck — Test connessione e collezioni
+// =======================================================
 import { QdrantClient } from "@qdrant/js-client-rest";
-
+import dotenv from "dotenv";
 dotenv.config();
 
-const client = new QdrantClient({
-  url: process.env.QDRANT_URL,
-  apiKey: process.env.QDRANT_API_KEY
-});
+async function main() {
+  console.log("🔌 Connessione a Qdrant...");
+  const client = new QdrantClient({
+    url: process.env.QDRANT_URL,
+    apiKey: process.env.QDRANT_API_KEY,
+  });
 
-async function checkQdrant() {
-  try {
-    console.log("🔌 Connessione a Qdrant...");
-    const collections = await client.getCollections();
-    console.log("📚 Collezioni trovate:", collections.collections.map(c => c.name));
-    console.log("✅ Test completato con successo!");
-  } catch (err) {
-    console.error("❌ Errore durante la connessione:", err);
-  }
+  const collections = await client.getCollections();
+  console.log("📚 Collezioni trovate:", collections.collections.map(c => c.name));
+
+  console.log("✅ Test completato con successo!");
 }
 
-checkQdrant();
+main().catch(err => console.error("❌ Errore Qdrant:", err));
+
