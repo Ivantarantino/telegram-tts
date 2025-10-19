@@ -1,6 +1,8 @@
 // ===============================
-// IRIS 2.6b - ragSearch.js
+// IRIS 2.7 - ragSearch.js
 // Modalità BOOK / FREE / HYBRID + Qdrant memory
+// - HYBRID: integra libri + memoria, e salva in Qdrant (auto-apprendimento)
+// - /state: statistiche tramite count Qdrant
 // ===============================
 
 import OpenAI from "openai";
@@ -18,7 +20,7 @@ const qdrant = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY,
 });
 
-const COLLECTION = process.env.QDRANT_COLLECTION;
+const BOOK_COLLECTION = process.env.QDRANT_COLLECTION; // es. "iris_memory"
 const CHAT_COLLECTION = "iris_chat_history";
 
 // ===============================
@@ -33,7 +35,7 @@ export async function ragSearch(userMessage) {
 
     const userVector = embeddingResponse.data[0].embedding;
 
-    const searchResult = await qdrant.search(COLLECTION, {
+    const searchResult = await qdrant.search(BOOK_COLLECTION, {
       vector: userVector,
       limit: 3,
     });
@@ -64,7 +66,7 @@ export async function ragSearch(userMessage) {
 }
 
 // ===============================
-// 🧠 FREE MODE
+// 🧠 FREE MODE (ricorda dal chat history Qdrant + RAM)
 // ===============================
 export async function gptFreeResponse(userMessage, memory = []) {
   try {
@@ -104,33 +106,32 @@ export async function gptFreeResponse(userMessage, memory = []) {
 }
 
 // ===============================
-// ⚗️ HYBRID MODE
+// ⚗️ HYBRID MODE (integra libri + memoria, e apprende)
 // ===============================
 export async function hybridSearch(userMessage, memory = []) {
   try {
-    // 1️⃣ Recupera contesto dai libri
+    // 1) Embedding domanda
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: userMessage,
     });
     const userVector = embeddingResponse.data[0].embedding;
 
-    const searchResult = await qdrant.search(COLLECTION, {
+    // 2) Contesto dai libri
+    const searchResult = await qdrant.search(BOOK_COLLECTION, {
       vector: userVector,
       limit: 5,
     });
-
     const bookContext = searchResult.map((r) => r.payload.text).join("\n\n");
 
-    // 2️⃣ Recupera memoria conversazionale
+    // 3) Memoria conversazionale (Qdrant)
     const recall = await qdrant.search(CHAT_COLLECTION, {
       vector: userVector,
       limit: 3,
     });
-
     const recalledChat = recall.map((r) => r.payload.text).join("\n\n");
 
-    // 3️⃣ Prompt ibrido
+    // 4) Prompt ibrido
     const messages = [
       {
         role: "system",
@@ -157,9 +158,10 @@ export async function hybridSearch(userMessage, memory = []) {
 }
 
 // ===============================
-// 💾 Salvataggio memoria su Qdrant
+// 💾 Salvataggio memoria su Qdrant (FREE + HYBRID)
+// payload include metadati (mode, timestamp)
 // ===============================
-export async function saveConversationToQdrant(userMessage, irisReply) {
+export async function saveConversationToQdrant(userMessage, irisReply, meta = {}) {
   try {
     const text = `Utente: ${userMessage}\nIRIS: ${irisReply}`;
     const embeddingResponse = await openai.embeddings.create({
@@ -173,13 +175,36 @@ export async function saveConversationToQdrant(userMessage, irisReply) {
         {
           id: Date.now(),
           vector,
-          payload: { text, timestamp: new Date().toISOString() },
+          payload: {
+            text,
+            user: userMessage,
+            assistant: irisReply,
+            mode: meta.mode || "unknown",
+            timestamp: new Date().toISOString(),
+          },
         },
       ],
     });
 
-    console.log("🧠 Conversazione salvata in Qdrant (iris_chat_history)");
+    console.log(`🧠 Conversazione salvata in Qdrant (${CHAT_COLLECTION}) [mode=${meta.mode || "unknown"}]`);
   } catch (error) {
     console.error("Errore nel salvataggio Qdrant:", error);
+  }
+}
+
+// ===============================
+// 📊 Statistiche memoria (per /state)
+// ===============================
+export async function getMemoryStats() {
+  try {
+    const books = await qdrant.count(BOOK_COLLECTION, { exact: true });
+    const chat = await qdrant.count(CHAT_COLLECTION, { exact: true });
+    return {
+      books: books.count ?? 0,
+      chat: chat.count ?? 0,
+    };
+  } catch (e) {
+    console.error("Errore getMemoryStats:", e);
+    return { books: 0, chat: 0 };
   }
 }
