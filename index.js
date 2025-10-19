@@ -1,10 +1,11 @@
 // ===============================
-// IRIS 2.6c - index.js
+// IRIS 2.7 - index.js
 // Default: HYBRID MODE ⚗️
-// Memoria: breve (11 msg) + persistente su Qdrant
+// Memoria: breve (11 msg) + persistente su Qdrant (FREE + HYBRID)
+// /state per statistiche memoria
 // ===============================
 
-import "./qdrantInit.js"; // 🧩 Controlla e crea le collection Qdrant se mancanti
+import "./qdrantInit.js"; // 🧩 crea/controlla le collection Qdrant all'avvio
 import fs from "fs";
 import dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
@@ -15,6 +16,7 @@ import {
   gptFreeResponse,
   hybridSearch,
   saveConversationToQdrant,
+  getMemoryStats,
 } from "./ragSearch.js";
 
 dotenv.config();
@@ -23,7 +25,7 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const PORT = process.env.PORT || 10000;
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-const client = new textToSpeech.TextToSpeechClient();
+const ttsClient = new textToSpeech.TextToSpeechClient();
 
 // ===============================
 // 🧭 Modalità operativa (persistente su file)
@@ -47,7 +49,7 @@ let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
 // ===============================
-// 🧠 Memoria conversazionale temporanea
+// 🧠 Memoria conversazionale temporanea (RAM)
 // ===============================
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
@@ -57,6 +59,11 @@ function addToMemory(role, content) {
   if (conversationMemory.length > MEMORY_LIMIT * 2) {
     conversationMemory.splice(0, conversationMemory.length - MEMORY_LIMIT * 2);
   }
+}
+
+function memorySize() {
+  // coppie user/assistant (approssimazione: metà array)
+  return Math.floor(conversationMemory.length / 2);
 }
 
 // ===============================
@@ -77,7 +84,7 @@ bot.onText(/\/free/, (msg) => {
   saveMode("free");
   bot.sendMessage(
     msg.chat.id,
-    "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini.",
+    "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini (memoria breve + Qdrant).",
     { parse_mode: "Markdown" }
   );
 });
@@ -87,7 +94,7 @@ bot.onText(/\/hy/, (msg) => {
   saveMode("hybrid");
   bot.sendMessage(
     msg.chat.id,
-    "⚗️ IRIS ora è in *HYBRID MODE* – fonde conoscenza dei libri e intelligenza libera.",
+    "⚗️ IRIS ora è in *HYBRID MODE* – fonde conoscenza dei libri e intelligenza libera (auto-apprendimento).",
     { parse_mode: "Markdown" }
   );
 });
@@ -102,6 +109,22 @@ bot.onText(/\/mode/, (msg) => {
   bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, {
     parse_mode: "Markdown",
   });
+});
+
+bot.onText(/\/state/, async (msg) => {
+  try {
+    const stats = await getMemoryStats();
+    const ram = memorySize();
+    const text =
+      "🧠 *Stato Memoria*\n" +
+      `• Modalità: ${irisMode === "book" ? "📚 BOOK" : irisMode === "hybrid" ? "⚗️ HYBRID" : "🌀 FREE"}\n` +
+      `• Memoria breve (RAM): ${ram} interazioni\n` +
+      `• Qdrant libri (iris_memory): ~${stats.books} punti\n` +
+      `• Qdrant chat (iris_chat_history): ~${stats.chat} punti\n`;
+    await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
+  } catch (e) {
+    await bot.sendMessage(msg.chat.id, "⚙️ Impossibile recuperare lo stato memoria al momento.");
+  }
 });
 
 // ===============================
@@ -121,25 +144,37 @@ bot.on("message", async (msg) => {
     if (irisMode === "book") {
       const response = await ragSearch(userMessage);
       textResponse = response.text;
+      // In book mode NON salviamo la risposta (è strettamente da testi)
     } else if (irisMode === "hybrid") {
+      // HYBRID: integra memoria breve e testi, poi salva in Qdrant (auto-apprendimento)
       const response = await hybridSearch(userMessage, conversationMemory);
       textResponse = response.text;
-      await saveConversationToQdrant(userMessage, textResponse); // 🧠 Salva anche in Qdrant
+      // aggiornamento RAM (manteniamo traccia locale breve)
+      addToMemory("user", userMessage);
+      addToMemory("assistant", textResponse);
+      // salvataggio persistente con metadati
+      await saveConversationToQdrant(userMessage, textResponse, {
+        mode: "hybrid",
+      });
     } else {
+      // FREE: dialogo libero con memoria breve + salvataggio persistente
       addToMemory("user", userMessage);
       textResponse = await gptFreeResponse(userMessage, conversationMemory);
       addToMemory("assistant", textResponse);
-      await saveConversationToQdrant(userMessage, textResponse);
+      await saveConversationToQdrant(userMessage, textResponse, {
+        mode: "free",
+      });
     }
 
+    // Invia testo
     await bot.sendMessage(chatId, textResponse);
 
-    // 🔊 Sintesi vocale
-    const cleanText = textResponse.replace(/⚡️/g, ""); // evita simboli non pronunciabili
-    const [ttsResponse] = await client.synthesizeSpeech({
+    // 🔊 Sintesi vocale (filtra simboli non pronunciabili)
+    const cleanText = textResponse.replace(/⚡️/g, "");
+    const [ttsResponse] = await ttsClient.synthesizeSpeech({
       input: { text: cleanText },
       voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
-      audioConfig: { audioEncoding: "OGG_OPUS" }, // ✅ formato ogg (velocizzabile a 2x)
+      audioConfig: { audioEncoding: "OGG_OPUS" },
     });
 
     fs.writeFileSync("response.ogg", ttsResponse.audioContent, "binary");
@@ -158,7 +193,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 2.6c attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 2.7 attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
