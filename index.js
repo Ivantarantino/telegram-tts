@@ -1,5 +1,6 @@
 // ===============================
-// IRIS 2.6 - index.js
+// IRIS 2.6b - index.js
+// Default: HYBRID MODE ⚗️
 // Modalità: FREE / BOOK / HYBRID
 // Memoria: breve (11 msg) + persistente su Qdrant
 // ===============================
@@ -28,8 +29,9 @@ function loadMode() {
   if (fs.existsSync(MODE_FILE)) {
     return fs.readFileSync(MODE_FILE, "utf-8").trim();
   }
-  fs.writeFileSync(MODE_FILE, "free");
-  return "free";
+  // ✅ Default: HYBRID MODE
+  fs.writeFileSync(MODE_FILE, "hybrid");
+  return "hybrid";
 }
 
 function saveMode(mode) {
@@ -135,7 +137,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 2.6 attiva – Modalità attuale: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 2.6b attiva – Modalità attuale: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
