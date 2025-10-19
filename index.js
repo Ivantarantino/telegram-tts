@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 2.2 - index.js
-// Modalità: book mode / free mode
+// IRIS 2.3 - index.js
+// Default: FREE MODE 🌀
 // Telegram Bot + Google TTS + GPT-4o-mini + Qdrant
 // ===============================
 
@@ -38,8 +38,9 @@ function loadMode() {
   if (fs.existsSync(MODE_FILE)) {
     return fs.readFileSync(MODE_FILE, "utf-8").trim();
   }
-  fs.writeFileSync(MODE_FILE, "book");
-  return "book";
+  // ✅ Se il file non esiste, crea FREE MODE come default
+  fs.writeFileSync(MODE_FILE, "free");
+  return "free";
 }
 
 function saveMode(mode) {
@@ -91,11 +92,11 @@ bot.on("message", async (msg) => {
       textResponse = await gptFreeResponse(userMessage);
     }
 
-    // === Invio messaggio testuale (con ⚡️) ===
+    // === Invio messaggio testuale ===
     await bot.sendMessage(chatId, textResponse);
 
     // === Pulizia simboli per TTS ===
-    const cleanText = textResponse.replace(/⚡️/g, ""); // ✅ rimuove simbolo fulmine per la voce
+    const cleanText = textResponse.replace(/⚡️/g, ""); // rimuove il fulmine per il parlato
 
     // === Sintesi vocale con Google TTS (OGG_OPUS) ===
     const [ttsResponse] = await client.synthesizeSpeech({
@@ -121,7 +122,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("IRIS 2.2 attiva - Ready 🧠");
+    res.end("IRIS 2.3 attiva - Default FREE MODE 🌀");
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
