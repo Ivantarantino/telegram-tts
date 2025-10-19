@@ -1,90 +1,67 @@
-/**
- * IRIS v3.0 — Telegram bot con RAG e Qdrant
- * Modalità: Webhook (Render)
- * Autore: Ivano Tarantino
- */
-
 require("dotenv").config();
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 const { ragSearch } = require("./ragSearch");
 
-const TOKEN = process.env.TELEGRAM_TOKEN;
+// 🔧 Config
 const PORT = process.env.PORT || 10000;
-const URL = process.env.RENDER_EXTERNAL_URL; // Render assegna questo
-const MODE = process.env.MODE || "HYBRID";
+const TOKEN = process.env.TELEGRAM_TOKEN;
+const RENDER = !!process.env.RENDER;
 
+// 🔹 Avvio server Express
 const app = express();
 app.use(express.json());
 
-// 🧠 Stato IRIS
-let botMode = MODE;
-let botReady = false;
+// 🔹 Crea il bot (senza polling se siamo su Render)
+let bot;
+if (RENDER) {
+  console.log("☁️ Ambiente Render attivo su porta", PORT);
+  bot = new TelegramBot(TOKEN);
+  bot.setWebHook(`https://telegram-tts.onrender.com/bot${TOKEN}`);
+} else {
+  console.log("💻 Ambiente locale");
+  bot = new TelegramBot(TOKEN, { polling: true });
+}
 
-// 🛰️ Inizializza bot in modalità webhook
-const bot = new TelegramBot(TOKEN, { webHook: true });
-const webhookUrl = `${URL}/bot${TOKEN}`;
-bot.setWebHook(webhookUrl);
-
-// 🌍 Express route per gestire aggiornamenti Telegram
+// 🔹 Endpoint Webhook
 app.post(`/bot${TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
-// 📡 Avvio server
-app.listen(PORT, () => {
-  console.log(`☁️ Ambiente Render attivo su porta ${PORT}`);
-  console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
-  console.log(`🧭 Modalità iniziale: ${botMode}`);
-  botReady = true;
-});
-
-// 💬 Gestione messaggi utente
+// 🔹 Gestione messaggi
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const userInput = msg.text?.trim();
+  const text = msg.text?.trim();
 
-  console.log(`📩 Messaggio da ${msg.from.first_name}: ${userInput}`);
+  if (!text) return;
 
-  if (!userInput) {
-    return bot.sendMessage(chatId, "Non ho ricevuto testo comprensibile. Riprova 🙏");
-  }
+  console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
 
-  // Comandi base (temporanei)
-  if (userInput.startsWith("/start")) {
+  // Comandi base
+  if (text === "/start") {
     return bot.sendMessage(
       chatId,
-      "🌸 Benvenuto in IRIS — intelligenza vettoriale.\nParla con me liberamente o chiedi /mode per cambiare modalità."
+      "🌸 Benvenuto in IRIS – coscienza vettoriale. Dimmi pure su cosa vuoi riflettere oggi."
     );
   }
 
-  if (userInput.startsWith("/mode")) {
-    botMode = botMode === "HYBRID" ? "RAG" : "HYBRID";
-    return bot.sendMessage(chatId, `🔄 Modalità cambiata: ${botMode}`);
-  }
-
-  if (userInput.startsWith("/help")) {
+  if (text === "/help") {
     return bot.sendMessage(
       chatId,
-      "🧭 Comandi disponibili:\n/start — avvia IRIS\n/mode — cambia modalità\n/help — mostra questo messaggio"
+      "Comandi disponibili:\n/start – avvia la sessione\n/help – mostra questo messaggio"
     );
   }
 
-  // ✨ Ricerca RAG (intelligenza contestuale)
-  try {
-    const reply = await ragSearch(userInput);
-    await bot.sendMessage(chatId, reply);
-  } catch (err) {
-    console.error("❌ Errore durante la risposta:", err);
-    await bot.sendMessage(
-      chatId,
-      "Si è verificato un errore interno in IRIS. Riprova tra qualche istante."
-    );
-  }
+  // RAG search
+  const risposta = await ragSearch(text);
+  bot.sendMessage(chatId, risposta);
 });
 
-// 🧠 Gestione errori globali
-process.on("unhandledRejection", (err) => {
-  console.error("⚠️ Errore non gestito:", err);
+// 🔹 Avvio server
+app.listen(PORT, () => {
+  console.log("🌍 Server attivo su porta", PORT);
 });
+
+console.log("🤖 Webhook impostato su:", `https://telegram-tts.onrender.com/bot${TOKEN}`);
+console.log("🧭 Modalità iniziale: HYBRID");
