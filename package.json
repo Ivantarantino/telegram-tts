@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node -r dotenv/config triggerLoad.js"
+    "start": "node -r dotenv/config index.js"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.8.2",
