@@ -1,16 +1,21 @@
 // ===============================
-// IRIS 2.6b - index.js
+// IRIS 2.6c - index.js
 // Default: HYBRID MODE ⚗️
-// Modalità: FREE / BOOK / HYBRID
 // Memoria: breve (11 msg) + persistente su Qdrant
 // ===============================
 
+import "./qdrantInit.js"; // 🧩 Controlla e crea le collection Qdrant se mancanti
 import fs from "fs";
 import dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
 import textToSpeech from "@google-cloud/text-to-speech";
-import { ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant } from "./ragSearch.js";
 import http from "http";
+import {
+  ragSearch,
+  gptFreeResponse,
+  hybridSearch,
+  saveConversationToQdrant,
+} from "./ragSearch.js";
 
 dotenv.config();
 
@@ -60,19 +65,31 @@ function addToMemory(role, content) {
 bot.onText(/\/book/, (msg) => {
   irisMode = "book";
   saveMode("book");
-  bot.sendMessage(msg.chat.id, "📚 IRIS ora è in *BOOK MODE* – risponde basandosi solo sui testi caricati.", { parse_mode: "Markdown" });
+  bot.sendMessage(
+    msg.chat.id,
+    "📚 IRIS ora è in *BOOK MODE* – risponde solo in base ai testi caricati.",
+    { parse_mode: "Markdown" }
+  );
 });
 
 bot.onText(/\/free/, (msg) => {
   irisMode = "free";
   saveMode("free");
-  bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini.", { parse_mode: "Markdown" });
+  bot.sendMessage(
+    msg.chat.id,
+    "🌀 IRIS ora è in *FREE MODE* – risponde liberamente con GPT-4o-mini.",
+    { parse_mode: "Markdown" }
+  );
 });
 
 bot.onText(/\/hy/, (msg) => {
   irisMode = "hybrid";
   saveMode("hybrid");
-  bot.sendMessage(msg.chat.id, "⚗️ IRIS ora è in *HYBRID MODE* – unisce conoscenza dei libri e intelligenza libera.", { parse_mode: "Markdown" });
+  bot.sendMessage(
+    msg.chat.id,
+    "⚗️ IRIS ora è in *HYBRID MODE* – fonde conoscenza dei libri e intelligenza libera.",
+    { parse_mode: "Markdown" }
+  );
 });
 
 bot.onText(/\/mode/, (msg) => {
@@ -82,7 +99,9 @@ bot.onText(/\/mode/, (msg) => {
       : irisMode === "hybrid"
       ? "⚗️ *HYBRID MODE*"
       : "🌀 *FREE MODE*";
-  bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, { parse_mode: "Markdown" });
+  bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, {
+    parse_mode: "Markdown",
+  });
 });
 
 // ===============================
@@ -105,6 +124,7 @@ bot.on("message", async (msg) => {
     } else if (irisMode === "hybrid") {
       const response = await hybridSearch(userMessage, conversationMemory);
       textResponse = response.text;
+      await saveConversationToQdrant(userMessage, textResponse); // 🧠 Salva anche in Qdrant
     } else {
       addToMemory("user", userMessage);
       textResponse = await gptFreeResponse(userMessage, conversationMemory);
@@ -114,11 +134,12 @@ bot.on("message", async (msg) => {
 
     await bot.sendMessage(chatId, textResponse);
 
-    const cleanText = textResponse.replace(/⚡️/g, "");
+    // 🔊 Sintesi vocale
+    const cleanText = textResponse.replace(/⚡️/g, ""); // evita simboli non pronunciabili
     const [ttsResponse] = await client.synthesizeSpeech({
       input: { text: cleanText },
       voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
-      audioConfig: { audioEncoding: "OGG_OPUS" },
+      audioConfig: { audioEncoding: "OGG_OPUS" }, // ✅ formato ogg (velocizzabile a 2x)
     });
 
     fs.writeFileSync("response.ogg", ttsResponse.audioContent, "binary");
@@ -137,7 +158,7 @@ bot.on("message", async (msg) => {
 http
   .createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end(`IRIS 2.6b attiva – Modalità attuale: ${irisMode.toUpperCase()} MODE`);
+    res.end(`IRIS 2.6c attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
   })
   .listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
