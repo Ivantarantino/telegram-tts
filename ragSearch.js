@@ -1,5 +1,5 @@
 // ===============================
-// IRIS 2.6 - ragSearch.js
+// IRIS 2.6b - ragSearch.js
 // Modalità BOOK / FREE / HYBRID + Qdrant memory
 // ===============================
 
@@ -108,7 +108,7 @@ export async function gptFreeResponse(userMessage, memory = []) {
 // ===============================
 export async function hybridSearch(userMessage, memory = []) {
   try {
-    // 1. Recupera contesto dai libri
+    // 1️⃣ Recupera contesto dai libri
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: userMessage,
@@ -122,7 +122,7 @@ export async function hybridSearch(userMessage, memory = []) {
 
     const bookContext = searchResult.map((r) => r.payload.text).join("\n\n");
 
-    // 2. Recupera memoria conversazionale
+    // 2️⃣ Recupera memoria conversazionale
     const recall = await qdrant.search(CHAT_COLLECTION, {
       vector: userVector,
       limit: 3,
@@ -130,7 +130,7 @@ export async function hybridSearch(userMessage, memory = []) {
 
     const recalledChat = recall.map((r) => r.payload.text).join("\n\n");
 
-    // 3. Prompt ibrido
+    // 3️⃣ Prompt ibrido
     const messages = [
       {
         role: "system",
@@ -146,3 +146,40 @@ export async function hybridSearch(userMessage, memory = []) {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      messages,
+    });
+
+    return { text: completion.choices[0].message.content.trim() };
+  } catch (error) {
+    console.error("Errore in hybridSearch:", error);
+    return { text: "⚙️ Piccolo inciampo tecnico nella modalità ibrida." };
+  }
+}
+
+// ===============================
+// 💾 Salvataggio memoria su Qdrant
+// ===============================
+export async function saveConversationToQdrant(userMessage, irisReply) {
+  try {
+    const text = `Utente: ${userMessage}\nIRIS: ${irisReply}`;
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text,
+    });
+    const vector = embeddingResponse.data[0].embedding;
+
+    await qdrant.upsert(CHAT_COLLECTION, {
+      points: [
+        {
+          id: Date.now(),
+          vector,
+          payload: { text, timestamp: new Date().toISOString() },
+        },
+      ],
+    });
+
+    console.log("🧠 Conversazione salvata in Qdrant (iris_chat_history)");
+  } catch (error) {
+    console.error("Errore nel salvataggio Qdrant:", error);
+  }
+}
