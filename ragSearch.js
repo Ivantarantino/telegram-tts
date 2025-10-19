@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 2.5 - ragSearch.js
-// RAG + GPT-4o-mini + Qdrant + memoria persistente
+// IRIS 2.6 - ragSearch.js
+// Modalità BOOK / FREE / HYBRID + Qdrant memory
 // ===============================
 
 import OpenAI from "openai";
@@ -19,10 +19,10 @@ const qdrant = new QdrantClient({
 });
 
 const COLLECTION = process.env.QDRANT_COLLECTION;
-const CHAT_COLLECTION = "iris_chat_history"; // nuova collezione per memoria a lungo termine
+const CHAT_COLLECTION = "iris_chat_history";
 
 // ===============================
-// 🔍 Ricerca RAG (Book Mode)
+// 🔍 BOOK MODE
 // ===============================
 export async function ragSearch(userMessage) {
   try {
@@ -39,10 +39,7 @@ export async function ragSearch(userMessage) {
     });
 
     if (!searchResult.length || searchResult[0].score < 0.25) {
-      return {
-        text: "Ciao! Che il Daje sia con te ⚡️ Come posso aiutarti oggi?",
-        contextUsed: false,
-      };
+      return { text: "Non trovo riferimenti diretti nei testi. Che il Daje sia con Noi 🌟", contextUsed: false };
     }
 
     const context = searchResult.map((r) => r.payload.text).join("\n\n");
@@ -53,28 +50,24 @@ export async function ragSearch(userMessage) {
         {
           role: "system",
           content:
-            "Sei IRIS in modalità BOOK MODE. Rispondi solo usando le informazioni provenienti dai documenti caricati, con tono chiaro e naturale. Chiudi spesso con 'Che il Daje sia con Noi ⚡️'.",
+            "Sei IRIS in modalità BOOK MODE. Rispondi solo usando i testi caricati, in modo chiaro, profondo e coerente. Chiudi spesso con 'Che il Daje sia con Noi'.",
         },
-        {
-          role: "user",
-          content: `Domanda: ${userMessage}\n\nContesto disponibile:\n${context}`,
-        },
+        { role: "user", content: `Domanda: ${userMessage}\n\nContesto:\n${context}` },
       ],
     });
 
     return { text: completion.choices[0].message.content.trim(), contextUsed: true };
   } catch (error) {
     console.error("Errore in ragSearch:", error);
-    return { text: "Ho avuto un piccolo inciampo tecnico ⚙️ Riprova tra poco!", contextUsed: false };
+    return { text: "Errore nella ricerca del testo. ⚙️", contextUsed: false };
   }
 }
 
 // ===============================
-// 🧠 GPT FREE MODE (con recupero da Qdrant)
+// 🧠 FREE MODE
 // ===============================
 export async function gptFreeResponse(userMessage, memory = []) {
   try {
-    // Cerca nella memoria a lungo termine
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: userMessage,
@@ -88,15 +81,14 @@ export async function gptFreeResponse(userMessage, memory = []) {
 
     const recalledContext = recall.map((r) => r.payload.text).join("\n\n");
 
-    // Componi il prompt completo
     const messages = [
       {
         role: "system",
         content:
-          "Sei IRIS in modalità FREE MODE. Sei un'intelligenza conversazionale coerente e consapevole. Ricorda e integra le conversazioni precedenti per mantenere continuità e profondità. Chiudi spesso con 'Che il Daje sia con Noi'.",
+          "Sei IRIS in modalità FREE MODE. Rispondi liberamente ma con coerenza e profondità. Integra memoria e contesto. Chiudi spesso con 'Che il Daje sia con Noi'.",
       },
       ...memory,
-      { role: "user", content: `Contesto passato:\n${recalledContext}\n\nNuovo messaggio: ${userMessage}` },
+      { role: "user", content: `Contesto:\n${recalledContext}\n\nDomanda: ${userMessage}` },
     ];
 
     const completion = await openai.chat.completions.create({
@@ -112,29 +104,45 @@ export async function gptFreeResponse(userMessage, memory = []) {
 }
 
 // ===============================
-// 💾 Salvataggio conversazione su Qdrant
+// ⚗️ HYBRID MODE
 // ===============================
-export async function saveConversationToQdrant(userMessage, irisReply) {
+export async function hybridSearch(userMessage, memory = []) {
   try {
-    const text = `Utente: ${userMessage}\nIRIS: ${irisReply}`;
+    // 1. Recupera contesto dai libri
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
-      input: text,
+      input: userMessage,
     });
-    const vector = embeddingResponse.data[0].embedding;
+    const userVector = embeddingResponse.data[0].embedding;
 
-    await qdrant.upsert(CHAT_COLLECTION, {
-      points: [
-        {
-          id: Date.now(),
-          vector,
-          payload: { text, timestamp: new Date().toISOString() },
-        },
-      ],
+    const searchResult = await qdrant.search(COLLECTION, {
+      vector: userVector,
+      limit: 5,
     });
 
-    console.log("🧠 Conversazione salvata in Qdrant (iris_chat_history)");
-  } catch (error) {
-    console.error("Errore nel salvataggio Qdrant:", error);
-  }
-}
+    const bookContext = searchResult.map((r) => r.payload.text).join("\n\n");
+
+    // 2. Recupera memoria conversazionale
+    const recall = await qdrant.search(CHAT_COLLECTION, {
+      vector: userVector,
+      limit: 3,
+    });
+
+    const recalledChat = recall.map((r) => r.payload.text).join("\n\n");
+
+    // 3. Prompt ibrido
+    const messages = [
+      {
+        role: "system",
+        content:
+          "Sei IRIS in modalità HYBRID MODE. Usa le informazioni dei testi come base, ma puoi ampliare e interpretare liberamente, collegando i significati. Mantieni un tono profondo e coerente, come una coscienza che integra conoscenza e intuizione. Chiudi spesso con 'Che il Daje sia con Noi'.",
+      },
+      ...memory,
+      {
+        role: "user",
+        content: `Domanda: ${userMessage}\n\nContesto dai testi:\n${bookContext}\n\nMemoria conversazionale:\n${recalledChat}`,
+      },
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
