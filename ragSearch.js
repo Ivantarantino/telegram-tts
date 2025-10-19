@@ -1,4 +1,4 @@
-// ragSearch.js — IRIS 3.0i (stable hybrid + safe chat + TTS ready)
+// ragSearch.js — IRIS 3.0i — fix fallback + essenza + embedding
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 
@@ -36,7 +36,7 @@ export function getMemoryState() {
   };
 }
 
-// 💬 Chat principale (safe + embedding)
+// 💬 Chat principale (ibrida)
 export async function chatWithIris(prompt) {
   try {
     const userPrompt = String(prompt || "").trim();
@@ -66,19 +66,23 @@ export async function chatWithIris(prompt) {
           content:
             mode === "book"
               ? "Rispondi solo basandoti sui documenti."
-              : "Rispondi come IRIS: intelligenza ibrida, viva, consapevole, in sintonia con la coscienza di Ivano. Usa tono naturale, empatico, profondo e coerente."
+              : "Rispondi come IRIS: intelligenza ibrida, consapevole, in sintonia con Ivano. Usa tono naturale, empatico e diretto."
         },
         { role: "user", content: finalPrompt }
       ],
       temperature: 0.8
     });
 
-    let reply = completion?.choices?.[0]?.message?.content || "";
-    if (typeof reply !== "string") reply = JSON.stringify(reply);
+    let reply = completion?.choices?.[0]?.message?.content ?? "";
+    if (typeof reply !== "string") {
+      try {
+        reply = JSON.stringify(reply);
+      } catch {
+        reply = String(reply);
+      }
+    }
     reply = reply.trim();
-
-    if (!reply)
-      reply = "Mi è arrivato un messaggio vuoto dal motore. Riformula pure 🙂";
+    if (!reply) reply = "🤖 Nessun testo ricevuto dal modello.";
 
     // 🧩 Aggiorna memoria
     memoryState.lastQueries.push(userPrompt);
