@@ -53,6 +53,7 @@ bot.onText(/^\/voice (.+)/, async (msg, match) => {
       `🔊 Modalità vocale impostata su: *${choice.toUpperCase()}*`,
       { parse_mode: "Markdown" }
     );
+    console.log(`🎛️ Modalità vocale aggiornata: ${voiceMode}`);
   } else {
     await bot.sendMessage(
       chatId,
@@ -81,7 +82,9 @@ bot.on("message", async (msg) => {
     await bot.sendMessage(chatId, replyText);
 
     // 🎧 Generazione vocale
+    console.log("🎙️ Avvio generazione vocale con modalità:", voiceMode);
     let audioPath = null;
+
     try {
       if (voiceMode === "google") {
         audioPath = await generateTTS_Google(replyText);
@@ -89,10 +92,15 @@ bot.on("message", async (msg) => {
         audioPath = await generateTTS(replyText);
       } else if (voiceMode === "bark") {
         audioPath = await generateTTS_Bark(replyText);
+      } else {
+        console.log("⚠️ Nessuna modalità vocale valida selezionata.");
       }
 
       if (audioPath) {
+        console.log("📤 Invio file vocale:", audioPath);
         await bot.sendVoice(chatId, fs.createReadStream(audioPath));
+      } else {
+        console.log("⚠️ Nessun file vocale generato (audioPath nullo).");
       }
     } catch (ttsErr) {
       console.error("❌ Errore generazione vocale:", ttsErr);
