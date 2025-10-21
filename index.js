@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3i “RawStream Oracle”
+// index.js — IRIS 3.3j “Command Resonance Fix”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import express from "express";
@@ -12,11 +12,11 @@ dotenv.config();
 
 const app = express();
 
-// middleware per catturare TUTTO il body prima che venga parsato
+// Cattura anche il body grezzo per debug
 app.use(async (req, res, next) => {
   try {
     req.rawBody = await rawBody(req);
-  } catch (e) {
+  } catch {
     req.rawBody = null;
   }
   next();
@@ -46,15 +46,13 @@ const commands = {
 // === webhook diretto ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
   try {
-    // 🌀 LOG RAW STREAM + BODY
     console.log("=== 🛰️ TELEGRAM RAW STREAM ===");
     console.log(req.rawBody ? req.rawBody.toString() : "[no raw body captured]");
     console.log("=== 🧩 Parsed BODY ===");
     console.log(JSON.stringify(req.body, null, 2));
     console.log("============================");
 
-    const msg =
-      req.body.message || req.body?.message || req?.body?.edited_message;
+    const msg = req.body.message || req.body?.edited_message;
     const chatId = msg?.chat?.id;
     const text = msg?.text?.trim();
     if (!text) return res.sendStatus(200);
@@ -63,8 +61,9 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
 
     // 🎯 intercettazione comandi
     if (text.startsWith("/")) {
-      const base = text.split(" ")[0];
+      const base = text.split(" ")[0].toLowerCase();
       const reply = commands[base];
+
       if (reply) {
         await fetch(`${TELEGRAM_API}/sendMessage`, {
           method: "POST",
@@ -72,8 +71,16 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
           body: JSON.stringify({ chat_id: chatId, text: reply }),
         });
         console.log(`⚡ Comando gestito: ${base}`);
-        return res.sendStatus(200);
+      } else {
+        const fallback = `⚠️ Comando non riconosciuto: ${base}\nProva /mode, /voice, /lang, /model o /config.`;
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: fallback }),
+        });
+        console.log(`⚠️ Comando non riconosciuto: ${base}`);
       }
+      return res.sendStatus(200); // ferma TUTTO dopo i comandi
     }
 
     // ✨ normale messaggio → GPT
@@ -90,6 +97,8 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     });
 
     const answer = comp.choices[0].message.content;
+
+    // 📤 invio testo
     await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -132,5 +141,5 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
-  console.log(`💠 IRIS – RawStream Oracle attivo`);
+  console.log(`💠 IRIS – Command Resonance Fix attiva`);
 });
