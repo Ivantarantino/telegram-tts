@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3 “Dual Layer Webhook Fix”
+// index.js — IRIS 3.3a “Webhook Alignment Fix”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -28,12 +28,13 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
 
-// Webhook via Express
+// Routing Webhook
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
+// Imposta Webhook
 await bot.setWebHook(webhookUrl);
 console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 console.log("☁️ Ambiente Render attivo su porta", PORT);
@@ -42,28 +43,27 @@ console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda
 console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
 
 // === LIVELLO 1 – COMANDI NATIVI ===
-bot.onText(/^\/mode$/, msg =>
-  bot.sendMessage(msg.chat.id, "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.")
-);
-bot.onText(/^\/voice$/, msg =>
-  bot.sendMessage(msg.chat.id, "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.")
-);
-bot.onText(/^\/lang$/, msg =>
-  bot.sendMessage(msg.chat.id, "🌍 Lingua attuale: Italiano. Saranno disponibili Inglese e Russo.")
-);
-bot.onText(/^\/model$/, msg =>
-  bot.sendMessage(msg.chat.id, "🧠 Modello attivo: GPT-4o-mini (default). Puoi passare a GPT-4o per maggiore profondità.")
-);
-bot.onText(/^\/config$/, msg =>
-  bot.sendMessage(msg.chat.id, "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza.")
-);
+const commands = {
+  "/mode": "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.",
+  "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
+  "/lang": "🌍 Lingua attuale: Italiano. Saranno disponibili Inglese e Russo.",
+  "/model": "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.",
+  "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza."
+};
 
-// === LIVELLO 2 – GPT + TTS ===
-bot.on("message", async msg => {
+// intercetta messaggi di testo
+bot.on("text", async (msg) => {
   const chatId = msg.chat.id;
-  const text = (msg.text || "").trim();
-  if (!text || text.startsWith("/")) return;
+  const text = msg.text?.trim();
+  if (!text) return;
 
+  // Se è un comando riconosciuto → rispondi subito, solo testo
+  if (commands[text]) {
+    await bot.sendMessage(chatId, commands[text]);
+    return;
+  }
+
+  // Altrimenti passa al livello GPT + TTS
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
   console.log(`💾 Memoria aggiornata: ${text}`);
 
