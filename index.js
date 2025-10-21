@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3h “Quantum Logger”
+// index.js — IRIS 3.3i “RawStream Oracle”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import express from "express";
@@ -6,11 +6,23 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
+import rawBody from "raw-body";
 
 dotenv.config();
 
 const app = express();
-app.use(express.json({ limit: "10mb" })); // accetta payload ampi
+
+// middleware per catturare TUTTO il body prima che venga parsato
+app.use(async (req, res, next) => {
+  try {
+    req.rawBody = await rawBody(req);
+  } catch (e) {
+    req.rawBody = null;
+  }
+  next();
+});
+
+app.use(express.json({ limit: "10mb" }));
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -34,15 +46,15 @@ const commands = {
 // === webhook diretto ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
   try {
-    // 🌀 LOG COMPLETO UNIVERSALE
-    console.log("=== 🛰️ TELEGRAM RAW PAYLOAD ===");
-    console.log("Headers:", JSON.stringify(req.headers, null, 2));
-    console.log("Query:", JSON.stringify(req.query, null, 2));
-    console.log("Params:", JSON.stringify(req.params, null, 2));
-    console.log("Body:", JSON.stringify(req.body, null, 2));
+    // 🌀 LOG RAW STREAM + BODY
+    console.log("=== 🛰️ TELEGRAM RAW STREAM ===");
+    console.log(req.rawBody ? req.rawBody.toString() : "[no raw body captured]");
+    console.log("=== 🧩 Parsed BODY ===");
+    console.log(JSON.stringify(req.body, null, 2));
     console.log("============================");
 
-    const msg = req.body.message || req.body?.message || req?.body?.edited_message;
+    const msg =
+      req.body.message || req.body?.message || req?.body?.edited_message;
     const chatId = msg?.chat?.id;
     const text = msg?.text?.trim();
     if (!text) return res.sendStatus(200);
@@ -120,5 +132,5 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
-  console.log(`💠 IRIS – Quantum Logger attivo`);
+  console.log(`💠 IRIS – RawStream Oracle attivo`);
 });
