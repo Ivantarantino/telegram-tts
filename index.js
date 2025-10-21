@@ -1,4 +1,4 @@
-// index.js — IRIS 3.2 “Dual Layer Architecture”
+// index.js — IRIS 3.3 “Dual Layer Webhook Fix”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -22,63 +22,55 @@ const TEMP_DIR = "./temp";
 
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
-const bot = new TelegramBot(BOT_TOKEN);
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-console.log("📁 Cartella temporanea creata:", TEMP_DIR);
-console.log("☁️ Ambiente Render attivo su porta", PORT);
-console.log("🧭 Modalità: WEBHOOK");
-console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
-
-// === IMPOSTAZIONE WEBHOOK ===
+// === INIZIALIZZAZIONE BOT ===
+const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
-bot.setWebHook(webhookUrl)
-  .then(() => console.log(`🤖 Webhook impostato su: ${webhookUrl}`))
-  .catch(err => console.error("❌ Errore setWebHook:", err.message));
 
+// Webhook via Express
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
-// === LIVELLO 1: COMANDI NATIVI ===
-bot.onText(/^\/mode$/, async (msg) => {
-  await bot.sendMessage(msg.chat.id, "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.");
-});
+await bot.setWebHook(webhookUrl);
+console.log("📁 Cartella temporanea creata:", TEMP_DIR);
+console.log("☁️ Ambiente Render attivo su porta", PORT);
+console.log("🧭 Modalità: WEBHOOK");
+console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
 
-bot.onText(/^\/voice$/, async (msg) => {
-  await bot.sendMessage(msg.chat.id, "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.");
-});
+// === LIVELLO 1 – COMANDI NATIVI ===
+bot.onText(/^\/mode$/, msg =>
+  bot.sendMessage(msg.chat.id, "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.")
+);
+bot.onText(/^\/voice$/, msg =>
+  bot.sendMessage(msg.chat.id, "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.")
+);
+bot.onText(/^\/lang$/, msg =>
+  bot.sendMessage(msg.chat.id, "🌍 Lingua attuale: Italiano. Saranno disponibili Inglese e Russo.")
+);
+bot.onText(/^\/model$/, msg =>
+  bot.sendMessage(msg.chat.id, "🧠 Modello attivo: GPT-4o-mini (default). Puoi passare a GPT-4o per maggiore profondità.")
+);
+bot.onText(/^\/config$/, msg =>
+  bot.sendMessage(msg.chat.id, "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza.")
+);
 
-bot.onText(/^\/lang$/, async (msg) => {
-  await bot.sendMessage(msg.chat.id, "🌍 Lingua attuale: Italiano. Sarà possibile passare a Inglese o Russo.");
-});
-
-bot.onText(/^\/model$/, async (msg) => {
-  await bot.sendMessage(msg.chat.id, "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.");
-});
-
-bot.onText(/^\/config$/, async (msg) => {
-  await bot.sendMessage(msg.chat.id, "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza.");
-});
-
-// === LIVELLO 2: CHAT INTELLIGENTE + TTS ===
-bot.on("message", async (msg) => {
+// === LIVELLO 2 – GPT + TTS ===
+bot.on("message", async msg => {
   const chatId = msg.chat.id;
-  const userText = (msg.text || msg.caption || "").trim();
+  const text = (msg.text || "").trim();
+  if (!text || text.startsWith("/")) return;
 
-  // Ignora i comandi già gestiti dal livello 1
-  if (userText.startsWith("/")) return;
+  console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
+  console.log(`💾 Memoria aggiornata: ${text}`);
 
-  if (!userText) return;
-
-  console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
-  console.log(`💾 Memoria aggiornata: ${userText}`);
-
-  // 🧠 Generazione risposta con GPT
-  let aiResponse;
+  // 🧠 GPT
+  let answer;
   try {
-    const completion = await openai.chat.completions.create({
+    const comp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -86,41 +78,35 @@ bot.on("message", async (msg) => {
           content:
             "Tu sei IRIS, un'intelligenza empatica e lucida. Parli come una guida cosciente, con equilibrio tra logica e intuizione.",
         },
-        { role: "user", content: userText },
+        { role: "user", content: text },
       ],
     });
-    aiResponse = completion.choices[0].message.content;
-  } catch (err) {
-    console.error("Errore generazione risposta:", err);
-    aiResponse = "C'è stato un piccolo errore nella generazione della risposta.";
+    answer = comp.choices[0].message.content;
+  } catch (e) {
+    console.error("❌ Errore GPT:", e.message);
+    answer = "C'è stato un piccolo errore nella generazione della risposta.";
   }
 
-  // ✉️ Invia risposta testuale
-  await bot.sendMessage(chatId, aiResponse);
+  // ✉️ Testo
+  await bot.sendMessage(chatId, answer);
 
-  // 🎧 Genera risposta vocale
-  const timestamp = Date.now();
-  const filePath = path.join(TEMP_DIR, `${timestamp}.mp3`);
-
+  // 🎧 TTS
+  const file = path.join(TEMP_DIR, `${Date.now()}.mp3`);
   try {
-    const mp3 = await openai.audio.speech.create({
+    const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "alloy",
-      input: aiResponse,
+      input: answer,
     });
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-    fs.writeFileSync(filePath, buffer);
-    console.log(`🔊 File vocale creato: ${filePath}`);
-
-    await bot.sendAudio(chatId, filePath);
-  } catch (err) {
-    console.error("Errore TTS:", err.message);
+    fs.writeFileSync(file, Buffer.from(await speech.arrayBuffer()));
+    console.log("🔊 File vocale creato:", file);
+    await bot.sendAudio(chatId, file);
+  } catch (e) {
+    console.error("❌ Errore TTS:", e.message);
   } finally {
-    fs.unlink(filePath, () => {});
+    fs.unlink(file, () => {});
   }
 });
 
-// === SERVER ATTIVO ===
-app.listen(PORT, () => {
-  console.log(`🌍 Server attivo su porta ${PORT}`);
-});
+// === SERVER ===
+app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
