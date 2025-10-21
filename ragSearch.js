@@ -1,39 +1,46 @@
-// ragSearch.js — Ricerca semantica su Qdrant (documenti globali, non per-utente)
-const { QdrantClient } = require("@qdrant/js-client-rest");
-const { OpenAI } = require("openai");
-
-const QDRANT_URL = process.env.QDRANT_URL;
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
-const COLLECTION = process.env.RAG_COLLECTION || "iris_kb";
+import fs from "fs";
+import path from "path";
+import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-let client = null;
+const memoryFile = path.resolve("./data/memory.json");
 
-async function ensureClient() {
-  if (!QDRANT_URL || !QDRANT_API_KEY) return null;
-  if (client) return client;
-  client = new QdrantClient({ url: QDRANT_URL, apiKey: QDRANT_API_KEY });
-  return client;
-}
-
-async function embed(text) {
-  const r = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text
-  });
-  return r.data[0].embedding;
-}
-
-async function searchRAG(query, k = 4) {
-  const c = await ensureClient();
-  if (!c) return [];
-  const qv = await embed(query);
+export async function ragSearch(query) {
   try {
-    const res = await c.search(COLLECTION, { vector: qv, limit: k });
-    return res.map(r => r.payload?.text || "").filter(Boolean);
-  } catch (e) {
-    return [];
+    if (!fs.existsSync(memoryFile)) {
+      return "Nessuna memoria presente per la ricerca.";
+    }
+
+    const raw = fs.readFileSync(memoryFile, "utf8");
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data) || data.length === 0) {
+      return "Archivio vuoto.";
+    }
+
+    const context = data.map((m) => `Utente: ${m.text}\nIRIS: ${m.reply}`).join("\n");
+
+    const prompt = `
+Sei IRIS, un'intelligenza vettoriale che attinge alla memoria esperienziale.
+Usa il seguente contesto per rispondere alla domanda dell'utente in modo coerente e sintetico.
+
+Contesto:
+${context.slice(-4000)}
+
+Domanda:
+${query}
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: "Rispondi con tono naturale e sintetico." },
+                 { role: "user", content: prompt }],
+      temperature: 0.7
+    });
+
+    const answer = completion.choices[0].message.content.trim();
+    return answer;
+  } catch (err) {
+    console.error("❌ Errore in ragSearch:", err.message);
+    return "Errore durante la ricerca nella memoria.";
   }
 }
-
-module.exports = { searchRAG };
