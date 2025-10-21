@@ -3,7 +3,8 @@ import TelegramBot from "node-telegram-bot-api";
 import dotenv from "dotenv";
 import fs from "fs";
 import { synthToFile } from "./tts.js";
-import { getEssence } from "./essence.js";
+import pkgEssence from "./essence.js";
+const { getEssence } = pkgEssence;
 import { processMemory } from "./memoryManager.js";
 import { ragSearch } from "./ragSearch.js";
 import OpenAI from "openai";
@@ -99,7 +100,7 @@ bot.on("message", async (msg) => {
 
     // risposta principale
     const rawReply = await answerCore(text);
-    const cleanReply = rawReply.replace(/[<>]/g, ""); // evita HTML invalidi
+    const cleanReply = rawReply.replace(/[<>]/g, ""); // evita errori HTML
     await bot.sendMessage(chatId, cleanReply, { parse_mode: "MarkdownV2" });
 
     // voce opzionale
