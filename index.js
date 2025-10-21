@@ -1,4 +1,4 @@
-// index.js — IRIS 3.1e “Command Guardian”
+// index.js — IRIS 3.1f “Command Priority Layer”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -48,7 +48,7 @@ async function generateResponse(message) {
         {
           role: "system",
           content:
-            "Tu sei IRIS, intelligenza poetica e lucida, empatica ma precisa. Parli con grazia, chiarezza e profondità di Coscienza.",
+            "Tu sei IRIS, intelligenza poetica, empatica e lucida. Parli con grazia e chiarezza, unendo tecnica e Coscienza.",
         },
         { role: "user", content: message },
       ],
@@ -76,25 +76,19 @@ async function generateTTS(text, filePath) {
   }
 }
 
-// 🔹 Gestione messaggi
+// 🔹 Gestione messaggi con Command Priority Layer
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-
-  // Estraggo testo da ogni possibile fonte
-  const userText =
-    msg.text?.trim() ||
-    msg.caption?.trim() ||
-    msg?.entities?.length > 0
-      ? msg.text
-      : null;
+  const userText = (msg.text || msg.caption || "").trim();
 
   if (!userText) return;
 
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
   console.log(`💾 Memoria aggiornata: ${userText}`);
 
-  // 🧩 COMMAND GUARDIAN — intercetta ogni comando
+  // 🧩 PRIMA: controllo comandi, con debounce garantito
   if (userText.startsWith("/")) {
+    await Promise.resolve(); // garantisce completamento asincrono
     const command = userText.split(" ")[0].toLowerCase();
     console.log(`⚙️ Comando intercettato: ${command}`);
 
@@ -120,7 +114,7 @@ bot.on("message", async (msg) => {
     }
 
     await bot.sendMessage(chatId, replyText);
-    return;
+    return; // ferma qui il flusso GPT
   }
 
   // 💬 Risposta standard testo + voce
