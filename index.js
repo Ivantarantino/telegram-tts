@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3f “Direct Command Interceptor”
+// index.js — IRIS 3.3g “Pure Express Mode”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import express from "express";
@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
-import TelegramBot from "node-telegram-bot-api";
 
 dotenv.config();
 
@@ -17,13 +16,11 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const PORT = process.env.PORT || 10000;
-
 const TEMP_DIR = "./temp";
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
-const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
+const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // === dizionario comandi ===
 const commands = {
@@ -34,35 +31,32 @@ const commands = {
   "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza."
 };
 
-// === webhook principale ===
+// === webhook diretto ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
-  const body = req.body;
-  const msg = body.message;
-  const chatId = msg?.chat?.id;
-  const text = msg?.text?.trim();
-
-  if (!text) return res.sendStatus(200);
-
-  // 🧩 intercetta subito i comandi
-  if (text.startsWith("/")) {
-    const base = text.split(" ")[0];
-    const reply = commands[base];
-    if (reply) {
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: reply }),
-      });
-      console.log(`⚡ Comando intercettato direttamente: ${base}`);
-      return res.sendStatus(200);
-    }
-  }
-
-  // ✨ se non è un comando → passa a GPT
   try {
-    console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
-    console.log(`💾 Memoria aggiornata: ${text}`);
+    const msg = req.body.message;
+    const chatId = msg?.chat?.id;
+    const text = msg?.text?.trim();
+    if (!text) return res.sendStatus(200);
 
+    console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
+
+    // 🎯 intercettazione comandi
+    if (text.startsWith("/")) {
+      const base = text.split(" ")[0];
+      const reply = commands[base];
+      if (reply) {
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: reply }),
+        });
+        console.log(`⚡ Comando gestito: ${base}`);
+        return res.sendStatus(200);
+      }
+    }
+
+    // ✨ normale messaggio → GPT
     const comp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -76,7 +70,7 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     });
 
     const answer = comp.choices[0].message.content;
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: answer }),
@@ -92,22 +86,31 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     fs.writeFileSync(file, Buffer.from(await speech.arrayBuffer()));
     console.log("🔊 File vocale creato:", file);
 
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, {
-      method: "POST",
-      body: fs.createReadStream(file),
-    });
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("audio", fs.createReadStream(file));
+    await fetch(`${TELEGRAM_API}/sendAudio`, { method: "POST", body: form });
 
     fs.unlink(file, () => {});
   } catch (err) {
-    console.error("❌ Errore GPT o TTS:", err.message);
+    console.error("❌ Errore generale:", err.message);
   }
-
   res.sendStatus(200);
 });
 
-// === avvio ===
-await bot.setWebHook(webhookUrl);
+// === set webhook Telegram ===
+(async () => {
+  const url = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
+  const res = await fetch(`${TELEGRAM_API}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  const data = await res.json();
+  console.log("🤖 Webhook impostato:", data);
+})();
+
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
-  console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
+  console.log(`💠 IRIS – Pure Express Mode attiva`);
 });
