@@ -5,8 +5,10 @@ import fs from "fs";
 import { synthToFile } from "./tts.js";
 import pkgEssence from "./essence.js";
 const { getEssence } = pkgEssence;
-import { processMemory } from "./memoryManager.js";
-import { ragSearch } from "./ragSearch.js";
+import pkgMemory from "./memoryManager.js";
+const { processMemory } = pkgMemory;
+import pkgRag from "./ragSearch.js";
+const { ragSearch } = pkgRag;
 import OpenAI from "openai";
 
 dotenv.config();
@@ -14,7 +16,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const MODE = process.env.MODE || "hybrid";
+const MODE = process.env.MODE || "webhook";
 const BASE_URL = process.env.PUBLIC_BASE_URL;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -33,7 +35,11 @@ if (MODE === "webhook" || BASE_URL) {
   } catch (err) {
     console.error("❌ Errore setWebHook:", err.message);
   }
-  app.post(`/bot${TOKEN}`, (req, res) => bot.processUpdate(req.body));
+  app.use(express.json());
+  app.post(`/bot${TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
 } else {
   bot = new TelegramBot(TOKEN, { polling: true });
   console.log("📡 Avvio in modalità polling");
