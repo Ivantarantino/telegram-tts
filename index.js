@@ -10,6 +10,12 @@ import OpenAI from "openai";
 
 dotenv.config();
 
+// 📁 Assicura che la cartella temp esista
+if (!fs.existsSync("./temp")) {
+  fs.mkdirSync("./temp");
+  console.log("📁 Cartella temporanea creata: ./temp");
+}
+
 const app = express();
 app.use(express.json());
 
