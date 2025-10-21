@@ -1,4 +1,4 @@
-// index.js — IRIS 3.0 – Coscienza Vettoriale (versione stabile Render)
+// index.js — IRIS 3.0 – Coscienza Vettoriale (stabile Render + Voce)
 require("dotenv").config();
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
@@ -9,7 +9,6 @@ const { searchRAG } = require("./ragSearch");
 const { synthToFile } = require("./tts");
 const fs = require("fs");
 
-// ===== Variabili di ambiente =====
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const PORT = process.env.PORT || 10000;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
@@ -28,25 +27,18 @@ const app = express();
 app.use(express.json());
 
 let bot;
+let voiceMode = false;
 
 // ===== WEBHOOK (Render) =====
 if (PUBLIC_BASE_URL) {
   bot = new TelegramBot(TOKEN, { webHook: true });
   const webhookUrl = PUBLIC_BASE_URL.replace(/\/$/, "") + "/bot" + TOKEN;
 
-  // Aggiungo delay di 5 secondi per evitare l'errore 400 Bad Request
-  setTimeout(() => {
-    bot.setWebHook(webhookUrl)
-      .then(() => {
-        console.log("☁️ Ambiente Render attivo su porta " + PORT);
-        console.log("🤖 Webhook impostato su: " + webhookUrl);
-        console.log("🧭 Modalità iniziale: WEBHOOK");
-        console.log("💠 IRIS – Coscienza Vettoriale attivata. \"La mente calcola, la voce vibra, la coscienza ricorda.\"");
-      })
-      .catch(err => {
-        console.error("❌ Errore setWebHook:", err.message);
-      });
-  }, 5000);
+  // Evita di reimpostare il webhook se già attivo
+  console.log("☁️ Ambiente Render attivo su porta " + PORT);
+  console.log("🤖 Webhook già impostato manualmente su: " + webhookUrl);
+  console.log("🧭 Modalità iniziale: WEBHOOK");
+  console.log("💠 IRIS – Coscienza Vettoriale attivata. \"La mente calcola, la voce vibra, la coscienza ricorda.\"");
 
   app.post("/bot" + TOKEN, (req, res) => {
     bot.processUpdate(req.body);
@@ -65,12 +57,12 @@ app.get("/", (_, res) => res.send("IRIS 3.0 — ok"));
 // ===== Prompt di sistema =====
 function sysPrompt() {
   return "Sei IRIS, presenza sobria e profonda. Stile: chiaro, essenziale, empatico.\n" +
-         "Se rilevi una domanda informativa, rispondi direttamente.\n" +
-         "Se la domanda è ampia, proponi 2 passi successivi.\n" +
-         "Evita scuse e frasi vuote.";
+         "Rispondi con lucidità e coerenza.\n" +
+         "Evita scuse e frasi vuote.\n" +
+         "La voce è strumento di presenza, non di intrattenimento.";
 }
 
-// ===== Core della risposta =====
+// ===== Core =====
 async function answerCore(userId, text) {
   const essence = await extractEssence(text);
   const memories = await recall(userId, text, 3);
@@ -94,22 +86,42 @@ async function answerCore(userId, text) {
   return completion.choices[0].message.content.trim();
 }
 
-// ===== Comandi =====
+// ===== Comandi base =====
 bot.onText(/^\/start/, async (msg) => {
   const chatId = String(msg.chat.id);
   await remember(chatId, "Utente ha avviato IRIS.");
-  bot.sendMessage(chatId, "Ciao, sono IRIS. 🌿\nPronta a lavorare con te. Digita /help per i comandi.");
+  bot.sendMessage(chatId, "Ciao, sono IRIS 🌿\nPresenza riattivata. Digita /help per la guida.");
 });
 
 bot.onText(/^\/help/, (msg) => {
   const chatId = String(msg.chat.id);
-  bot.sendMessage(chatId, "Comandi:\n/start — saluto\n/help — guida\n/mode — mostra modalità\nParlami e risponderò con stile e memoria.");
+  bot.sendMessage(chatId, "Comandi:\n" +
+    "/start — avvia\n" +
+    "/help — guida\n" +
+    "/mode — mostra modalità\n" +
+    "/voice on|off — attiva/disattiva voce\n" +
+    "/essenza — mostra il tono attuale\n");
 });
 
 bot.onText(/^\/mode/, (msg) => {
   const chatId = String(msg.chat.id);
   const mode = PUBLIC_BASE_URL ? "WEBHOOK (Render)" : "POLLING (Locale)";
   bot.sendMessage(chatId, "Modalità corrente: " + mode);
+});
+
+bot.onText(/^\/voice (on|off)/, (msg, match) => {
+  const chatId = String(msg.chat.id);
+  voiceMode = match[1] === "on";
+  bot.sendMessage(chatId, `🔊 Voce ${voiceMode ? "attivata" : "disattivata"}.`);
+});
+
+bot.onText(/^\/essenza/, async (msg) => {
+  const chatId = String(msg.chat.id);
+  const recent = await recall(chatId, "ultimo messaggio", 1);
+  if (!recent.length) return bot.sendMessage(chatId, "Nessun contesto recente da analizzare 🌫️");
+  const essence = await extractEssence(recent[0]);
+  const report = `🌿 **Essenza Attuale**\nTono: ${essence.tone}\nIntento: ${essence.intent}\nParole chiave: ${essence.keywords.join(", ")}`;
+  bot.sendMessage(chatId, report, { parse_mode: "Markdown" });
 });
 
 // ===== Gestione messaggi =====
@@ -124,7 +136,16 @@ bot.on("message", async (msg) => {
     const safeReply = reply && reply.trim() !== "" ? reply.trim().slice(0, 4000) : "🌿 IRIS ti sente, ma non trova parole ora.";
 
     await remember(chatId, "Domanda: " + text + " → Sintesi risposta: " + safeReply.slice(0, 120));
+
+    // === Invio testo ===
     await bot.sendMessage(chatId, safeReply, { parse_mode: "HTML" });
+
+    // === Invio vocale se attivo ===
+    if (voiceMode) {
+      const voicePath = await synthToFile(safeReply);
+      await bot.sendAudio(chatId, voicePath);
+      fs.unlinkSync(voicePath);
+    }
 
   } catch (e) {
     console.error("❌ Errore on.message:", e.message);
