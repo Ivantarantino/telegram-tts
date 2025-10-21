@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3c “Hard Command Catcher”
+// index.js — IRIS 3.3d “Telegram Raw Command Fix”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -10,7 +10,7 @@ import OpenAI from "openai";
 
 dotenv.config();
 
-// === CONFIGURAZIONE BASE ===
+// === CONFIG BASE ===
 const app = express();
 app.use(express.json());
 
@@ -23,7 +23,7 @@ if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// === INIZIALIZZAZIONE BOT ===
+// === TELEGRAM BOT ===
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
@@ -38,7 +38,7 @@ console.log("🧭 Modalità: WEBHOOK");
 console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
 console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
 
-// === COMANDI NATIVI ===
+// === COMANDI ===
 const commands = {
   "/mode": "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.",
   "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
@@ -47,35 +47,35 @@ const commands = {
   "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza."
 };
 
-// === GESTIONE MESSAGGI ===
+// === HANDLER MESSAGGI ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text?.trim() || "";
 
-  // 🧩 1️⃣ — INTERCETTA QUALSIASI COMANDO PRIMA DI GPT
-  if (text.startsWith("/")) {
-    const base = text.split(" ")[0]; // esclude eventuali parametri
-    if (commands[base]) {
-      await bot.sendMessage(chatId, commands[base]);
-      console.log(`⚡ Comando riconosciuto e gestito: ${base}`);
-      return; // stop — non passa a GPT
-    } else {
-      await bot.sendMessage(
-        chatId,
-        "🧭 Comando non riconosciuto, ma ricevuto. Usa /mode, /voice, /lang, /model o /config."
-      );
-      console.log(`❔ Comando non riconosciuto: ${base}`);
-      return;
+  // 🧩 1️⃣ — ESTRAZIONE GREZZA DEL COMANDO DA TELEGRAM
+  let command = null;
+  if (msg.entities) {
+    for (const e of msg.entities) {
+      if (e.type === "bot_command") {
+        command = text.substring(e.offset, e.offset + e.length);
+        break;
+      }
     }
   }
 
-  // 🧠 2️⃣ — SE NON È UN COMANDO → GPT + TTS
+  // 🧩 2️⃣ — GESTIONE COMANDI
+  if (command && commands[command]) {
+    await bot.sendMessage(chatId, commands[command]);
+    console.log(`⚡ Comando riconosciuto da entity: ${command}`);
+    return;
+  }
+
+  // 🧠 3️⃣ — GPT + TTS
   if (!text) return;
 
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
   console.log(`💾 Memoria aggiornata: ${text}`);
 
-  // GPT
   let answer;
   try {
     const comp = await openai.chat.completions.create({
@@ -97,7 +97,7 @@ bot.on("message", async (msg) => {
 
   await bot.sendMessage(chatId, answer);
 
-  // TTS
+  // 🔊 TTS
   const file = path.join(TEMP_DIR, `${Date.now()}.mp3`);
   try {
     const speech = await openai.audio.speech.create({
