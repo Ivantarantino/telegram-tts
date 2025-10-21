@@ -6,6 +6,12 @@ const memoryFile = path.resolve(`${memoryDir}/memory.json`);
 
 export async function processMemory(message, response) {
   try {
+    // ❌ Ignora comandi Telegram tipo /mode, /voice, ecc.
+    if (message?.trim().startsWith("/")) {
+      console.log("⚙️ Comando ignorato nella memoria:", message);
+      return false;
+    }
+
     if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
 
     let data = [];
@@ -22,7 +28,7 @@ export async function processMemory(message, response) {
 
     data.push(newEntry);
 
-    // Limita la memoria a 200 elementi per non farla crescere all’infinito
+    // 🔒 Mantieni solo gli ultimi 200 elementi per non appesantire
     if (data.length > 200) data = data.slice(-200);
 
     fs.writeFileSync(memoryFile, JSON.stringify(data, null, 2));
