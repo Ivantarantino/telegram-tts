@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3d “Telegram Raw Command Fix”
+// index.js — IRIS 3.3e “Webhook Command Rescue”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -10,7 +10,6 @@ import OpenAI from "openai";
 
 dotenv.config();
 
-// === CONFIG BASE ===
 const app = express();
 app.use(express.json());
 
@@ -22,23 +21,10 @@ const TEMP_DIR = "./temp";
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-// === TELEGRAM BOT ===
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
-app.post(`/bot${BOT_TOKEN}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-await bot.setWebHook(webhookUrl);
 
-console.log("📁 Cartella temporanea creata:", TEMP_DIR);
-console.log("☁️ Ambiente Render attivo su porta", PORT);
-console.log("🧭 Modalità: WEBHOOK");
-console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
-console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
-
-// === COMANDI ===
+// === dizionario comandi ===
 const commands = {
   "/mode": "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.",
   "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
@@ -47,31 +33,41 @@ const commands = {
   "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza."
 };
 
-// === HANDLER MESSAGGI ===
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text?.trim() || "";
+// === middleware di intercettazione ===
+app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
+  const body = req.body;
+  const msg = body.message;
+  const chatId = msg?.chat?.id;
+  const text = msg?.text?.trim();
 
-  // 🧩 1️⃣ — ESTRAZIONE GREZZA DEL COMANDO DA TELEGRAM
-  let command = null;
-  if (msg.entities) {
-    for (const e of msg.entities) {
-      if (e.type === "bot_command") {
-        command = text.substring(e.offset, e.offset + e.length);
-        break;
-      }
+  // se il testo inizia con /
+  if (text && text.startsWith("/")) {
+    const base = text.split(" ")[0];
+    const reply = commands[base];
+    if (reply) {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: reply })
+      });
+      console.log(`⚡ Comando gestito via middleware: ${base}`);
+      return res.sendStatus(200); // blocca GPT
     }
   }
 
-  // 🧩 2️⃣ — GESTIONE COMANDI
-  if (command && commands[command]) {
-    await bot.sendMessage(chatId, commands[command]);
-    console.log(`⚡ Comando riconosciuto da entity: ${command}`);
-    return;
-  }
+  // passa al bot normale
+  bot.processUpdate(body);
+  res.sendStatus(200);
+});
 
-  // 🧠 3️⃣ — GPT + TTS
-  if (!text) return;
+// === set webhook ===
+await bot.setWebHook(webhookUrl);
+
+// === GPT handler ===
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text?.trim();
+  if (!text || text.startsWith("/")) return; // sicurezza
 
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
   console.log(`💾 Memoria aggiornata: ${text}`);
@@ -97,7 +93,6 @@ bot.on("message", async (msg) => {
 
   await bot.sendMessage(chatId, answer);
 
-  // 🔊 TTS
   const file = path.join(TEMP_DIR, `${Date.now()}.mp3`);
   try {
     const speech = await openai.audio.speech.create({
@@ -115,5 +110,7 @@ bot.on("message", async (msg) => {
   }
 });
 
-// === SERVER ===
-app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🌍 Server attivo su porta ${PORT}`);
+  console.log(`🤖 Webhook: ${webhookUrl}`);
+});
