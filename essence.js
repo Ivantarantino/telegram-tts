@@ -1,30 +1,45 @@
-// essence.js — Estrazione dell'Essenza (tono, intento, keyword)
-const { OpenAI } = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import fs from "fs";
+import path from "path";
 
-async function extractEssence(text) {
+const memoryFile = path.resolve("./data/memory.json");
+
+// funzione per leggere la memoria
+export async function getEssence() {
   try {
-    const prompt = "Analizza il seguente testo e restituisci un JSON con: tone (una parola), intent (una frase breve), keywords (5 parole chiave).\n" +
-                   "Testo: \"" + text + "\"";
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Sei un analizzatore di stile essenziale. Rispondi solo con JSON valido." },
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.2
-    });
-
-    const raw = completion.choices[0].message.content.trim();
-    try {
-      return JSON.parse(raw);
-    } catch (e) {
-      return { tone: "neutro", intent: "informare", keywords: [] };
+    if (!fs.existsSync(memoryFile)) {
+      return "Nessuna memoria registrata. Il campo è silente.";
     }
+
+    const raw = fs.readFileSync(memoryFile, "utf8");
+    const data = JSON.parse(raw);
+
+    if (!data || data.length === 0) {
+      return "Nessuna esperienza ancora memorizzata.";
+    }
+
+    // calcolo dell'essenza vettoriale simbolica
+    const texts = data.map((m) => m.text);
+    const joined = texts.join(" ");
+    const words = joined.split(/\s+/);
+    const wordCount = words.length;
+    const unique = [...new Set(words)].length;
+
+    const essence =
+      `🜂 Esperienze totali: ${data.length}\n` +
+      `🜃 Parole totali: ${wordCount}\n` +
+      `🜄 Parole uniche: ${unique}\n\n` +
+      `🜁 Sintesi: “${summarizeEssence(joined)}”`;
+
+    return essence;
   } catch (err) {
-    return { tone: "neutro", intent: "informare", keywords: [] };
+    console.error("❌ Errore in getEssence:", err.message);
+    return "Errore durante la lettura dell'essenza.";
   }
 }
 
-module.exports = { extractEssence };
+function summarizeEssence(text) {
+  const fragments = text.split(/[.!?]/).filter((f) => f.trim().length > 10);
+  if (fragments.length === 0) return "Campo vuoto.";
+  const last = fragments[fragments.length - 1];
+  return last.trim().slice(0, 180);
+}
