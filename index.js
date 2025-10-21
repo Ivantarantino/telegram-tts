@@ -1,6 +1,7 @@
-// index.js — IRIS 3.1 (dev branch)
+// index.js — IRIS 3.1 (fix comandi Telegram)
 // ────────────────────────────────────────────────
-// 🧬 Fase 2: Comandi dinamici /voice /mode /model /lang
+// Ora distingue tra comandi e messaggi normali.
+// I comandi /mode /voice /model /lang /config non generano audio.
 // ────────────────────────────────────────────────
 
 import TelegramBot from "node-telegram-bot-api";
@@ -29,14 +30,14 @@ if (!TOKEN) {
 }
 
 // ────────────────────────────────────────────────
-// ⚙️ Inizializzazione configurazione
+// ⚙️ Configurazione iniziale
 // ────────────────────────────────────────────────
 initConfig();
 let irisConfig = getConfig();
 console.log("🌈 Config iniziale:", irisConfig);
 
 // ────────────────────────────────────────────────
-// 🌐 Setup bot + server
+// 🌐 Setup bot e server Express
 // ────────────────────────────────────────────────
 const bot = new TelegramBot(TOKEN, { polling: MODE === "polling" ? true : false });
 const app = express();
@@ -59,20 +60,24 @@ app.post(`/bot${TOKEN}`, (req, res) => {
 
 app.listen(PORT, () => {
   if (!fs.existsSync("./temp")) fs.mkdirSync("./temp");
+  console.log(`📁 Cartella temporanea creata: ./temp`);
   console.log(`☁️ Ambiente Render attivo su porta ${PORT}`);
   console.log(`🧭 Modalità: ${MODE.toUpperCase()}`);
   console.log(`💠 IRIS – La mente calcola, la voce vibra, la coscienza ricorda.`);
 });
 
 // ────────────────────────────────────────────────
-// 🧠 Risposte testuali e vocali
+// 🧠 RISPOSTA BASE CON TTS (solo testo normale)
 // ────────────────────────────────────────────────
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text?.trim();
 
-  // ignora comandi
-  if (!text || text.startsWith("/")) return;
+  // 🔒 Ignora comandi Telegram
+  if (!text || text.startsWith("/")) {
+    console.log(`⚙️ Comando rilevato: ${text}`);
+    return;
+  }
 
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
 
@@ -104,7 +109,6 @@ bot.on("message", async (msg) => {
 // ⚙️ COMANDI DI CONFIGURAZIONE INTERATTIVI
 // ────────────────────────────────────────────────
 
-// /voice → scelta sintesi vocale
 bot.onText(/\/voice/, async (msg) => {
   const chatId = msg.chat.id;
   const keyboard = {
@@ -119,7 +123,6 @@ bot.onText(/\/voice/, async (msg) => {
   await bot.sendMessage(chatId, "Scegli la sintesi vocale:", { reply_markup: keyboard });
 });
 
-// /mode → modalità cognitiva
 bot.onText(/\/mode/, async (msg) => {
   const chatId = msg.chat.id;
   const keyboard = {
@@ -134,7 +137,6 @@ bot.onText(/\/mode/, async (msg) => {
   await bot.sendMessage(chatId, "Seleziona la modalità cognitiva:", { reply_markup: keyboard });
 });
 
-// /model → modello AI
 bot.onText(/\/model/, async (msg) => {
   const chatId = msg.chat.id;
   const keyboard = {
@@ -148,7 +150,6 @@ bot.onText(/\/model/, async (msg) => {
   await bot.sendMessage(chatId, "Seleziona il modello mentale:", { reply_markup: keyboard });
 });
 
-// /lang → lingua
 bot.onText(/\/lang/, async (msg) => {
   const chatId = msg.chat.id;
   const keyboard = {
@@ -163,7 +164,6 @@ bot.onText(/\/lang/, async (msg) => {
   await bot.sendMessage(chatId, "Scegli la lingua di conversazione:", { reply_markup: keyboard });
 });
 
-// 🔄 Callback gestione scelte
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const [key, value] = query.data.split(":");
@@ -181,7 +181,6 @@ bot.on("callback_query", async (query) => {
   await bot.sendMessage(chatId, `✅ ${responseText}`);
 });
 
-// /config → mostra impostazioni attuali
 bot.onText(/\/config/, async (msg) => {
   const chatId = msg.chat.id;
   const config = getConfig();
