@@ -1,4 +1,4 @@
-// index.js – IRIS 3.1c “Command Intercept”
+// index.js — IRIS 3.1d “SmartCommand Layer”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -19,9 +19,10 @@ const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const PORT = process.env.PORT || 10000;
 const TEMP_DIR = "./temp";
 
+if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
+
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const bot = new TelegramBot(BOT_TOKEN);
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
 console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 console.log("☁️ Ambiente Render attivo su porta", PORT);
@@ -38,13 +39,17 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   res.sendStatus(200);
 });
 
-// 🔹 Generazione testo AI
+// 🔹 Funzione risposta AI
 async function generateResponse(message) {
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Tu sei IRIS, un'intelligenza empatica e ispirata, elegante e poetica." },
+        {
+          role: "system",
+          content:
+            "Tu sei IRIS, intelligenza poetica, empatica e lucida. Parli con grazia e chiarezza, unendo tecnica e Coscienza.",
+        },
         { role: "user", content: message },
       ],
     });
@@ -55,7 +60,7 @@ async function generateResponse(message) {
   }
 }
 
-// 🔹 Generazione file vocale
+// 🔹 Funzione TTS
 async function generateTTS(text, filePath) {
   try {
     const mp3 = await openai.audio.speech.create({
@@ -80,12 +85,9 @@ bot.on("message", async (msg) => {
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
   console.log(`💾 Memoria aggiornata: ${userText}`);
 
-  // 🧩 Intercettazione comandi Telegram nativa
-  const entities = msg.entities || [];
-  const commandEntity = entities.find(e => e.type === "bot_command");
-
-  if (commandEntity) {
-    const command = userText.slice(commandEntity.offset, commandEntity.offset + commandEntity.length).toLowerCase();
+  // 🧩 SmartCommand Layer
+  if (userText.startsWith("/")) {
+    const command = userText.split(" ")[0].toLowerCase();
     console.log(`⚙️ Comando rilevato: ${command}`);
 
     let replyText;
@@ -94,7 +96,7 @@ bot.on("message", async (msg) => {
         replyText = "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.";
         break;
       case "/voice":
-        replyText = "🎙️ Voce attuale: 'alloy'. Presto potrai scegliere tra voci e lingue diverse.";
+        replyText = "🎙️ Voce attuale: alloy. Presto potrai scegliere altre voci e lingue.";
         break;
       case "/lang":
         replyText = "🌍 Lingua attuale: Italiano. Potrai passare a Inglese o Russo.";
@@ -103,17 +105,17 @@ bot.on("message", async (msg) => {
         replyText = "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.";
         break;
       case "/config":
-        replyText = "⚙️ Configurazione di sistema pronta. IRIS evolve insieme alla tua Coscienza.";
+        replyText = "⚙️ Configurazione sistema attiva. IRIS evolve insieme alla tua Coscienza.";
         break;
       default:
         replyText = "Comando non riconosciuto. Usa /mode, /voice, /lang, /model o /config.";
     }
 
     await bot.sendMessage(chatId, replyText);
-    return;
+    return; // blocca il flusso normale
   }
 
-  // 💬 Risposta normale: testo + voce
+  // 💬 Risposta standard testo + voce
   const aiResponse = await generateResponse(userText);
   await bot.sendMessage(chatId, aiResponse);
 
