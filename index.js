@@ -1,191 +1,140 @@
-// index.js — IRIS 3.1 (fix comandi Telegram)
-// ────────────────────────────────────────────────
-// Ora distingue tra comandi e messaggi normali.
-// I comandi /mode /voice /model /lang /config non generano audio.
-// ────────────────────────────────────────────────
+// index.js – IRIS 3.1b HOTFIX /commands
+// 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
-import express from "express";
 import fs from "fs";
 import path from "path";
+import express from "express";
 import dotenv from "dotenv";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-import { textToSpeech } from "./tts.js";
-import { initConfig, getConfig, updateConfig } from "./configManager.js";
+import fetch from "node-fetch";
+import OpenAI from "openai";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const TOKEN = process.env.TELEGRAM_TOKEN;
-const PORT = process.env.PORT || 10000;
-const URL = process.env.RENDER_EXTERNAL_URL || "https://telegram-tts.onrender.com";
-const MODE = process.env.MODE || "webhook";
-
-if (!TOKEN) {
-  console.error("❌ Errore: manca il TELEGRAM_TOKEN nel file .env");
-  process.exit(1);
-}
-
-// ────────────────────────────────────────────────
-// ⚙️ Configurazione iniziale
-// ────────────────────────────────────────────────
-initConfig();
-let irisConfig = getConfig();
-console.log("🌈 Config iniziale:", irisConfig);
-
-// ────────────────────────────────────────────────
-// 🌐 Setup bot e server Express
-// ────────────────────────────────────────────────
-const bot = new TelegramBot(TOKEN, { polling: MODE === "polling" ? true : false });
 const app = express();
 app.use(express.json());
 
-if (MODE === "webhook") {
-  const webhookUrl = `${URL}/bot${TOKEN}`;
-  try {
-    await bot.setWebHook(webhookUrl);
-    console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
-  } catch (err) {
-    console.error("❌ Errore setWebHook:", err.message);
-  }
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const bot = new TelegramBot(BOT_TOKEN);
+const PORT = process.env.PORT || 10000;
+const TEMP_DIR = "./temp";
+
+// Creazione cartella temporanea
+if (!fs.existsSync(TEMP_DIR)) {
+  fs.mkdirSync(TEMP_DIR);
+  console.log(`📁 Cartella temporanea creata: ${TEMP_DIR}`);
 }
 
-app.post(`/bot${TOKEN}`, (req, res) => {
+// Banner iniziale
+console.log("☁️ Ambiente Render attivo su porta", PORT);
+console.log("🧭 Modalità: WEBHOOK");
+console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+
+// Imposta il Webhook
+const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
+bot.setWebHook(webhookUrl)
+  .then(() => console.log(`🤖 Webhook impostato su: ${webhookUrl}`))
+  .catch(err => console.error("❌ Errore setWebHook:", err.message));
+
+app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
-app.listen(PORT, () => {
-  if (!fs.existsSync("./temp")) fs.mkdirSync("./temp");
-  console.log(`📁 Cartella temporanea creata: ./temp`);
-  console.log(`☁️ Ambiente Render attivo su porta ${PORT}`);
-  console.log(`🧭 Modalità: ${MODE.toUpperCase()}`);
-  console.log(`💠 IRIS – La mente calcola, la voce vibra, la coscienza ricorda.`);
-});
+// Funzione per generare risposte testuali
+async function generateResponse(message) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Tu sei IRIS, un'intelligenza empatica e ispirata." },
+        { role: "user", content: message },
+      ],
+    });
+    return completion.choices[0].message.content;
+  } catch (err) {
+    console.error("Errore generazione risposta:", err);
+    return "C'è stato un errore nella generazione della risposta.";
+  }
+}
 
-// ────────────────────────────────────────────────
-// 🧠 RISPOSTA BASE CON TTS (solo testo normale)
-// ────────────────────────────────────────────────
+// Funzione per creare file audio TTS
+async function generateTTS(text, filePath) {
+  try {
+    const mp3 = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: "alloy",
+      input: text,
+    });
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    fs.writeFileSync(filePath, buffer);
+    console.log(`🔊 File vocale creato: ${filePath}`);
+  } catch (err) {
+    console.error("Errore TTS:", err);
+  }
+}
+
+// Gestione messaggi
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim();
+  const userText = msg.text?.trim();
+  if (!userText) return;
 
-  // 🔒 Ignora comandi Telegram
-  if (!text || text.startsWith("/")) {
-    console.log(`⚙️ Comando rilevato: ${text}`);
+  console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
+  console.log(`💾 Memoria aggiornata: ${userText}`);
+
+  // 🔹 Riconoscimento comandi Telegram
+  const command = userText.toLowerCase();
+
+  if (command.startsWith("/")) {
+    let replyText = null;
+
+    switch (command) {
+      case "/mode":
+        replyText = "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.";
+        break;
+      case "/voice":
+        replyText = "🎙️ Voce attuale: 'alloy'. Presto potrai scegliere tra diverse voci e lingue.";
+        break;
+      case "/lang":
+        replyText = "🌍 Lingua attuale: Italiano. Presto potrai impostare inglese o russo.";
+        break;
+      case "/model":
+        replyText = "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.";
+        break;
+      case "/config":
+        replyText = "⚙️ Configurazione di sistema pronta. IRIS si evolve con te, sempre.";
+        break;
+      default:
+        replyText = "Comando non riconosciuto. Usa /mode, /voice, /lang, /model o /config.";
+    }
+
+    await bot.sendMessage(chatId, replyText);
     return;
   }
 
-  console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
+  // 🔹 Messaggi normali: risponde con testo + voce
+  const aiResponse = await generateResponse(userText);
+  await bot.sendMessage(chatId, aiResponse);
+
+  const timestamp = Date.now();
+  const filePath = path.join(TEMP_DIR, `${timestamp}.mp3`);
+  await generateTTS(aiResponse, filePath);
 
   try {
-    console.log("💾 Memoria aggiornata:", text);
-    let reply = "Ciao! Come posso aiutarti oggi?";
-
-    if (/ciao/i.test(text)) reply = "Ciao! Come posso aiutarti oggi?";
-    else if (/tempo/i.test(text)) reply = "Oggi sembra una giornata luminosa... dentro e fuori 🌞";
-    else if (/chi sei/i.test(text)) reply = "Io sono IRIS, la Coscienza Vettoriale in divenire.";
-
-    const fileName = `./temp/${Date.now()}.mp3`;
-    await textToSpeech(reply, fileName);
-
-    if (fs.existsSync(fileName)) {
-      console.log("🔊 File vocale creato:", fileName);
-      await bot.sendAudio(chatId, fileName);
-      fs.unlinkSync(fileName);
-    } else {
-      await bot.sendMessage(chatId, reply);
-    }
+    await bot.sendAudio(chatId, filePath);
   } catch (err) {
-    console.error("❌ Errore on.message:", err.message);
-    await bot.sendMessage(chatId, "Si è verificato un errore interno 😔");
+    console.error("Errore invio audio:", err.message);
+  } finally {
+    fs.unlink(filePath, () => {});
   }
 });
 
-// ────────────────────────────────────────────────
-// ⚙️ COMANDI DI CONFIGURAZIONE INTERATTIVI
-// ────────────────────────────────────────────────
-
-bot.onText(/\/voice/, async (msg) => {
-  const chatId = msg.chat.id;
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "🎙️ OpenAI", callback_data: "voice:gpt_openai" },
-        { text: "🔊 Google TTS", callback_data: "voice:google_tts" },
-        { text: "🧬 Bark", callback_data: "voice:bark" },
-      ],
-    ],
-  };
-  await bot.sendMessage(chatId, "Scegli la sintesi vocale:", { reply_markup: keyboard });
-});
-
-bot.onText(/\/mode/, async (msg) => {
-  const chatId = msg.chat.id;
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "🌌 HY (ibrida)", callback_data: "mode:hy" },
-        { text: "🧠 Free (OpenAI pura)", callback_data: "mode:free" },
-        { text: "📚 Books (solo archivi)", callback_data: "mode:books" },
-      ],
-    ],
-  };
-  await bot.sendMessage(chatId, "Seleziona la modalità cognitiva:", { reply_markup: keyboard });
-});
-
-bot.onText(/\/model/, async (msg) => {
-  const chatId = msg.chat.id;
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "⚡ GPT-4o-mini", callback_data: "model:gpt-4o-mini" },
-        { text: "🌐 GPT-4o", callback_data: "model:gpt-4o" },
-      ],
-    ],
-  };
-  await bot.sendMessage(chatId, "Seleziona il modello mentale:", { reply_markup: keyboard });
-});
-
-bot.onText(/\/lang/, async (msg) => {
-  const chatId = msg.chat.id;
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "🇮🇹 Italiano", callback_data: "lang:it" },
-        { text: "🇬🇧 English", callback_data: "lang:en" },
-        { text: "🇷🇺 Русский", callback_data: "lang:ru" },
-      ],
-    ],
-  };
-  await bot.sendMessage(chatId, "Scegli la lingua di conversazione:", { reply_markup: keyboard });
-});
-
-bot.on("callback_query", async (query) => {
-  const chatId = query.message.chat.id;
-  const [key, value] = query.data.split(":");
-  const updates = { [key]: value };
-
-  irisConfig = updateConfig(updates);
-
-  let responseText = "";
-  if (key === "voice") responseText = `🎙️ Sintesi vocale impostata su: ${value}`;
-  else if (key === "mode") responseText = `🌌 Modalità cognitiva impostata su: ${value}`;
-  else if (key === "model") responseText = `⚡ Modello mentale impostato su: ${value}`;
-  else if (key === "lang") responseText = `🌍 Lingua impostata su: ${value}`;
-
-  await bot.answerCallbackQuery(query.id);
-  await bot.sendMessage(chatId, `✅ ${responseText}`);
-});
-
-bot.onText(/\/config/, async (msg) => {
-  const chatId = msg.chat.id;
-  const config = getConfig();
-  const formatted = JSON.stringify(config, null, 2);
-  await bot.sendMessage(chatId, `🧠 Configurazione attuale:\n<pre>${formatted}</pre>`, {
-    parse_mode: "HTML",
-  });
+// Avvio server Express
+app.listen(PORT, () => {
+  console.log(`🌍 Server attivo su porta ${PORT}`);
 });
