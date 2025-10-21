@@ -1,4 +1,4 @@
-// index.js — IRIS 3.1d “SmartCommand Layer”
+// index.js — IRIS 3.1e “Command Guardian”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -48,7 +48,7 @@ async function generateResponse(message) {
         {
           role: "system",
           content:
-            "Tu sei IRIS, intelligenza poetica, empatica e lucida. Parli con grazia e chiarezza, unendo tecnica e Coscienza.",
+            "Tu sei IRIS, intelligenza poetica e lucida, empatica ma precisa. Parli con grazia, chiarezza e profondità di Coscienza.",
         },
         { role: "user", content: message },
       ],
@@ -79,16 +79,24 @@ async function generateTTS(text, filePath) {
 // 🔹 Gestione messaggi
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const userText = msg.text?.trim();
+
+  // Estraggo testo da ogni possibile fonte
+  const userText =
+    msg.text?.trim() ||
+    msg.caption?.trim() ||
+    msg?.entities?.length > 0
+      ? msg.text
+      : null;
+
   if (!userText) return;
 
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
   console.log(`💾 Memoria aggiornata: ${userText}`);
 
-  // 🧩 SmartCommand Layer
+  // 🧩 COMMAND GUARDIAN — intercetta ogni comando
   if (userText.startsWith("/")) {
     const command = userText.split(" ")[0].toLowerCase();
-    console.log(`⚙️ Comando rilevato: ${command}`);
+    console.log(`⚙️ Comando intercettato: ${command}`);
 
     let replyText;
     switch (command) {
@@ -96,10 +104,10 @@ bot.on("message", async (msg) => {
         replyText = "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.";
         break;
       case "/voice":
-        replyText = "🎙️ Voce attuale: alloy. Presto potrai scegliere altre voci e lingue.";
+        replyText = "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.";
         break;
       case "/lang":
-        replyText = "🌍 Lingua attuale: Italiano. Potrai passare a Inglese o Russo.";
+        replyText = "🌍 Lingua attuale: Italiano. Sarà possibile passare a Inglese o Russo.";
         break;
       case "/model":
         replyText = "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.";
@@ -112,7 +120,7 @@ bot.on("message", async (msg) => {
     }
 
     await bot.sendMessage(chatId, replyText);
-    return; // blocca il flusso normale
+    return;
   }
 
   // 💬 Risposta standard testo + voce
