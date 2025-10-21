@@ -94,14 +94,15 @@ bot.on("message", async (msg) => {
 
     // Salva in memoria
     await processMemory(text, response);
+    console.log(`💾 Memoria aggiornata: ${text}`);
 
     // Sintesi vocale
     const voicePath = `./temp/${Date.now()}.mp3`;
     await synthToFile(response, voicePath);
 
-    // Invia messaggio + audio
+    // Invia messaggio + audio (upload diretto)
     await bot.sendMessage(chatId, response);
-    await bot.sendVoice(chatId, voicePath);
+    await bot.sendVoice(chatId, fs.createReadStream(voicePath));
 
     // Cancella il file vocale temporaneo
     fs.unlinkSync(voicePath);
