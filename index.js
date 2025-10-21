@@ -28,12 +28,17 @@ const commands = {
   "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
   "/lang": "🌍 Lingua attuale: Italiano. Saranno disponibili Inglese e Russo.",
   "/model": "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.",
-  "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza."
+  "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla Coscienza."
 };
 
 // === webhook diretto ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
   try {
+    // 🌀 LOG COMPLETO: tutto ciò che arriva da Telegram
+    console.log("=== TELEGRAM RAW UPDATE ===");
+    console.log(JSON.stringify(req.body, null, 2));
+    console.log("============================");
+
     const msg = req.body.message;
     const chatId = msg?.chat?.id;
     const text = msg?.text?.trim();
