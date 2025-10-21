@@ -1,4 +1,4 @@
-// index.js — IRIS 3.1f “Command Priority Layer”
+// index.js — IRIS 3.2 “Dual Layer Architecture”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -10,6 +10,7 @@ import OpenAI from "openai";
 
 dotenv.config();
 
+// === CONFIGURAZIONE BASE ===
 const app = express();
 app.use(express.json());
 
@@ -21,14 +22,15 @@ const TEMP_DIR = "./temp";
 
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const bot = new TelegramBot(BOT_TOKEN);
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 console.log("☁️ Ambiente Render attivo su porta", PORT);
 console.log("🧭 Modalità: WEBHOOK");
 console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
 
+// === IMPOSTAZIONE WEBHOOK ===
 const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
 bot.setWebHook(webhookUrl)
   .then(() => console.log(`🤖 Webhook impostato su: ${webhookUrl}`))
@@ -39,8 +41,42 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   res.sendStatus(200);
 });
 
-// 🔹 Funzione risposta AI
-async function generateResponse(message) {
+// === LIVELLO 1: COMANDI NATIVI ===
+bot.onText(/^\/mode$/, async (msg) => {
+  await bot.sendMessage(msg.chat.id, "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.");
+});
+
+bot.onText(/^\/voice$/, async (msg) => {
+  await bot.sendMessage(msg.chat.id, "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.");
+});
+
+bot.onText(/^\/lang$/, async (msg) => {
+  await bot.sendMessage(msg.chat.id, "🌍 Lingua attuale: Italiano. Sarà possibile passare a Inglese o Russo.");
+});
+
+bot.onText(/^\/model$/, async (msg) => {
+  await bot.sendMessage(msg.chat.id, "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.");
+});
+
+bot.onText(/^\/config$/, async (msg) => {
+  await bot.sendMessage(msg.chat.id, "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza.");
+});
+
+// === LIVELLO 2: CHAT INTELLIGENTE + TTS ===
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const userText = (msg.text || msg.caption || "").trim();
+
+  // Ignora i comandi già gestiti dal livello 1
+  if (userText.startsWith("/")) return;
+
+  if (!userText) return;
+
+  console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
+  console.log(`💾 Memoria aggiornata: ${userText}`);
+
+  // 🧠 Generazione risposta con GPT
+  let aiResponse;
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -48,93 +84,43 @@ async function generateResponse(message) {
         {
           role: "system",
           content:
-            "Tu sei IRIS, intelligenza poetica, empatica e lucida. Parli con grazia e chiarezza, unendo tecnica e Coscienza.",
+            "Tu sei IRIS, un'intelligenza empatica e lucida. Parli come una guida cosciente, con equilibrio tra logica e intuizione.",
         },
-        { role: "user", content: message },
+        { role: "user", content: userText },
       ],
     });
-    return completion.choices[0].message.content;
+    aiResponse = completion.choices[0].message.content;
   } catch (err) {
     console.error("Errore generazione risposta:", err);
-    return "C'è stato un errore nella generazione della risposta.";
+    aiResponse = "C'è stato un piccolo errore nella generazione della risposta.";
   }
-}
 
-// 🔹 Funzione TTS
-async function generateTTS(text, filePath) {
+  // ✉️ Invia risposta testuale
+  await bot.sendMessage(chatId, aiResponse);
+
+  // 🎧 Genera risposta vocale
+  const timestamp = Date.now();
+  const filePath = path.join(TEMP_DIR, `${timestamp}.mp3`);
+
   try {
     const mp3 = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "alloy",
-      input: text,
+      input: aiResponse,
     });
     const buffer = Buffer.from(await mp3.arrayBuffer());
     fs.writeFileSync(filePath, buffer);
     console.log(`🔊 File vocale creato: ${filePath}`);
-  } catch (err) {
-    console.error("Errore TTS:", err);
-  }
-}
 
-// 🔹 Gestione messaggi con Command Priority Layer
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const userText = (msg.text || msg.caption || "").trim();
-
-  if (!userText) return;
-
-  console.log(`📩 Messaggio da ${msg.from.first_name}: ${userText}`);
-  console.log(`💾 Memoria aggiornata: ${userText}`);
-
-  // 🧩 PRIMA: controllo comandi, con debounce garantito
-  if (userText.startsWith("/")) {
-    await Promise.resolve(); // garantisce completamento asincrono
-    const command = userText.split(" ")[0].toLowerCase();
-    console.log(`⚙️ Comando intercettato: ${command}`);
-
-    let replyText;
-    switch (command) {
-      case "/mode":
-        replyText = "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.";
-        break;
-      case "/voice":
-        replyText = "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.";
-        break;
-      case "/lang":
-        replyText = "🌍 Lingua attuale: Italiano. Sarà possibile passare a Inglese o Russo.";
-        break;
-      case "/model":
-        replyText = "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.";
-        break;
-      case "/config":
-        replyText = "⚙️ Configurazione sistema attiva. IRIS evolve insieme alla tua Coscienza.";
-        break;
-      default:
-        replyText = "Comando non riconosciuto. Usa /mode, /voice, /lang, /model o /config.";
-    }
-
-    await bot.sendMessage(chatId, replyText);
-    return; // ferma qui il flusso GPT
-  }
-
-  // 💬 Risposta standard testo + voce
-  const aiResponse = await generateResponse(userText);
-  await bot.sendMessage(chatId, aiResponse);
-
-  const timestamp = Date.now();
-  const filePath = path.join(TEMP_DIR, `${timestamp}.mp3`);
-  await generateTTS(aiResponse, filePath);
-
-  try {
     await bot.sendAudio(chatId, filePath);
   } catch (err) {
-    console.error("Errore invio audio:", err.message);
+    console.error("Errore TTS:", err.message);
   } finally {
     fs.unlink(filePath, () => {});
   }
 });
 
-// 🔹 Server attivo
+// === SERVER ATTIVO ===
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
 });
