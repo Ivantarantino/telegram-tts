@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3b “Command Entity Handler”
+// index.js — IRIS 3.3c “Hard Command Catcher”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -52,25 +52,30 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text?.trim() || "";
 
-  // 🔹 Verifica se è un comando (anche via entities)
-  const isCommand =
-    msg.entities &&
-    msg.entities.some((e) => e.type === "bot_command") &&
-    commands[text];
-
-  if (isCommand) {
-    await bot.sendMessage(chatId, commands[text]);
-    console.log(`⚡ Comando riconosciuto: ${text}`);
-    return;
+  // 🧩 1️⃣ — INTERCETTA QUALSIASI COMANDO PRIMA DI GPT
+  if (text.startsWith("/")) {
+    const base = text.split(" ")[0]; // esclude eventuali parametri
+    if (commands[base]) {
+      await bot.sendMessage(chatId, commands[base]);
+      console.log(`⚡ Comando riconosciuto e gestito: ${base}`);
+      return; // stop — non passa a GPT
+    } else {
+      await bot.sendMessage(
+        chatId,
+        "🧭 Comando non riconosciuto, ma ricevuto. Usa /mode, /voice, /lang, /model o /config."
+      );
+      console.log(`❔ Comando non riconosciuto: ${base}`);
+      return;
+    }
   }
 
-  // 🔹 Se è testo libero, passa al GPT + TTS
-  if (!text || text.startsWith("/")) return;
+  // 🧠 2️⃣ — SE NON È UN COMANDO → GPT + TTS
+  if (!text) return;
 
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
   console.log(`💾 Memoria aggiornata: ${text}`);
 
-  // 🧠 GPT
+  // GPT
   let answer;
   try {
     const comp = await openai.chat.completions.create({
@@ -92,7 +97,7 @@ bot.on("message", async (msg) => {
 
   await bot.sendMessage(chatId, answer);
 
-  // 🎧 TTS
+  // TTS
   const file = path.join(TEMP_DIR, `${Date.now()}.mp3`);
   try {
     const speech = await openai.audio.speech.create({
