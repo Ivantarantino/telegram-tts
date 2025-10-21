@@ -1,1 +1,0 @@
-console.log("TELEGRAM_BOT_TOKEN:", process.env.TELEGRAM_BOT_TOKEN || "NON TROVATO"); console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY || "NON TROVATO"); console.log("QDRANT_URL:", process.env.QDRANT_URL || "NON TROVATO"); console.log("ENV keys:", Object.keys(process.env).filter(k => k.includes("TELEGRAM") || k.includes("BOT") || k.includes("TOKEN")));
