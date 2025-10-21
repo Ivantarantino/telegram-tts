@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3g “Pure Express Mode”
+// index.js — IRIS 3.3h “Quantum Logger”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import express from "express";
@@ -10,7 +10,7 @@ import OpenAI from "openai";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "10mb" })); // accetta payload ampi
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -34,12 +34,15 @@ const commands = {
 // === webhook diretto ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
   try {
-    // 🌀 LOG COMPLETO: tutto ciò che arriva da Telegram
-    console.log("=== TELEGRAM RAW UPDATE ===");
-    console.log(JSON.stringify(req.body, null, 2));
+    // 🌀 LOG COMPLETO UNIVERSALE
+    console.log("=== 🛰️ TELEGRAM RAW PAYLOAD ===");
+    console.log("Headers:", JSON.stringify(req.headers, null, 2));
+    console.log("Query:", JSON.stringify(req.query, null, 2));
+    console.log("Params:", JSON.stringify(req.params, null, 2));
+    console.log("Body:", JSON.stringify(req.body, null, 2));
     console.log("============================");
 
-    const msg = req.body.message;
+    const msg = req.body.message || req.body?.message || req?.body?.edited_message;
     const chatId = msg?.chat?.id;
     const text = msg?.text?.trim();
     if (!text) return res.sendStatus(200);
@@ -117,5 +120,5 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
-  console.log(`💠 IRIS – Pure Express Mode attiva`);
+  console.log(`💠 IRIS – Quantum Logger attivo`);
 });
