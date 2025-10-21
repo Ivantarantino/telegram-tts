@@ -1,4 +1,4 @@
-// index.js — IRIS 3.3a “Webhook Alignment Fix”
+// index.js — IRIS 3.3b “Command Entity Handler”
 // 💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.
 
 import TelegramBot from "node-telegram-bot-api";
@@ -19,7 +19,6 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const PORT = process.env.PORT || 10000;
 const TEMP_DIR = "./temp";
-
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -27,22 +26,19 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 // === INIZIALIZZAZIONE BOT ===
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 const webhookUrl = `${RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`;
-
-// Routing Webhook
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
-
-// Imposta Webhook
 await bot.setWebHook(webhookUrl);
+
 console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 console.log("☁️ Ambiente Render attivo su porta", PORT);
 console.log("🧭 Modalità: WEBHOOK");
 console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
 console.log(`🤖 Webhook impostato su: ${webhookUrl}`);
 
-// === LIVELLO 1 – COMANDI NATIVI ===
+// === COMANDI NATIVI ===
 const commands = {
   "/mode": "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.",
   "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
@@ -51,19 +47,26 @@ const commands = {
   "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla tua Coscienza."
 };
 
-// intercetta messaggi di testo
-bot.on("text", async (msg) => {
+// === GESTIONE MESSAGGI ===
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim();
-  if (!text) return;
+  const text = msg.text?.trim() || "";
 
-  // Se è un comando riconosciuto → rispondi subito, solo testo
-  if (commands[text]) {
+  // 🔹 Verifica se è un comando (anche via entities)
+  const isCommand =
+    msg.entities &&
+    msg.entities.some((e) => e.type === "bot_command") &&
+    commands[text];
+
+  if (isCommand) {
     await bot.sendMessage(chatId, commands[text]);
+    console.log(`⚡ Comando riconosciuto: ${text}`);
     return;
   }
 
-  // Altrimenti passa al livello GPT + TTS
+  // 🔹 Se è testo libero, passa al GPT + TTS
+  if (!text || text.startsWith("/")) return;
+
   console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
   console.log(`💾 Memoria aggiornata: ${text}`);
 
@@ -87,7 +90,6 @@ bot.on("text", async (msg) => {
     answer = "C'è stato un piccolo errore nella generazione della risposta.";
   }
 
-  // ✉️ Testo
   await bot.sendMessage(chatId, answer);
 
   // 🎧 TTS
