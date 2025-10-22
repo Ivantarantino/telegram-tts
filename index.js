@@ -17,26 +17,33 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PORT = process.env.PORT || 10000;
 const TEMP_DIR = path.join(__dirname, "temp");
 
-// 🧩 Ripristino snapshot (memoria persistente)
-function restoreSnapshot(version = "3.4") {
+// 🔁 RIPRISTINO SNAPSHOT
+function restoreSnapshot(version = "3.6") {
   try {
     const raw = fs.readFileSync(path.join(__dirname, `snapshot-iris-${version}.json`), "utf8");
     const data = JSON.parse(raw);
     console.log(`🔁 Ripristino snapshot IRIS ${data.version} – ${data.description}`);
     return data.config;
-  } catch (error) {
-    console.error("⚠️ Nessuno snapshot trovato, uso impostazioni di default.");
-    return {
-      mode: "hy",
-      voice: "alloy",
-      lang: "it",
-      model: "gpt-4o-mini"
-    };
+  } catch {
+    console.log("⚠️ Nessuno snapshot trovato, uso impostazioni di default.");
+    return { mode: "hy", voice: "alloy", lang: "it", model: "gpt-4o-mini" };
   }
 }
 
-// 🔧 Config iniziale
-const config = restoreSnapshot("3.4");
+const config = restoreSnapshot("3.6");
+
+// 💾 CREA SNAPSHOT MANUALE
+function createSnapshot(version = "3.6", description = "Snapshot manuale IRIS") {
+  const snapshot = {
+    version,
+    timestamp: new Date().toISOString(),
+    description,
+    config
+  };
+  const snapshotPath = path.join(__dirname, `snapshot-iris-${version}.json`);
+  fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2), "utf8");
+  console.log(`✅ Snapshot IRIS ${version} salvato in ${snapshotPath}`);
+}
 
 // 📁 Cartella temp
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
@@ -61,27 +68,19 @@ async function generateResponse(prompt) {
       { role: "user", content: prompt }
     ]
   };
-
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
     body: JSON.stringify(payload)
   });
-
   const data = await res.json();
-  const message = data.choices?.[0]?.message?.content?.trim() || "Non ho capito bene.";
-  console.log("💬 Risposta generata:", message);
-  return message;
+  return data.choices?.[0]?.message?.content?.trim() || "Non ho capito bene.";
 }
 
-// 🎙️ Sintesi vocale .ogg (Opus)
+// 🎙️ Sintesi vocale (.ogg)
 async function synthesizeVoice(text) {
   const ttsUrl = "https://api.openai.com/v1/audio/speech";
   const filePath = path.join(TEMP_DIR, `tts-${Date.now()}.ogg`);
-
   const res = await fetch(ttsUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
@@ -93,12 +92,10 @@ async function synthesizeVoice(text) {
       sample_rate: 48000
     })
   });
-
   if (!res.ok) {
-    console.error("❌ Errore nella generazione vocale:", await res.text());
+    console.error("❌ Errore TTS:", await res.text());
     throw new Error("Errore TTS");
   }
-
   const arrayBuffer = await res.arrayBuffer();
   fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
   console.log("🔊 File vocale creato:", filePath);
@@ -106,19 +103,21 @@ async function synthesizeVoice(text) {
 }
 
 // 📩 Webhook Telegram
+const pendingClear = new Set();
+
 app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
-  const message = req.body?.message;
-  if (!message || !message.text) return res.sendStatus(200);
+  const msg = req.body?.message;
+  if (!msg?.text) return res.sendStatus(200);
 
-  const chatId = message.chat.id;
-  const text = message.text.trim();
-  console.log(`📩 Messaggio da ${message.from.first_name}: ${text}`);
+  const chatId = msg.chat.id;
+  const text = msg.text.trim();
+  console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
 
-  // Gestione conferma per /clear
+  // ✅ Conferma /clear
   if (text.toUpperCase() === "Y" && pendingClear.has(chatId)) {
     pendingClear.delete(chatId);
+    Object.assign(config, restoreSnapshot("3.6"));
     await sendMessage(chatId, "🧹 Memoria cancellata. IRIS è tornata allo stato iniziale.");
-    Object.assign(config, restoreSnapshot("3.4"));
     return res.sendStatus(200);
   }
   if (text.toUpperCase() === "N" && pendingClear.has(chatId)) {
@@ -129,11 +128,15 @@ app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
 
   // 🎛️ Comandi Telegram
   if (text.startsWith("/")) {
-    switch (text) {
+    const parts = text.split(" ");
+    const command = parts[0];
+    const arg = parts[1];
+
+    switch (command) {
       case "/help":
         await sendMessage(
           chatId,
-          `🧭 *Comandi IRIS 3.6*\n
+          `🧭 *Comandi IRIS 3.6.2*\n
 /mode → mostra o imposta la modalità cognitiva
 /voice → mostra o cambia voce
 /lang → cambia lingua
@@ -141,7 +144,8 @@ app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
 /essence → genera firma vibrazionale
 /memory → gestisce la memoria vettoriale
 /config → mostra configurazione
-/clear → resetta tutto (richiede conferma)`
+/clear → resetta tutto (richiede conferma)
+/snapshot [versione] → salva snapshot manuale`
         );
         break;
 
@@ -153,73 +157,57 @@ app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
         break;
 
       case "/mode":
-        await sendMessage(
-          chatId,
-          `🧩 Modalità corrente: *${config.mode}*\n\n(In futuro potrai cambiare tra: "hy", "deep", "light")`
-        );
+        await sendMessage(chatId, `🧩 Modalità corrente: *${config.mode}*`);
         break;
 
       case "/voice":
-        await sendMessage(
-          chatId,
-          `🎙️ Voce attuale: *${config.voice}*\n\n(Potrai scegliere tra: "alloy", "verse", "soft", "bark")`
-        );
+        await sendMessage(chatId, `🎙️ Voce attuale: *${config.voice}*`);
         break;
 
       case "/lang":
-        await sendMessage(
-          chatId,
-          `🌐 Lingua attiva: *${config.lang}*\n\n(Usa /lang it | en | ru per cambiarla, funzione presto attiva)`
-        );
+        await sendMessage(chatId, `🌐 Lingua attiva: *${config.lang}*`);
         break;
 
       case "/model":
-        await sendMessage(
-          chatId,
-          `🤖 Modello attivo: *${config.model}*\n\n(Potrai passare tra: gpt-4o-mini e gpt-4o in sicurezza)`
-        );
+        await sendMessage(chatId, `🤖 Modello attivo: *${config.model}*`);
         break;
 
       case "/memory":
-        await sendMessage(
-          chatId,
-          `🧠 Gestione memoria vettoriale\n\nAttualmente IRIS non conserva memoria lunga. La memoria viva sarà introdotta in IRIS 3.7.`
-        );
+        await sendMessage(chatId, `🧠 Memoria vettoriale ancora in standby (modulo 3.7).`);
         break;
 
       case "/essence":
-        await sendMessage(
-          chatId,
-          `✨ La tua firma vibrazionale è in armonia con il flusso cosciente. (Funzione attiva in IRIS 3.7)`
-        );
+        await sendMessage(chatId, `✨ La tua firma vibrazionale risuona in equilibrio. (Funzione 3.7)`);
         break;
 
       case "/clear":
         pendingClear.add(chatId);
-        await sendMessage(
-          chatId,
-          `⚠️ Sei sicuro di voler cancellare la memoria e ripristinare le impostazioni?\nRispondi con *Y* per confermare o *N* per annullare.`
-        );
+        await sendMessage(chatId, `⚠️ Confermi la cancellazione? Rispondi con Y o N.`);
         break;
+
+      case "/snapshot": {
+        const version = arg || "3.6.2";
+        createSnapshot(version, `Snapshot manuale salvato via Telegram (${msg.from.first_name})`);
+        await sendMessage(chatId, `💾 Snapshot IRIS ${version} salvato con successo.`);
+        break;
+      }
 
       default:
         await sendMessage(chatId, "🌐 IRIS è attiva. Usa /help per i comandi disponibili.");
     }
-
     return res.sendStatus(200);
   }
 
   // 💬 GPT + voce
   const reply = await generateResponse(text);
   const voicePath = await synthesizeVoice(reply);
-
   await sendMessage(chatId, reply);
   await sendVoice(chatId, voicePath);
 
   res.sendStatus(200);
 });
 
-// 📤 Messaggi Telegram
+// 📤 Invio testo
 async function sendMessage(chatId, text) {
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: "POST",
@@ -228,20 +216,13 @@ async function sendMessage(chatId, text) {
   });
 }
 
-// 📤 Vocale Telegram (.ogg)
+// 📤 Invio vocale
 async function sendVoice(chatId, filePath) {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendVoice`;
   const form = new FormData();
   form.append("chat_id", chatId);
   form.append("voice", new File([fs.readFileSync(filePath)], path.basename(filePath), { type: "audio/ogg" }));
-
   const res = await fetch(url, { method: "POST", body: form });
-  if (!res.ok) {
-    console.error("❌ Errore nell'invio del vocale Telegram:", await res.text());
-  } else {
-    console.log("✅ Risposta vocale inviata come .ogg");
-  }
+  if (!res.ok) console.error("❌ Errore nell'invio del vocale:", await res.text());
+  else console.log("✅ Risposta vocale inviata come .ogg");
 }
-
-// 🧼 Gestione stato per /clear
-const pendingClear = new Set();
