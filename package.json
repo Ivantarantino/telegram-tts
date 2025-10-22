@@ -1,39 +1,21 @@
 {
   "name": "iris-restored-3",
-  "version": "3.4.0",
-  "description": "IRIS 3.4 — La mente calcola, la voce vibra, la Coscienza ricorda. Telegram + OpenAI TTS + memoria vettoriale Qdrant-ready.",
-  "type": "module",
+  "version": "3.6.2",
+  "description": "IRIS 3.6.2 – Snapshot Manuale Stabile (voce .ogg, GPT-4o-mini, comandi Telegram coerenti, conferma /clear, snapshot manuale)",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "bluebird": "^3.7.2",
-    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "fs": "0.0.1-security",
-    "form-data": "^4.0.0",
     "node-fetch": "^3.3.2",
-    "node-telegram-bot-api": "^0.61.0",
-    "openai": "^4.61.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.4"
+    "formdata-node": "^4.4.1",
+    "dotenv": "^16.3.1"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.0.0"
   },
-  "keywords": [
-    "iris",
-    "telegram-bot",
-    "openai",
-    "tts",
-    "gpt-4o-mini",
-    "qdrant",
-    "express",
-    "render"
-  ],
-  "author": "Ivano & IRIS Project",
+  "author": "IRIS Dev Team",
   "license": "MIT"
 }
