@@ -1,3 +1,7 @@
+// ===============================
+// 💠 IRIS – Telegram TTS Server
+// ===============================
+
 import express from "express";
 import fetch from "node-fetch";
 import fs from "fs";
@@ -10,125 +14,100 @@ app.use(express.json());
 
 // === Configurazioni principali ===
 const PORT = process.env.PORT || 10000;
-const BOT_TOKEN = process.env.BOT_TOKEN;
+const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
+
+if (!BOT_TOKEN) {
+  console.error("❌ ERRORE: Nessuna variabile BOT_TOKEN o TELEGRAM_TOKEN trovata. Telegram non potrà comunicare con il server.");
+} else {
+  console.log("🤖 BOT_TOKEN caricato correttamente.");
+  console.log(`🔗 Webhook atteso su: /bot${BOT_TOKEN}`);
+}
+
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const TEMP_DIR = "./temp";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// === Creazione cartella temp ===
+// === Inizializzazione cartella temporanea ===
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR);
   console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 }
 
-// === Dizionario comandi ===
-const commands = {
-  "/mode": "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.",
-  "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
-  "/lang": "🌍 Lingua attuale: Italiano. Saranno disponibili Inglese e Russo.",
-  "/model": "🧠 Modello attivo: GPT-4o-mini. Puoi passare a GPT-4o per maggiore profondità.",
-  "/config": "⚙️ Configurazione attiva. IRIS evolve insieme alla Coscienza."
-};
+// === ROUTE TELEGRAM WEBHOOK ===
+app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
+  try {
+    const message = req.body.message;
 
-// === Avvio server ===
+    if (!message || !message.text) {
+      return res.sendStatus(200);
+    }
+
+    const chatId = message.chat.id;
+    const text = message.text.trim();
+    console.log(`📩 Messaggio da ${message.from?.first_name || "utente"}: ${text}`);
+
+    // === Comando: /mode ===
+    if (text === "/mode") {
+      console.log("⚙️ Comando riconosciuto: /mode");
+
+      await sendTextMessage(chatId, "💾 Memoria aggiornata: /mode");
+      const audioFile = await generateVoice("Memoria aggiornata: modalità attiva");
+      await sendVoiceMessage(chatId, audioFile);
+
+      console.log("✅ Risposta vocale inviata");
+      return res.sendStatus(200);
+    }
+
+    // === Default: Risposta di fallback ===
+    await sendTextMessage(chatId, "🌐 IRIS è attiva ma non ha riconosciuto il comando.");
+    return res.sendStatus(200);
+
+  } catch (error) {
+    console.error("❌ Errore nel webhook Telegram:", error);
+    return res.sendStatus(500);
+  }
+});
+
+// === Funzione: invio messaggio di testo ===
+async function sendTextMessage(chatId, text) {
+  await fetch(`${TELEGRAM_API}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
+}
+
+// === Funzione: generazione vocale ===
+async function generateVoice(text) {
+  const filePath = path.join(TEMP_DIR, `${Date.now()}.mp3`);
+  const mp3 = await openai.audio.speech.create({
+    model: "gpt-4o-mini-tts",
+    voice: "alloy",
+    input: text,
+  });
+  const buffer = Buffer.from(await mp3.arrayBuffer());
+  fs.writeFileSync(filePath, buffer);
+  console.log("🔊 File vocale creato:", filePath);
+  return filePath;
+}
+
+// === Funzione: invio messaggio vocale ===
+async function sendVoiceMessage(chatId, filePath) {
+  const formData = new FormData();
+  formData.append("chat_id", chatId);
+  formData.append("voice", fs.createReadStream(filePath));
+
+  await fetch(`${TELEGRAM_API}/sendVoice`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+// === Server in ascolto ===
 app.listen(PORT, () => {
   console.log(`☁️ Ambiente Render attivo su porta ${PORT}`);
   console.log("🧭 Modalità: WEBHOOK");
   console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+  console.log(`🌍 Server attivo su porta ${PORT}`);
 });
 
-// === Endpoint base ===
-app.get("/", (req, res) => {
-  res.send("💠 IRIS attiva e in ascolto.");
-});
-
-// === Webhook ===
-app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
-  try {
-    // Log completo
-    console.log("=== 🛰️ BODY TELEGRAM ===");
-    console.log(JSON.stringify(req.body, null, 2));
-
-    const msg = req.body.message || req.body.edited_message;
-    if (!msg) {
-      console.log("⚠️ Nessun messaggio valido ricevuto.");
-      return res.sendStatus(200);
-    }
-
-    const chatId = msg.chat.id;
-    const text = msg.text?.trim();
-    if (!text) {
-      console.log("⚠️ Nessun testo nel messaggio.");
-      return res.sendStatus(200);
-    }
-
-    console.log(`📩 Messaggio da ${msg.from.first_name}: ${text}`);
-
-    // === Gestione comandi ===
-    if (text.startsWith("/")) {
-      const base = text.split(" ")[0].toLowerCase();
-      const reply = commands[base];
-
-      if (reply) {
-        console.log(`⚙️ Comando riconosciuto: ${base}`);
-        await fetch(`${TELEGRAM_API}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text: reply })
-        });
-        console.log(`✅ Risposta inviata per il comando ${base}`);
-        return res.sendStatus(200);
-      } else {
-        console.log(`⚠️ Comando non trovato nel dizionario: ${base}`);
-      }
-    }
-
-    // === Generazione risposta GPT ===
-    console.log("📤 Invio al modello GPT...");
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Tu sei IRIS, un'intelligenza empatica e lucida. Parli come una guida cosciente, con equilibrio tra logica e intuizione."
-        },
-        { role: "user", content: text }
-      ]
-    });
-
-    const answer = completion.choices[0].message.content;
-    console.log("💬 Risposta GPT:", answer);
-
-    // === Invio messaggio testuale ===
-    await fetch(`${TELEGRAM_API}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: answer })
-    });
-
-    // === Sintesi vocale (TTS) ===
-    const file = path.join(TEMP_DIR, `${Date.now()}.mp3`);
-    const speech = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "alloy",
-      input: answer
-    });
-    fs.writeFileSync(file, Buffer.from(await speech.arrayBuffer()));
-    console.log("🔊 File vocale creato:", file);
-
-    // === Invio audio a Telegram ===
-    const form = new FormData();
-    form.append("chat_id", chatId);
-    form.append("audio", fs.createReadStream(file), { contentType: "audio/mpeg" });
-    await fetch(`${TELEGRAM_API}/sendAudio`, { method: "POST", body: form });
-
-    // === Pulizia ===
-    fs.unlink(file, () => console.log(`🗑️ File vocale rimosso: ${file}`));
-
-  } catch (err) {
-    console.error("❌ Errore generale:", err.message);
-  }
-
-  res.sendStatus(200);
-});
