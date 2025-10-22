@@ -1,0 +1,15 @@
+{
+  "version": "3.7.0",
+  "date": "2025-10-22T00:00:00Z",
+  "note": "IRIS 3.7.0 – Voce OGG, comandi Telegram stabili (/mode, /voice, /lang, /model, /config, /memory, /clear[Y/N])",
+  "defaults": {
+    "mode": "hy",
+    "voice": "openai:alloy",
+    "lang": "it",
+    "model": "gpt-4o-mini"
+  },
+  "files": [
+    "index.js",
+    "package.json"
+  ]
+}
