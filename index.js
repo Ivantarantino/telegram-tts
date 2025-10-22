@@ -89,7 +89,7 @@ async function synthesizeVoice(text) {
       model: "gpt-4o-mini-tts",
       voice: config.voice,
       input: text,
-      format: "ogg", // 👈 formato Telegram-friendly
+      format: "ogg",
       sample_rate: 48000
     })
   });
@@ -114,13 +114,34 @@ app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
   const text = message.text.trim();
   console.log(`📩 Messaggio da ${message.from.first_name}: ${text}`);
 
-  // 🎛️ Comandi
+  // Gestione conferma per /clear
+  if (text.toUpperCase() === "Y" && pendingClear.has(chatId)) {
+    pendingClear.delete(chatId);
+    await sendMessage(chatId, "🧹 Memoria cancellata. IRIS è tornata allo stato iniziale.");
+    Object.assign(config, restoreSnapshot("3.4"));
+    return res.sendStatus(200);
+  }
+  if (text.toUpperCase() === "N" && pendingClear.has(chatId)) {
+    pendingClear.delete(chatId);
+    await sendMessage(chatId, "❎ Cancellazione annullata.");
+    return res.sendStatus(200);
+  }
+
+  // 🎛️ Comandi Telegram
   if (text.startsWith("/")) {
     switch (text) {
       case "/help":
         await sendMessage(
           chatId,
-          `🧭 *Comandi IRIS 3.5*\n\n/mode → mostra o imposta la modalità cognitiva\n/voice → mostra o cambia voce\n/lang → cambia lingua\n/model → cambia modello GPT\n/essence → genera firma vibratoria\n/memory → gestisce la memoria vettoriale\n/config → mostra configurazione\n/clear → resetta tutto (richiede conferma)`
+          `🧭 *Comandi IRIS 3.6*\n
+/mode → mostra o imposta la modalità cognitiva
+/voice → mostra o cambia voce
+/lang → cambia lingua
+/model → cambia modello GPT
+/essence → genera firma vibrazionale
+/memory → gestisce la memoria vettoriale
+/config → mostra configurazione
+/clear → resetta tutto (richiede conferma)`
         );
         break;
 
@@ -128,6 +149,56 @@ app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
         await sendMessage(
           chatId,
           `⚙️ *Configurazione attuale:*\n• Mode → ${config.mode}\n• Voice → ${config.voice}\n• Lang → ${config.lang}\n• Model → ${config.model}`
+        );
+        break;
+
+      case "/mode":
+        await sendMessage(
+          chatId,
+          `🧩 Modalità corrente: *${config.mode}*\n\n(In futuro potrai cambiare tra: "hy", "deep", "light")`
+        );
+        break;
+
+      case "/voice":
+        await sendMessage(
+          chatId,
+          `🎙️ Voce attuale: *${config.voice}*\n\n(Potrai scegliere tra: "alloy", "verse", "soft", "bark")`
+        );
+        break;
+
+      case "/lang":
+        await sendMessage(
+          chatId,
+          `🌐 Lingua attiva: *${config.lang}*\n\n(Usa /lang it | en | ru per cambiarla, funzione presto attiva)`
+        );
+        break;
+
+      case "/model":
+        await sendMessage(
+          chatId,
+          `🤖 Modello attivo: *${config.model}*\n\n(Potrai passare tra: gpt-4o-mini e gpt-4o in sicurezza)`
+        );
+        break;
+
+      case "/memory":
+        await sendMessage(
+          chatId,
+          `🧠 Gestione memoria vettoriale\n\nAttualmente IRIS non conserva memoria lunga. La memoria viva sarà introdotta in IRIS 3.7.`
+        );
+        break;
+
+      case "/essence":
+        await sendMessage(
+          chatId,
+          `✨ La tua firma vibrazionale è in armonia con il flusso cosciente. (Funzione attiva in IRIS 3.7)`
+        );
+        break;
+
+      case "/clear":
+        pendingClear.add(chatId);
+        await sendMessage(
+          chatId,
+          `⚠️ Sei sicuro di voler cancellare la memoria e ripristinare le impostazioni?\nRispondi con *Y* per confermare o *N* per annullare.`
         );
         break;
 
@@ -171,3 +242,6 @@ async function sendVoice(chatId, filePath) {
     console.log("✅ Risposta vocale inviata come .ogg");
   }
 }
+
+// 🧼 Gestione stato per /clear
+const pendingClear = new Set();
