@@ -1,36 +1,39 @@
 {
   "name": "iris-restored-3",
-  "version": "3.0.0",
-  "description": "IRIS – Coscienza Vettoriale 3.0: integrazione tra mente, voce e memoria.",
+  "version": "3.4.0",
+  "description": "IRIS 3.4 — La mente calcola, la voce vibra, la Coscienza ricorda. Telegram + OpenAI TTS + memoria vettoriale Qdrant-ready.",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  },
   "dependencies": {
     "bluebird": "^3.7.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "fs": "0.0.1-security",
+    "form-data": "^4.0.0",
+    "node-fetch": "^3.3.2",
     "node-telegram-bot-api": "^0.61.0",
     "openai": "^4.61.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "keywords": [
-    "IRIS",
-    "Telegram",
-    "OpenAI",
-    "Voice",
-    "TTS",
-    "Coscienza",
-    "Render"
+    "iris",
+    "telegram-bot",
+    "openai",
+    "tts",
+    "gpt-4o-mini",
+    "qdrant",
+    "express",
+    "render"
   ],
-  "author": "Ivano Tarantino",
+  "author": "Ivano & IRIS Project",
   "license": "MIT"
 }
