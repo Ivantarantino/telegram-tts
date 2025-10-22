@@ -15,61 +15,83 @@ app.use(express.json());
 // === Configurazioni principali ===
 const PORT = process.env.PORT || 10000;
 const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
+const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+const TEMP_DIR = "./temp";
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// === Setup iniziale ===
 if (!BOT_TOKEN) {
-  console.error("❌ ERRORE: Nessuna variabile BOT_TOKEN o TELEGRAM_TOKEN trovata. Telegram non potrà comunicare con il server.");
+  console.error("❌ Nessuna variabile BOT_TOKEN o TELEGRAM_TOKEN trovata!");
 } else {
   console.log("🤖 BOT_TOKEN caricato correttamente.");
   console.log(`🔗 Webhook atteso su: /bot${BOT_TOKEN}`);
 }
 
-const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const TEMP_DIR = "./temp";
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// === Inizializzazione cartella temporanea ===
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR);
   console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 }
 
-// === ROUTE TELEGRAM WEBHOOK ===
+// === Gestione webhook Telegram ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
   try {
-    const message = req.body.message;
+    const msg = req.body.message;
+    if (!msg || !msg.text) return res.sendStatus(200);
 
-    if (!message || !message.text) {
+    const chatId = msg.chat.id;
+    const text = msg.text.trim();
+    console.log(`📩 Messaggio da ${msg.from?.first_name || "utente"}: ${text}`);
+
+    // === Comando ===
+    if (text.startsWith("/")) {
+      const command = text.toLowerCase();
+
+      if (command === "/mode") {
+        console.log("⚙️ Comando riconosciuto: /mode");
+        await sendText(chatId, "💾 Memoria aggiornata: /mode");
+        const voiceFile = await speak("Memoria aggiornata: modalità attiva.");
+        await sendVoice(chatId, voiceFile);
+        return res.sendStatus(200);
+      }
+
+      // altri comandi futuri...
+      await sendText(chatId, "🌐 Comando non riconosciuto.");
       return res.sendStatus(200);
     }
 
-    const chatId = message.chat.id;
-    const text = message.text.trim();
-    console.log(`📩 Messaggio da ${message.from?.first_name || "utente"}: ${text}`);
+    // === Conversazione libera con GPT ===
+    console.log("🧠 Elaborazione GPT in corso...");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Tu sei IRIS, un'intelligenza empatica, saggia e lucida. Parli come una guida cosciente, con tono calmo, naturale e profondo.",
+        },
+        { role: "user", content: text },
+      ],
+    });
 
-    // === Comando: /mode ===
-    if (text === "/mode") {
-      console.log("⚙️ Comando riconosciuto: /mode");
+    const reply = completion.choices[0].message.content.trim();
+    console.log("💬 Risposta generata:", reply);
 
-      await sendTextMessage(chatId, "💾 Memoria aggiornata: /mode");
-      const audioFile = await generateVoice("Memoria aggiornata: modalità attiva");
-      await sendVoiceMessage(chatId, audioFile);
+    // invio testo
+    await sendText(chatId, reply);
 
-      console.log("✅ Risposta vocale inviata");
-      return res.sendStatus(200);
-    }
+    // invio voce
+    const voicePath = await speak(reply);
+    await sendVoice(chatId, voicePath);
 
-    // === Default: Risposta di fallback ===
-    await sendTextMessage(chatId, "🌐 IRIS è attiva ma non ha riconosciuto il comando.");
+    console.log("✅ Risposta testuale e vocale inviata.");
     return res.sendStatus(200);
-
-  } catch (error) {
-    console.error("❌ Errore nel webhook Telegram:", error);
+  } catch (err) {
+    console.error("❌ Errore nel webhook:", err);
     return res.sendStatus(500);
   }
 });
 
-// === Funzione: invio messaggio di testo ===
-async function sendTextMessage(chatId, text) {
+// === Funzioni di supporto ===
+async function sendText(chatId, text) {
   await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -77,37 +99,34 @@ async function sendTextMessage(chatId, text) {
   });
 }
 
-// === Funzione: generazione vocale ===
-async function generateVoice(text) {
+async function speak(text) {
   const filePath = path.join(TEMP_DIR, `${Date.now()}.mp3`);
-  const mp3 = await openai.audio.speech.create({
+  const tts = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
     voice: "alloy",
     input: text,
   });
-  const buffer = Buffer.from(await mp3.arrayBuffer());
-  fs.writeFileSync(filePath, buffer);
+  fs.writeFileSync(filePath, Buffer.from(await tts.arrayBuffer()));
   console.log("🔊 File vocale creato:", filePath);
   return filePath;
 }
 
-// === Funzione: invio messaggio vocale ===
-async function sendVoiceMessage(chatId, filePath) {
-  const formData = new FormData();
-  formData.append("chat_id", chatId);
-  formData.append("voice", fs.createReadStream(filePath));
+async function sendVoice(chatId, filePath) {
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  form.append("voice", fs.createReadStream(filePath));
 
   await fetch(`${TELEGRAM_API}/sendVoice`, {
     method: "POST",
-    body: formData,
+    body: form,
   });
+  fs.unlink(filePath, () => {});
 }
 
-// === Server in ascolto ===
+// === Avvio server ===
 app.listen(PORT, () => {
   console.log(`☁️ Ambiente Render attivo su porta ${PORT}`);
   console.log("🧭 Modalità: WEBHOOK");
   console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
   console.log(`🌍 Server attivo su porta ${PORT}`);
 });
-
