@@ -1,0 +1,30 @@
+{
+  "version": "3.6.2",
+  "timestamp": "2025-10-22T20:55:00.000Z",
+  "description": "Snapshot stabile – IRIS 3.6.2 (voce .ogg, GPT-4o-mini, comandi Telegram coerenti, conferma /clear attiva, /snapshot operativo)",
+  "config": {
+    "mode": "hy",
+    "voice": "alloy",
+    "lang": "it",
+    "model": "gpt-4o-mini",
+    "tts_format": "ogg",
+    "memory": {
+      "status": "standby",
+      "vector_engine": "qdrant-ready",
+      "retention": 100
+    },
+    "telegram": {
+      "commands": [
+        "/help",
+        "/mode",
+        "/voice",
+        "/lang",
+        "/memory",
+        "/clear",
+        "/config",
+        "/snapshot"
+      ],
+      "default_reply": "🌐 IRIS è attiva. Usa /help per i comandi disponibili."
+    }
+  }
+}
