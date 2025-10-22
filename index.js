@@ -1,5 +1,4 @@
-// IRIS 3.7.0 – voce OGG, comandi Telegram stabili
-// Requisiti ENV: TELEGRAM_TOKEN, OPENAI_API_KEY, PORT (Render impone 10000)
+// IRIS 3.7.1 – voce OGG + risposte testuali + comandi Telegram stabili
 
 import fs from "node:fs";
 import path from "node:path";
@@ -74,7 +73,6 @@ async function tgSendMessage(chatId, text, options = {}) {
 }
 
 async function tgSendVoice(chatId, oggPath, caption) {
-  // Telegram preferisce /sendVoice per OGG/Opus (note style)
   const form = new FormData();
   form.append("chat_id", String(chatId));
   form.append("voice", new Blob([fs.readFileSync(oggPath)]), path.basename(oggPath));
@@ -89,19 +87,12 @@ function normalizeCmd(text = "") {
   return { cmd, arg, parts };
 }
 
-// TTS: OpenAI → MP3 → OGG/Opus (robusto su Telegram)
+// TTS: OpenAI → MP3 → OGG/Opus
 async function synthToOgg({ text, lang = "it", voiceKey = "openai:alloy" }) {
-  // Oggi supportiamo solo provider openai:*; altri provider placeholder.
   const [provider, voiceName = "alloy"] = voiceKey.split(":");
-  if (provider !== "openai") {
-    // Fallback temporaneo: forziamo openai finché non integriamo google/bark
-    // Manteniamo lo stesso voiceName se valido.
-  }
-
   const mp3Path = path.join(TEMP_DIR, `tts-${Date.now()}.mp3`);
   const oggPath = mp3Path.replace(/\.mp3$/, ".ogg");
 
-  // 1) genera MP3
   const speech = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
     voice: voiceName || "alloy",
@@ -110,7 +101,6 @@ async function synthToOgg({ text, lang = "it", voiceKey = "openai:alloy" }) {
   const buf = Buffer.from(await speech.arrayBuffer());
   fs.writeFileSync(mp3Path, buf);
 
-  // 2) converti in OGG/Opus (48kHz, mono)
   await new Promise((resolve, reject) => {
     ffmpeg(mp3Path)
       .audioCodec("libopus")
@@ -123,18 +113,18 @@ async function synthToOgg({ text, lang = "it", voiceKey = "openai:alloy" }) {
       .save(oggPath);
   });
 
-  // 3) pulizia MP3
   fs.unlink(mp3Path, () => {});
   return oggPath;
 }
 
+// ✅ RISPOSTA TESTO + VOCE
 async function respondWithTTS(chatId, text, cfg) {
   try {
     const ogg = await synthToOgg({ text, lang: cfg.lang, voiceKey: cfg.voice });
-    await tgSendVoice(chatId, ogg);
+    await tgSendMessage(chatId, text); // testo
+    await tgSendVoice(chatId, ogg); // voce
     fs.unlink(ogg, () => {});
   } catch (e) {
-    // In caso di problemi audio, almeno inviamo testo.
     await tgSendMessage(chatId, text);
   }
 }
@@ -142,8 +132,8 @@ async function respondWithTTS(chatId, text, cfg) {
 async function runGPT(prompt, cfg) {
   const sys = [
     `Sei IRIS. Stile caldo ma pulito. Lingua: ${cfg.lang}.`,
-    `Modalità: ${cfg.mode} (free=solo modello, books=rigido su fonti RAG, hy=ibrida; NB: se non è integrato RAG, comportati come free ma mantieni tono bilanciato).`,
-    `Voce: ${cfg.voice}.`,
+    `Modalità: ${cfg.mode}.`,
+    `Voce: ${cfg.voice}.`
   ].join(" ");
   const completion = await openai.chat.completions.create({
     model: cfg.model || "gpt-4o-mini",
@@ -166,9 +156,8 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     if (!chatId || !text) return res.sendStatus(200);
 
     const cfg = getChatState(chatId);
-    const { cmd, arg, parts } = normalizeCmd(text);
+    const { cmd, arg } = normalizeCmd(text);
 
-    // Conferma pendente per /clear
     if (cfg.confirm === "clear" && /^[YyNn]$/.test(text)) {
       if (text.toLowerCase() === "y") {
         state.set(chatId, { ...defaults });
@@ -180,13 +169,9 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // ===== Comandi =====
     if (cmd.startsWith("/")) {
       switch (cmd) {
-        case "/help": {
-          await tgSendMessage(chatId, helpText);
-          return res.sendStatus(200);
-        }
+        case "/help": return await tgSendMessage(chatId, helpText);
         case "/config": {
           const c = getChatState(chatId);
           await tgSendMessage(
@@ -202,82 +187,43 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
           return res.sendStatus(200);
         }
         case "/mode": {
-          if (!arg) {
-            await tgSendMessage(chatId, `🧭 Modalità corrente: ${cfg.mode}\n_USA:_ /mode free | /mode books | /mode hy`);
-            return res.sendStatus(200);
-          }
+          if (!arg) return await tgSendMessage(chatId, `🧭 Modalità corrente: ${cfg.mode}\n_USA:_ /mode free | /mode books | /mode hy`);
           const allowed = ["free", "books", "hy"];
-          if (!allowed.includes(arg)) {
-            await tgSendMessage(chatId, "⚠️ Valori validi: free | books | hy");
-            return res.sendStatus(200);
-          }
+          if (!allowed.includes(arg)) return await tgSendMessage(chatId, "⚠️ Valori validi: free | books | hy");
           setChatState(chatId, { mode: arg });
-          await tgSendMessage(chatId, `🧭 Modalità impostata su: *${arg.toUpperCase()}*`);
-          return res.sendStatus(200);
+          return await tgSendMessage(chatId, `🧭 Modalità impostata su: *${arg.toUpperCase()}*`);
         }
         case "/lang": {
-          if (!arg) {
-            await tgSendMessage(chatId, `🌍 Lingua corrente: ${cfg.lang}\n_USA:_ /lang it | /lang en | /lang ru`);
-            return res.sendStatus(200);
-          }
+          if (!arg) return await tgSendMessage(chatId, `🌍 Lingua corrente: ${cfg.lang}\n_USA:_ /lang it | /lang en | /lang ru`);
           const allowed = ["it", "en", "ru"];
-          if (!allowed.includes(arg)) {
-            await tgSendMessage(chatId, "⚠️ Valori validi: it | en | ru");
-            return res.sendStatus(200);
-          }
+          if (!allowed.includes(arg)) return await tgSendMessage(chatId, "⚠️ Valori validi: it | en | ru");
           setChatState(chatId, { lang: arg });
-          await tgSendMessage(chatId, `🌍 Lingua impostata su: *${arg.toUpperCase()}*`);
-          return res.sendStatus(200);
+          return await tgSendMessage(chatId, `🌍 Lingua impostata su: *${arg.toUpperCase()}*`);
         }
         case "/model": {
-          if (!arg) {
-            await tgSendMessage(chatId, `🧠 Modello corrente: ${cfg.model}\n_USA:_ /model gpt-4o-mini | /model gpt-4o`);
-            return res.sendStatus(200);
-          }
+          if (!arg) return await tgSendMessage(chatId, `🧠 Modello corrente: ${cfg.model}\n_USA:_ /model gpt-4o-mini | /model gpt-4o`);
           const allowed = ["gpt-4o-mini", "gpt-4o"];
-          if (!allowed.includes(arg)) {
-            await tgSendMessage(chatId, "⚠️ Valori validi: gpt-4o-mini | gpt-4o");
-            return res.sendStatus(200);
-          }
+          if (!allowed.includes(arg)) return await tgSendMessage(chatId, "⚠️ Valori validi: gpt-4o-mini | gpt-4o");
           setChatState(chatId, { model: arg });
-          await tgSendMessage(chatId, `🧠 Modello impostato su: *${arg}*`);
-          return res.sendStatus(200);
+          return await tgSendMessage(chatId, `🧠 Modello impostato su: *${arg}*`);
         }
         case "/voice": {
-          if (!arg) {
-            await tgSendMessage(
-              chatId,
-              `🔊 Voce corrente: ${cfg.voice}\n_USA:_ /voice openai:alloy | openai:verse | google:it-std | bark:default\n*Nota*: al momento TTS attivo con OpenAI; gli altri provider verranno attivati a breve.`
-            );
-            return res.sendStatus(200);
-          }
+          if (!arg)
+            return await tgSendMessage(chatId, `🔊 Voce corrente: ${cfg.voice}\n_USA:_ /voice openai:alloy | openai:verse | google:it-std | bark:default`);
           const allowed = ["openai:alloy", "openai:verse", "google:it-std", "bark:default"];
-          if (!allowed.includes(arg)) {
-            await tgSendMessage(chatId, "⚠️ Valori validi: openai:alloy | openai:verse | google:it-std | bark:default");
-            return res.sendStatus(200);
-          }
+          if (!allowed.includes(arg)) return await tgSendMessage(chatId, "⚠️ Valori validi: openai:alloy | openai:verse | google:it-std | bark:default");
           setChatState(chatId, { voice: arg });
-          await tgSendMessage(chatId, `🔊 Voce impostata su: *${arg}*\n_(provider non-openai in preparazione)_`);
-          return res.sendStatus(200);
+          return await tgSendMessage(chatId, `🔊 Voce impostata su: *${arg}*`);
         }
-        case "/memory": {
-          // Placeholder – integrazione Qdrant in 3.8
-          await tgSendMessage(chatId, "🧠 Memoria vettoriale: *standby* (modulo previsto in 3.8).");
-          return res.sendStatus(200);
-        }
+        case "/memory": return await tgSendMessage(chatId, "🧠 Memoria vettoriale: *standby* (modulo previsto in 3.8).");
         case "/clear": {
           setChatState(chatId, { confirm: "clear" });
-          await tgSendMessage(chatId, "⚠️ Confermi reset configurazione? Rispondi *Y* per confermare o *N* per annullare.");
-          return res.sendStatus(200);
+          return await tgSendMessage(chatId, "⚠️ Confermi reset configurazione? Rispondi *Y* per confermare o *N* per annullare.");
         }
-        default: {
-          await tgSendMessage(chatId, "🌐 IRIS è attiva. Usa /help per i comandi disponibili.");
-          return res.sendStatus(200);
-        }
+        default: return await tgSendMessage(chatId, "🌐 IRIS è attiva. Usa /help per i comandi disponibili.");
       }
     }
 
-    // ===== Messaggi normali → GPT + Voce OGG =====
     const reply = await runGPT(text, cfg);
     await respondWithTTS(chatId, reply, cfg);
   } catch (err) {
@@ -287,7 +233,7 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
 });
 
 // ping
-app.get("/", (_req, res) => res.status(200).send("IRIS 3.7.0 OK"));
+app.get("/", (_req, res) => res.status(200).send("IRIS 3.7.1 OK"));
 
 // avvio
 app.listen(PORT, () => {
