@@ -1,0 +1,30 @@
+{
+  "version": "3.4",
+  "description": "IRIS 3.4 — Stato stabile funzionante (voce attiva, GPT4o-mini, comandi Telegram attivi)",
+  "config": {
+    "mode": "hy",
+    "voice": "alloy",
+    "lang": "it",
+    "model": "gpt-4o-mini",
+    "telegram": {
+      "webhook": "https://telegram-tts.onrender.com/bot8279675944:AAHkRQGUr5K1MPKSg582e8doN9vHK__l9eM",
+      "mode": "WEBHOOK"
+    },
+    "openai": {
+      "tts": true,
+      "model_tts": "gpt-4o-mini-tts",
+      "status": "stable"
+    },
+    "memory": {
+      "status": "off",
+      "note": "modulo vettoriale Qdrant disattivato ma pronto per integrazione futura"
+    }
+  },
+  "timestamp": "2025-10-22T15:00:00Z",
+  "notes": [
+    "Ultima versione funzionante prima dell'espansione dei comandi /voice e /model",
+    "TTS OpenAI stabile con voce Alloy",
+    "Telegram Webhook attivo e funzionante",
+    "Ambiente Render verificato"
+  ]
+}
