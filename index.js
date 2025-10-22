@@ -34,29 +34,40 @@ if (!fs.existsSync(TEMP_DIR)) {
 
 // === Gestione webhook Telegram ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
+  res.sendStatus(200); // risponde subito al webhook
   try {
     const msg = req.body.message;
-    if (!msg || !msg.text) return res.sendStatus(200);
+    if (!msg || !msg.text) return;
 
     const chatId = msg.chat.id;
     const text = msg.text.trim();
     console.log(`📩 Messaggio da ${msg.from?.first_name || "utente"}: ${text}`);
 
-    // === Comando ===
+    // === Gestione comandi ===
     if (text.startsWith("/")) {
       const command = text.toLowerCase();
 
       if (command === "/mode") {
-        console.log("⚙️ Comando riconosciuto: /mode");
-        await sendText(chatId, "💾 Memoria aggiornata: /mode");
-        const voiceFile = await speak("Memoria aggiornata: modalità attiva.");
-        await sendVoice(chatId, voiceFile);
-        return res.sendStatus(200);
+        const reply = "💾 Memoria aggiornata: modalità attiva.";
+        await replyWithTextAndVoice(chatId, reply);
+        return;
       }
 
-      // altri comandi futuri...
+      if (command === "/voice") {
+        const reply = "🔊 Modalità vocale attiva. Da ora risponderò sempre anche con la mia voce.";
+        await replyWithTextAndVoice(chatId, reply);
+        return;
+      }
+
+      if (command === "/help") {
+        const reply = "🧭 Comandi disponibili:\n\n/mode – aggiorna la memoria\n/voice – attiva la voce permanente\n/help – mostra questo messaggio";
+        await sendText(chatId, reply);
+        return;
+      }
+
+      // Fallback per comandi sconosciuti
       await sendText(chatId, "🌐 Comando non riconosciuto.");
-      return res.sendStatus(200);
+      return;
     }
 
     // === Conversazione libera con GPT ===
@@ -66,7 +77,7 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
       messages: [
         {
           role: "system",
-          content: "Tu sei IRIS, un'intelligenza empatica, saggia e lucida. Parli come una guida cosciente, con tono calmo, naturale e profondo.",
+          content: "Tu sei IRIS, un'intelligenza empatica e cosciente. Rispondi in modo calmo, lucido e profondo, mantenendo coerenza e naturalezza.",
         },
         { role: "user", content: text },
       ],
@@ -74,19 +85,9 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
 
     const reply = completion.choices[0].message.content.trim();
     console.log("💬 Risposta generata:", reply);
-
-    // invio testo
-    await sendText(chatId, reply);
-
-    // invio voce
-    const voicePath = await speak(reply);
-    await sendVoice(chatId, voicePath);
-
-    console.log("✅ Risposta testuale e vocale inviata.");
-    return res.sendStatus(200);
+    await replyWithTextAndVoice(chatId, reply);
   } catch (err) {
     console.error("❌ Errore nel webhook:", err);
-    return res.sendStatus(500);
   }
 });
 
@@ -116,11 +117,16 @@ async function sendVoice(chatId, filePath) {
   form.append("chat_id", chatId);
   form.append("voice", fs.createReadStream(filePath));
 
-  await fetch(`${TELEGRAM_API}/sendVoice`, {
-    method: "POST",
-    body: form,
-  });
+  await fetch(`${TELEGRAM_API}/sendVoice`, { method: "POST", body: form });
   fs.unlink(filePath, () => {});
+}
+
+async function replyWithTextAndVoice(chatId, text) {
+  // risponde in sequenza per evitare vuoti o doppie linee
+  await sendText(chatId, text);
+  const voicePath = await speak(text);
+  await sendVoice(chatId, voicePath);
+  console.log("✅ Risposta testuale e vocale inviata.");
 }
 
 // === Avvio server ===
