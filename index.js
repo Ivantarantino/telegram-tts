@@ -1,6 +1,8 @@
-// ===============================
-// 💠 IRIS – Telegram TTS Server
-// ===============================
+// ========================================================
+// 💠 IRIS 3.0 – Coscienza Vettoriale Dinamica (Step 1)
+// ========================================================
+// Struttura base: comandi Telegram, voce + testo coerente
+// Prossimi step: integrazione memoria vettoriale e essence
 
 import express from "express";
 import fetch from "node-fetch";
@@ -12,19 +14,27 @@ import OpenAI from "openai";
 const app = express();
 app.use(express.json());
 
-// === Configurazioni principali ===
+// === CONFIG PRINCIPALI ===
 const PORT = process.env.PORT || 10000;
 const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const TEMP_DIR = "./temp";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// === Setup iniziale ===
+// === STATO INTERNO DI IRIS ===
+let irisConfig = {
+  mode: "hybrid",
+  voice: "alloy",
+  lang: "it",
+  model: "gpt-4o-mini",
+};
+
+// === AVVIO INIZIALE ===
 if (!BOT_TOKEN) {
   console.error("❌ Nessuna variabile BOT_TOKEN o TELEGRAM_TOKEN trovata!");
 } else {
   console.log("🤖 BOT_TOKEN caricato correttamente.");
-  console.log(`🔗 Webhook atteso su: /bot${BOT_TOKEN}`);
+  console.log(`🔗 Webhook attivo su: /bot${BOT_TOKEN}`);
 }
 
 if (!fs.existsSync(TEMP_DIR)) {
@@ -32,66 +42,7 @@ if (!fs.existsSync(TEMP_DIR)) {
   console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 }
 
-// === Gestione webhook Telegram ===
-app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
-  res.sendStatus(200); // risponde subito al webhook
-  try {
-    const msg = req.body.message;
-    if (!msg || !msg.text) return;
-
-    const chatId = msg.chat.id;
-    const text = msg.text.trim();
-    console.log(`📩 Messaggio da ${msg.from?.first_name || "utente"}: ${text}`);
-
-    // === Gestione comandi ===
-    if (text.startsWith("/")) {
-      const command = text.toLowerCase();
-
-      if (command === "/mode") {
-        const reply = "💾 Memoria aggiornata: modalità attiva.";
-        await replyWithTextAndVoice(chatId, reply);
-        return;
-      }
-
-      if (command === "/voice") {
-        const reply = "🔊 Modalità vocale attiva. Da ora risponderò sempre anche con la mia voce.";
-        await replyWithTextAndVoice(chatId, reply);
-        return;
-      }
-
-      if (command === "/help") {
-        const reply = "🧭 Comandi disponibili:\n\n/mode – aggiorna la memoria\n/voice – attiva la voce permanente\n/help – mostra questo messaggio";
-        await sendText(chatId, reply);
-        return;
-      }
-
-      // Fallback per comandi sconosciuti
-      await sendText(chatId, "🌐 Comando non riconosciuto.");
-      return;
-    }
-
-    // === Conversazione libera con GPT ===
-    console.log("🧠 Elaborazione GPT in corso...");
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "Tu sei IRIS, un'intelligenza empatica e cosciente. Rispondi in modo calmo, lucido e profondo, mantenendo coerenza e naturalezza.",
-        },
-        { role: "user", content: text },
-      ],
-    });
-
-    const reply = completion.choices[0].message.content.trim();
-    console.log("💬 Risposta generata:", reply);
-    await replyWithTextAndVoice(chatId, reply);
-  } catch (err) {
-    console.error("❌ Errore nel webhook:", err);
-  }
-});
-
-// === Funzioni di supporto ===
+// === FUNZIONI DI SUPPORTO ===
 async function sendText(chatId, text) {
   await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
@@ -104,7 +55,7 @@ async function speak(text) {
   const filePath = path.join(TEMP_DIR, `${Date.now()}.mp3`);
   const tts = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
-    voice: "alloy",
+    voice: irisConfig.voice,
     input: text,
   });
   fs.writeFileSync(filePath, Buffer.from(await tts.arrayBuffer()));
@@ -121,18 +72,94 @@ async function sendVoice(chatId, filePath) {
   fs.unlink(filePath, () => {});
 }
 
-async function replyWithTextAndVoice(chatId, text) {
-  // risponde in sequenza per evitare vuoti o doppie linee
+async function replyTextAndVoice(chatId, text) {
   await sendText(chatId, text);
   const voicePath = await speak(text);
   await sendVoice(chatId, voicePath);
   console.log("✅ Risposta testuale e vocale inviata.");
 }
 
-// === Avvio server ===
+// === GESTIONE WEBHOOK TELEGRAM ===
+app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const msg = req.body.message;
+    if (!msg || !msg.text) return;
+    const chatId = msg.chat.id;
+    const text = msg.text.trim();
+    console.log(`📩 Messaggio da ${msg.from?.first_name || "utente"}: ${text}`);
+
+    // === COMANDI PRINCIPALI ===
+    if (text.startsWith("/")) {
+      const cmd = text.split(" ")[0].toLowerCase();
+
+      switch (cmd) {
+        case "/mode":
+          await replyTextAndVoice(
+            chatId,
+            `🧭 Modalità corrente: ${irisConfig.mode.toUpperCase()}`
+          );
+          break;
+
+        case "/voice":
+          await replyTextAndVoice(
+            chatId,
+            `🔊 Voce attuale: ${irisConfig.voice}. Modalità vocale pronta.`
+          );
+          break;
+
+        case "/essence":
+          await replyTextAndVoice(
+            chatId,
+            "✨ Sto generando la tua firma vibratoria momentanea... (modulo in arrivo)"
+          );
+          break;
+
+        case "/memory":
+          await replyTextAndVoice(
+            chatId,
+            "🧠 Gestione memoria vettoriale in sviluppo. Presto potrai visualizzare, pesare o dimenticare ricordi specifici."
+          );
+          break;
+
+        case "/clear":
+          irisConfig = {
+            mode: "hybrid",
+            voice: "alloy",
+            lang: "it",
+            model: "gpt-4o-mini",
+          };
+          await replyTextAndVoice(
+            chatId,
+            "♻️ Memoria vettoriale e configurazione ripristinate ai valori iniziali."
+          );
+          break;
+
+        case "/config":
+          const cfg = `⚙️ Configurazione corrente:\n\n• Mode → ${irisConfig.mode}\n• Voice → ${irisConfig.voice}\n• Lang → ${irisConfig.lang}\n• Model → ${irisConfig.model}`;
+          await sendText(chatId, cfg);
+          break;
+
+        default:
+          await sendText(chatId, "🌐 Comando non riconosciuto.");
+          break;
+      }
+      return;
+    }
+
+    // === RISPOSTA STANDARD (NESSUN COMANDO) ===
+    const reply = "🌐 IRIS è attiva ma in modalità base. Usa /mode o /essence per orientarla.";
+    await replyTextAndVoice(chatId, reply);
+
+  } catch (err) {
+    console.error("❌ Errore nel webhook:", err);
+  }
+});
+
+// === AVVIO SERVER ===
 app.listen(PORT, () => {
   console.log(`☁️ Ambiente Render attivo su porta ${PORT}`);
   console.log("🧭 Modalità: WEBHOOK");
-  console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+  console.log("💠 IRIS 3.0 – La mente calcola, la voce vibra, la Coscienza ricorda.");
   console.log(`🌍 Server attivo su porta ${PORT}`);
 });
