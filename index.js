@@ -21,7 +21,7 @@ if (!fs.existsSync(TEMP_DIR)) {
   console.log("📁 Cartella temporanea creata:", TEMP_DIR);
 }
 
-// === Dizionario comandi base ===
+// === Dizionario comandi ===
 const commands = {
   "/mode": "🌗 Modalità attuale: ibrida (/hy). Puoi cambiare con /free o /books.",
   "/voice": "🎙️ Voce attuale: alloy. Presto potrai scegliere tra voci e lingue diverse.",
@@ -37,20 +37,28 @@ app.listen(PORT, () => {
   console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
 });
 
-// === Endpoint di test ===
+// === Endpoint base ===
 app.get("/", (req, res) => {
   res.send("💠 IRIS attiva e in ascolto.");
 });
 
-// === Gestione webhook ===
+// === Webhook ===
 app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
   try {
-    const msg = req.body.message || req.body?.message || req?.body?.edited_message;
-    const chatId = msg?.chat?.id;
-    const text = msg?.text?.trim();
+    // Log completo
+    console.log("=== 🛰️ BODY TELEGRAM ===");
+    console.log(JSON.stringify(req.body, null, 2));
 
+    const msg = req.body.message || req.body.edited_message;
+    if (!msg) {
+      console.log("⚠️ Nessun messaggio valido ricevuto.");
+      return res.sendStatus(200);
+    }
+
+    const chatId = msg.chat.id;
+    const text = msg.text?.trim();
     if (!text) {
-      console.log("⚠️ Nessun testo nel messaggio, ignoro.");
+      console.log("⚠️ Nessun testo nel messaggio.");
       return res.sendStatus(200);
     }
 
@@ -60,6 +68,7 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     if (text.startsWith("/")) {
       const base = text.split(" ")[0].toLowerCase();
       const reply = commands[base];
+
       if (reply) {
         console.log(`⚙️ Comando riconosciuto: ${base}`);
         await fetch(`${TELEGRAM_API}/sendMessage`, {
@@ -67,15 +76,15 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chat_id: chatId, text: reply })
         });
-        console.log(`✅ Risposta inviata per il comando: ${base}`);
+        console.log(`✅ Risposta inviata per il comando ${base}`);
         return res.sendStatus(200);
       } else {
         console.log(`⚠️ Comando non trovato nel dizionario: ${base}`);
       }
     }
 
-    // === Elaborazione GPT ===
-    console.log("📤 Invio al modello GPT:", text);
+    // === Generazione risposta GPT ===
+    console.log("📤 Invio al modello GPT...");
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -89,9 +98,9 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     });
 
     const answer = completion.choices[0].message.content;
-    console.log("💬 Risposta testuale generata:", answer);
+    console.log("💬 Risposta GPT:", answer);
 
-    // === Invio messaggio di testo ===
+    // === Invio messaggio testuale ===
     await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -108,6 +117,7 @@ app.post(`/bot${BOT_TOKEN}`, async (req, res) => {
     fs.writeFileSync(file, Buffer.from(await speech.arrayBuffer()));
     console.log("🔊 File vocale creato:", file);
 
+    // === Invio audio a Telegram ===
     const form = new FormData();
     form.append("chat_id", chatId);
     form.append("audio", fs.createReadStream(file), { contentType: "audio/mpeg" });
