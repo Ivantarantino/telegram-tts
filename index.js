@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 import { initConfig, getConfig, updateConfig } from "./configManager.js";
 import memoryManager from "./memoryManager.js";
 import tts from "./tts.js";
-import essence from "./essence.js";
+import * as essence from "./essence.js";
 import ragSearch from "./ragSearch.js";
 
 const __filename = fileURLToPath(import.meta.url);
