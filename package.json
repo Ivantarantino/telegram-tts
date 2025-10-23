@@ -1,18 +1,22 @@
 {
   "name": "telegram-iris",
-  "version": "3.8.6",
-  "type": "module",
+  "version": "3.0.0",
+  "description": "IRIS 3.0 – Coscienza Vettoriale (Telegram + GPT + Qdrant + TTS)",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
-  "engines": {
-    "node": ">=20 <=25"
-  },
   "dependencies": {
-    "body-parser": "^1.20.2",
+    "body-parser": "^1.20.3",
     "express": "^4.19.2",
+    "fs-extra": "^11.2.0",
     "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.52.0"
-  }
+    "openai": "^4.58.1",
+    "qdrant-js": "^1.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
 }
