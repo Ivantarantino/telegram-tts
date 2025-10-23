@@ -2,6 +2,22 @@ import fs from "fs";
 
 const configPath = "./config.json";
 
+// ✅ Funzione compatibile con le versioni precedenti
+export function initConfig(defaultConfig = {
+  voice: "gpt_openai",
+  voice_mode: "it_female",
+  language: "it",
+  model: "gpt-4o-mini",
+  mode: "hy",
+  lastEssence: "",
+  version: "3.1.0",
+  w_sim: 0.5,
+  w_imp: 0.3,
+  w_rec: 0.2
+}) {
+  ensureConfigFileExists(defaultConfig);
+}
+
 // ✅ Crea file di configurazione se non esiste
 export function ensureConfigFileExists(defaultConfig) {
   if (!fs.existsSync(configPath)) {
