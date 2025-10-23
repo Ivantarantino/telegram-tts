@@ -3,11 +3,11 @@ import fs from "fs";
 import express from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
-import { initConfig, getConfig, updateConfig } from "./configManager.js";
-import memoryManager from "./memoryManager.js";
-import tts from "./tts.js";
-import essence from "./essence.js";
-import ragSearch from "./ragSearch.js";
+import * as configManager from "./configManager.js";
+import * as memoryManager from "./memoryManager.js";
+import * as tts from "./tts.js";
+import * as essence from "./essence.js";
+import * as ragSearch from "./ragSearch.js";
 
 dotenv.config();
 const app = express();
@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 10000;
 const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramBot(token, { polling: false });
 
-initConfig();
+configManager.initConfig();
 
 const url = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
 bot.setWebHook(`${url}/bot${token}`);
@@ -61,7 +61,7 @@ bot.onText(/\/help/, (msg) => {
 
 bot.onText(/\/mode (.+)/, async (msg, match) => {
   const mode = match[1].trim();
-  await updateConfig({ mode });
+  await configManager.updateConfig({ mode });
   bot.sendMessage(
     msg.chat.id,
     `🧭 *Modalità attuale:* ${mode}\n✏️ *Cambia con:* /mode book | free | hy`,
@@ -71,7 +71,7 @@ bot.onText(/\/mode (.+)/, async (msg, match) => {
 
 bot.onText(/\/model (.+)/, async (msg, match) => {
   const model = match[1].trim();
-  await updateConfig({ model });
+  await configManager.updateConfig({ model });
   bot.sendMessage(
     msg.chat.id,
     `🧠 *Modello attuale:* ${model}\n✏️ *Cambia con:* /model gpt-4o-mini | gpt-4o`,
@@ -81,7 +81,7 @@ bot.onText(/\/model (.+)/, async (msg, match) => {
 
 bot.onText(/\/voice (.+)/, async (msg, match) => {
   const voice = match[1].trim();
-  await updateConfig({ voice });
+  await configManager.updateConfig({ voice });
   bot.sendMessage(
     msg.chat.id,
     `🎙️ *Voce attuale:* ${voice}\n✏️ *Cambia con:* /voice gpt_openai`,
@@ -91,7 +91,7 @@ bot.onText(/\/voice (.+)/, async (msg, match) => {
 
 bot.onText(/\/lang (.+)/, async (msg, match) => {
   const language = match[1].trim();
-  await updateConfig({ language });
+  await configManager.updateConfig({ language });
   bot.sendMessage(
     msg.chat.id,
     `🌐 *Lingua attuale:* ${language}\n✏️ *Cambia con:* /lang it | en | es | fr`,
@@ -102,7 +102,7 @@ bot.onText(/\/lang (.+)/, async (msg, match) => {
 bot.onText(/\/weights (.+)/, async (msg, match) => {
   const weights = match[1].split(" ").map(Number);
   if (weights.length === 3) {
-    await updateConfig({
+    await configManager.updateConfig({
       w_sim: weights[0],
       w_imp: weights[1],
       w_rec: weights[2],
@@ -126,7 +126,7 @@ bot.onText(/\/weights (.+)/, async (msg, match) => {
 });
 
 bot.onText(/\/config/, async (msg) => {
-  const cfg = getConfig();
+  const cfg = configManager.getConfig();
   const text = `
 🧠 *Configurazione attuale:*
 - Voce: ${cfg.voice}
@@ -143,7 +143,7 @@ bot.onText(/\/config/, async (msg) => {
 
 bot.onText(/\/essence/, async (msg) => {
   const ess = await essence.calculate();
-  await updateConfig({ lastEssence: ess });
+  await configManager.updateConfig({ lastEssence: ess });
   bot.sendMessage(
     msg.chat.id,
     `💎 *Essenza calcolata:*\n${ess.slice(0, 300)}...`,
@@ -168,10 +168,10 @@ bot.on("message", async (msg) => {
   const text = msg.text?.trim();
   if (!text || text.startsWith("/")) return;
 
-  const cfg = getConfig();
+  const cfg = configManager.getConfig();
   memoryManager.addMemory(text);
 
-  const response = await ragSearch(text, cfg);
+  const response = await ragSearch.query(text, cfg);
   const audioBuffer = await tts.speak(response, cfg.voice_mode);
 
   await bot.sendMessage(msg.chat.id, response);
