@@ -1,5 +1,5 @@
-// IRIS 3.8.5 — "Essence Core"
-// Telegram + GPT + OpenAI TTS (.ogg) + struttura voce/modello/essenza
+// IRIS 3.8.6 — “Menu Coerente”
+// Telegram + GPT + OpenAI TTS (.ogg) + /essence + menù chiari
 
 import fs from "fs";
 import path from "path";
@@ -38,10 +38,9 @@ const state = {
     model: "openai",      // openai | bark | google
     tone: "neutro"        // neutro | empatico | profondo | giocoso
   },
-  essence: null           // si aggiornerà dinamicamente
+  essence: null
 };
 
-// conferma reset
 const pendingClear = new Map();
 
 // ---------- TELEGRAM + EXPRESS ----------
@@ -87,7 +86,7 @@ async function generaVoce(text) {
   const filename = `tts-${Date.now()}.ogg`;
   const filePath = path.join(TEMP_DIR, filename);
   const ttsModel = "gpt-4o-mini-tts";
-  const voiceName = state.voice.model === "openai" ? "alloy" : "alloy"; // Bark/Google → futuro
+  const voiceName = "alloy";
   const speech = await openai.audio.speech.create({
     model: ttsModel,
     voice: voiceName,
@@ -160,18 +159,18 @@ bot.on("message", async (msg) => {
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "Ciao, sono IRIS 3.8.5. Usa /help per scoprire i miei comandi.");
+        return bot.sendMessage(chatId, "Ciao, sono IRIS 3.8.6. Usa /help per scoprire i miei comandi.");
 
       case "/help":
         return bot.sendMessage(chatId,
           [
             "*🧭 Comandi IRIS*",
             "",
-            "/mode → modalità cognitiva (hy|free|books)",
+            "/mode → modalità cognitiva",
             "/voice → voce e tono",
             "/lang → lingua",
             "/model → modello GPT",
-            "/essence → firma vibrazionale (Cuore di IRIS)",
+            "/essence → firma vibrazionale",
             "/memory → memoria vettoriale (prossimamente)",
             "/config → mostra impostazioni",
             "/clear → resetta tutto (Y/N)"
@@ -190,29 +189,33 @@ bot.on("message", async (msg) => {
           ].join("\n"), { parse_mode: "Markdown" });
 
       case "/mode":
-        if (!arg1) return bot.sendMessage(chatId, `🧭 Modalità attuale: *${state.mode}*\n(opzioni: hy | free | books)`, { parse_mode: "Markdown" });
+        if (!arg1) return bot.sendMessage(chatId,
+          `🧭 Modalità attuale: *${state.mode}*  (ibrida)\n\nCambia con:\n/mode books | free | hy`,
+          { parse_mode: "Markdown" });
         if (!["hy", "free", "books"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.mode = arg1;
         return bot.sendMessage(chatId, `Modalità impostata su *${arg1}*`, { parse_mode: "Markdown" });
 
       case "/lang":
-        if (!arg1) return bot.sendMessage(chatId, `🌐 Lingua attiva: *${state.lang}*\n(opzioni: it | en | ru)`, { parse_mode: "Markdown" });
+        if (!arg1) return bot.sendMessage(chatId,
+          `🌐 Lingua attiva: *${state.lang}*\n\nCambia con:\n/lang it | en | ru`,
+          { parse_mode: "Markdown" });
         if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.lang = arg1;
         return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
 
       case "/model":
-        if (!arg1) return bot.sendMessage(chatId, `🧠 Modello attuale: *${state.model}*\n(opzioni: gpt-4o-mini | gpt-4o)`, { parse_mode: "Markdown" });
+        if (!arg1) return bot.sendMessage(chatId,
+          `🧠 Modello attuale: *${state.model}*\n\nCambia con:\n/model gpt-4o-mini | gpt-4o`,
+          { parse_mode: "Markdown" });
         if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.model = arg1;
         return bot.sendMessage(chatId, `Modello impostato su *${arg1}*`, { parse_mode: "Markdown" });
 
       case "/voice":
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🎙️ Voce: *${state.voice.model}*  |  Tono: *${state.voice.tone}*\n\nCambia con:\n/voice model [openai|bark|google]\n/voice tone [neutro|empatico|profondo|giocoso]`,
-            { parse_mode: "Markdown" });
-        }
+        if (!arg1) return bot.sendMessage(chatId,
+          `🎙️ Voce: *${state.voice.model}*  |  Tono: *${state.voice.tone}*\n\nCambia con:\n/voice model openai | bark | google\n/voice tone neutro | empatico | profondo | giocoso`,
+          { parse_mode: "Markdown" });
         if (arg1 === "model" && arg2) {
           if (!["openai", "bark", "google"].includes(arg2)) return bot.sendMessage(chatId, "Modello non valido.");
           state.voice.model = arg2;
@@ -243,7 +246,6 @@ bot.on("message", async (msg) => {
     }
   }
 
-  // messaggio normale → GPT + Voce
   try {
     const risposta = await generaTesto(text);
     await inviaTestoVoce(chatId, risposta);
