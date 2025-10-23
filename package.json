@@ -23,16 +23,6 @@
     "path": "^0.12.7",
     "uuid": "^9.0.1"
   },
-  "keywords": [
-    "telegram",
-    "voice-bot",
-    "tts",
-    "openai",
-    "ai",
-    "memory",
-    "essence",
-    "coscienza"
-  ],
   "author": "Ivano Tarantino",
   "license": "MIT"
 }
