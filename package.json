@@ -1,19 +1,32 @@
 {
   "name": "telegram-iris",
-  "version": "3.8.6",
-  "description": "IRIS 3.0 – Step 1.1 · Campo di Coerenza Locale (base 3.8.6)",
-  "type": "module",
+  "version": "3.8.7",
+  "description": "IRIS 3.0 – Coscienza Vettoriale | Telegram Bot con memoria, voce e campo di coerenza locale.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
   "engines": {
-    "node": ">=20 <=25"
+    "node": ">=20.0.0 <=25.0.0"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
     "express": "^4.19.2",
     "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.52.0"
-  }
+    "openai": "^4.72.0",
+    "qdrant-client": "^1.9.0"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "openai",
+    "tts",
+    "coerenza",
+    "coscienza",
+    "qdrant",
+    "iris"
+  ],
+  "author": "Ivano Tarantino",
+  "license": "MIT"
 }
