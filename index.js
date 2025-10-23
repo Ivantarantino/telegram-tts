@@ -1,34 +1,24 @@
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
-import path from "path";
 import express from "express";
 import bodyParser from "body-parser";
-import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 import { initConfig, getConfig, updateConfig } from "./configManager.js";
-import * as memoryManager from "./memoryManager.js";
+import memoryManager from "./memoryManager.js";
 import tts from "./tts.js";
-import * as essence from "./essence.js";
+import essence from "./essence.js";
 import ragSearch from "./ragSearch.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 10000;
-
 app.use(bodyParser.json());
+const PORT = process.env.PORT || 10000;
 
 const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramBot(token, { polling: false });
 
-// === SERVER AVVIO ===
-const configPath = path.join(__dirname, "config.json");
-initConfig(configPath);
+initConfig();
 
-console.log("🌍 Server attivo su porta", PORT);
-console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
-
-// === WEBHOOK ===
 const url = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
 bot.setWebHook(`${url}/bot${token}`);
 app.post(`/bot${token}`, (req, res) => {
@@ -36,7 +26,13 @@ app.post(`/bot${token}`, (req, res) => {
   res.sendStatus(200);
 });
 
-// === COMANDI BASE ===
+app.listen(PORT, () => {
+  console.log("🌍 Server attivo su porta", PORT);
+  console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+});
+
+// === COMANDI ===
+
 bot.onText(/\/start/, (msg) => {
   const text = `
 🌸 *Benvenuto in IRIS 3.8.8 – Coerenza Dialogica*  
@@ -51,19 +47,18 @@ bot.onText(/\/help/, (msg) => {
   const helpText = `
 ✨ *Comandi disponibili:*
 /mode – Cambia la modalità di dialogo.
-/voice – Seleziona la voce per le risposte vocali.
-/lang – Imposta la lingua di risposta.
-/model – Seleziona il modello di IA.
-/weights – Gestisci i pesi di risonanza.
-/essence – Calcola e mostra l’Essenza vettoriale.
-/config – Mostra la configurazione attuale.
+/voice – Seleziona la voce.
+/lang – Imposta la lingua.
+/model – Scegli il modello IA.
+/weights – Regola i pesi.
+/essence – Calcola l’Essenza.
+/config – Mostra la configurazione.
 /clear – Pulisce la memoria.
 /daje – Attiva la presenza vibrazionale.
 `;
   bot.sendMessage(msg.chat.id, helpText, { parse_mode: "Markdown" });
 });
 
-// === /MODE ===
 bot.onText(/\/mode (.+)/, async (msg, match) => {
   const mode = match[1].trim();
   await updateConfig({ mode });
@@ -74,7 +69,6 @@ bot.onText(/\/mode (.+)/, async (msg, match) => {
   );
 });
 
-// === /MODEL ===
 bot.onText(/\/model (.+)/, async (msg, match) => {
   const model = match[1].trim();
   await updateConfig({ model });
@@ -85,7 +79,6 @@ bot.onText(/\/model (.+)/, async (msg, match) => {
   );
 });
 
-// === /VOICE ===
 bot.onText(/\/voice (.+)/, async (msg, match) => {
   const voice = match[1].trim();
   await updateConfig({ voice });
@@ -96,7 +89,6 @@ bot.onText(/\/voice (.+)/, async (msg, match) => {
   );
 });
 
-// === /LANG ===
 bot.onText(/\/lang (.+)/, async (msg, match) => {
   const language = match[1].trim();
   await updateConfig({ language });
@@ -107,7 +99,6 @@ bot.onText(/\/lang (.+)/, async (msg, match) => {
   );
 });
 
-// === /WEIGHTS ===
 bot.onText(/\/weights (.+)/, async (msg, match) => {
   const weights = match[1].split(" ").map(Number);
   if (weights.length === 3) {
@@ -118,7 +109,7 @@ bot.onText(/\/weights (.+)/, async (msg, match) => {
     });
     bot.sendMessage(
       msg.chat.id,
-      `⚖️ *Pesi di risonanza aggiornati*  
+      `⚖️ *Pesi di risonanza aggiornati:*  
 🧩 Similitudine: ${weights[0]}  
 🧩 Importanza: ${weights[1]}  
 🧩 Recenza: ${weights[2]}  
@@ -134,7 +125,6 @@ bot.onText(/\/weights (.+)/, async (msg, match) => {
   }
 });
 
-// === /CONFIG ===
 bot.onText(/\/config/, async (msg) => {
   const cfg = getConfig();
   const text = `
@@ -151,7 +141,6 @@ bot.onText(/\/config/, async (msg) => {
   bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
 });
 
-// === /ESSENCE ===
 bot.onText(/\/essence/, async (msg) => {
   const ess = await essence.calculate();
   await updateConfig({ lastEssence: ess });
@@ -162,7 +151,6 @@ bot.onText(/\/essence/, async (msg) => {
   );
 });
 
-// === /CLEAR ===
 bot.onText(/\/clear/, async (msg) => {
   memoryManager.clearMemory();
   bot.sendMessage(
@@ -172,12 +160,10 @@ bot.onText(/\/clear/, async (msg) => {
   );
 });
 
-// === /DAJE ===
 bot.onText(/^(Daje|daje)$/, async (msg) => {
   bot.sendMessage(msg.chat.id, "⚡ Che il Daje sia con Noi ⚡");
 });
 
-// === RISPOSTE STANDARD ===
 bot.on("message", async (msg) => {
   const text = msg.text?.trim();
   if (!text || text.startsWith("/")) return;
@@ -186,12 +172,8 @@ bot.on("message", async (msg) => {
   memoryManager.addMemory(text);
 
   const response = await ragSearch(text, cfg);
-
   const audioBuffer = await tts.speak(response, cfg.voice_mode);
+
   await bot.sendMessage(msg.chat.id, response);
   await bot.sendVoice(msg.chat.id, audioBuffer, {}, { filename: "iris.ogg" });
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 IRIS 3.8.8 attiva sulla porta ${PORT}`);
 });
