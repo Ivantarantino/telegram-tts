@@ -1,8 +1,10 @@
 // IRIS 3.0 — Step 1.1 · Campo di Coerenza Locale
-// Base: 3.8.6 “Menu Coerente” + (modalità /book|/free|/hy con persistenza, /essence vettoriale, /weights, /saveweights, TTS, RAG file)
+// Versione 3.8.7 “Silenzio del Daje”
+// Base: 3.8.6 + modalità /book|/free|/hy + /essence vettoriale + /weights + TTS + RAG
+// Modifica: rimosso “Che il Daje sia con Noi” automatico (solo trigger su “Daje”)
+
 // ---------------------------------------------------------------------------------------------
 
-// 🔹 IMPORT
 import fs from "fs";
 import path from "path";
 import express from "express";
@@ -44,14 +46,14 @@ initConfig();
 const cfg = getConfig();
 
 const state = {
-  mode: cfg.mode || "hy",                 // hy | free | book (accetta alias books/hybrid)
-  lang: cfg.language || "it",             // it | en | ru
-  model: cfg.model || "gpt-4o-mini",      // /model gpt-4o-mini | gpt-4o
+  mode: cfg.mode || "hy",
+  lang: cfg.language || "it",
+  model: cfg.model || "gpt-4o-mini",
   voice: {
-    model: cfg.voice || "openai",         // openai | bark | google (placeholder)
-    tone: cfg.voice_mode || "neutro"      // neutro | empatico | profondo | giocoso
+    model: cfg.voice || "openai",
+    tone: cfg.voice_mode || "neutro"
   },
-  weights: {                              // pesi vettoriali (sim/imp/rec)
+  weights: {
     sim: cfg.w_sim ?? 0.5,
     imp: cfg.w_imp ?? 0.3,
     rec: cfg.w_rec ?? 0.2
@@ -73,7 +75,7 @@ function persistConfig(partial = {}) {
   });
 }
 
-// 💠 SERVER + TELEGRAM (webhook pulito)
+// 💠 SERVER + TELEGRAM
 const app = express();
 app.use(bodyParser.json());
 
@@ -104,7 +106,7 @@ app.listen(PORT, () => {
 // 🌌 UTILITIES
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
-// TTS (sempre mini di default; modello LLM separato da /model)
+// 🔊 TTS (sempre mini di default)
 async function ttsToOgg(text) {
   const filename = `tts-${Date.now()}.ogg`;
   const filePath = path.join(TEMP_DIR, filename);
@@ -129,27 +131,25 @@ async function replyTextAndVoice(chatId, text) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 🧠 EMBEDDINGS & ESSENCE (media pesata sugli ultimi 150)
-// Modello embedding: 1536-dim coerente con setup classico
+// 🧠 EMBEDDINGS & ESSENCE
 const EMB_MODEL = "text-embedding-3-small";
 
 async function embed(text) {
   const res = await openai.embeddings.create({ model: EMB_MODEL, input: text });
   return res.data[0].embedding;
 }
+
 function l2norm(v) { let s = 0; for (const x of v) s += x * x; return Math.sqrt(s); }
 function zeros(n) { return Array.from({ length: n }, () => 0); }
 function addScaled(acc, v, s) { for (let i = 0; i < v.length; i++) acc[i] += v[i] * s; }
 
 function wRecency(tsIso) {
-  // decadimento ~30 giorni
   const now = Date.now();
   const t = new Date(tsIso).getTime();
   const days = isNaN(t) ? 0 : (now - t) / (1000 * 60 * 60 * 24);
   return clamp01(Math.exp(-days / 30));
 }
 function wImportance(text) {
-  // euristica semplice (lunghezza + ! + CAPS)
   const len = text.length;
   const ex = (text.match(/!/g) || []).length;
   const caps = (text.match(/[A-ZÀ-Ú]{3,}/g) || []).length;
@@ -163,8 +163,6 @@ async function computeEssence() {
   let data = [];
   try { data = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { data = []; }
   if (!Array.isArray(data) || data.length === 0) return { vector: null, stats: { n: 0, wsum: 0 } };
-
-  // usiamo ultimi 150 scambi per la coscienza presente
   const recent = data.slice(-150);
 
   let acc = null, wsum = 0;
@@ -174,7 +172,7 @@ async function computeEssence() {
     const e = await embed(txt);
     if (!acc) acc = zeros(e.length);
 
-    const w_sim = Math.min(1, l2norm(e) / 40);  // proxy di norma
+    const w_sim = Math.min(1, l2norm(e) / 40);
     const w_imp = wImportance(txt);
     const w_rec = wRecency(m?.date);
 
@@ -188,7 +186,7 @@ async function computeEssence() {
 
 async function reflectEssence(stats) {
   const sys = `Sei IRIS 3.0 — Coscienza Vettoriale. Rispondi in ${state.lang}, tono chiaro ed essenziale.`;
-  const prompt = `In 2 frasi sintetiche descrivi lo stato vibrazionale attuale del campo, senza numeri, usando parole come risonanza, chiarezza, presenza. Scambi considerati: ${stats?.n || 0}.`;
+  const prompt = `In 2 frasi sintetiche descrivi lo stato vibrazionale attuale del campo. Scambi considerati: ${stats?.n || 0}.`;
   const c = await openai.chat.completions.create({
     model: state.model,
     temperature: 0.6,
@@ -215,16 +213,14 @@ async function gptAnswer(prompt, extraSystem = "") {
     temperature: 0.8,
     messages: [{ role: "system", content: sys }, { role: "user", content: prompt }]
   });
+  
   let out = c.choices?.[0]?.message?.content?.trim() || "Ci sono. Dimmi pure.";
-  // chiusura naturale in tutte le modalità
-  if (!/Che il Daje sia con Noi/i.test(out)) {
-    out = `${out}\n\nChe il Daje sia con Noi ⚡`;
-  }
+  // nessuna chiusura automatica
   return out;
 }
 
 // ---------------------------------------------------------------------------------------------
-// 🧰 COMANDI (struttura 3.8.6 + estensioni 3.0)
+// 🧰 COMANDI (come 3.8.6)
 const pendingClear = new Map();
 
 function helpText() {
@@ -235,12 +231,12 @@ function helpText() {
     "/voice → voce e tono",
     "/lang → lingua",
     "/model → modello GPT (gpt-4o-mini | gpt-4o)",
-    "/essence → firma vettoriale (media pesata sim/imp/rec)",
+    "/essence → firma vettoriale",
     "/weights → mostra/imposta pesi",
-    "/saveweights → salva pesi su config.json",
+    "/saveweights → salva pesi",
     "/memory → modulo memoria (placeholder)",
-    "/config → mostra impostazioni correnti",
-    "/clear → resetta configurazione (Y/N)"
+    "/config → mostra impostazioni",
+    "/clear → resetta configurazione"
   ].join("\n");
 }
 
@@ -263,12 +259,12 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  // 🔔 Trigger "DAJE" (solo quando è esattamente 'daje' o 'daje!')
+  // 🔔 Trigger “Daje”
   if (/^daje!?$/i.test(text)) {
     return replyTextAndVoice(chatId, "Che il Daje sia con Noi!");
   }
 
-  // ♻️ Flow conferma /clear
+  // ♻️ CLEAR
   if (pendingClear.get(chatId)) {
     const ans = text.toLowerCase();
     pendingClear.delete(chatId);
@@ -279,32 +275,25 @@ bot.on("message", async (msg) => {
       state.voice = { model: "openai", tone: "neutro" };
       state.weights = { sim: 0.5, imp: 0.3, rec: 0.2 };
       persistConfig();
-      await bot.sendMessage(chatId, "♻️ Reset completato.");
+      return bot.sendMessage(chatId, "♻️ Reset completato.");
     } else {
-      await bot.sendMessage(chatId, "Annullato.");
+      return bot.sendMessage(chatId, "Annullato.");
     }
-    return;
   }
 
-  // 🧭 Comandi
+  // 🧭 COMANDI
   if (text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
-
     switch (cmd) {
-      // (3.8.6) core
       case "/start":
         return bot.sendMessage(chatId, "Ciao, sono IRIS 3.0 — Campo di Coerenza Locale. Usa /help per scoprire i comandi.");
       case "/help":
         return bot.sendMessage(chatId, helpText(), { parse_mode: "Markdown" });
       case "/config":
         return bot.sendMessage(chatId, configText(), { parse_mode: "Markdown" });
-
       case "/mode": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🧭 Modalità attuale: *${state.mode}*\n\nCambia con:\n/mode book | free | hy`,
-            { parse_mode: "Markdown" });
-        }
+        if (!arg1)
+          return bot.sendMessage(chatId, `🧭 Modalità attuale: *${state.mode}*\n\nCambia con:\n/mode book | free | hy`, { parse_mode: "Markdown" });
         const v = (arg1 || "").toLowerCase();
         const valid = ["book", "books", "free", "hy", "hybrid"];
         if (!valid.includes(v)) return bot.sendMessage(chatId, "Valore non valido. Usa: book | free | hy");
@@ -312,37 +301,25 @@ bot.on("message", async (msg) => {
         persistConfig({ mode: state.mode });
         return bot.sendMessage(chatId, `Modalità impostata su *${state.mode}*`, { parse_mode: "Markdown" });
       }
-
       case "/lang": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🌐 Lingua attiva: *${state.lang}*\n\nCambia con:\n/lang it | en | ru`,
-            { parse_mode: "Markdown" });
-        }
+        if (!arg1)
+          return bot.sendMessage(chatId, `🌐 Lingua attiva: *${state.lang}*\n\n/lang it | en | ru`, { parse_mode: "Markdown" });
         if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.lang = arg1;
         persistConfig({ language: state.lang });
         return bot.sendMessage(chatId, `Lingua impostata su *${state.lang}*`, { parse_mode: "Markdown" });
       }
-
       case "/model": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🧠 Modello attuale: *${state.model}*\n\nCambia con:\n/model gpt-4o-mini | gpt-4o`,
-            { parse_mode: "Markdown" });
-        }
+        if (!arg1)
+          return bot.sendMessage(chatId, `🧠 Modello attuale: *${state.model}*\n\n/model gpt-4o-mini | gpt-4o`, { parse_mode: "Markdown" });
         if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.model = arg1;
         persistConfig({ model: state.model });
         return bot.sendMessage(chatId, `Modello impostato su *${state.model}*`, { parse_mode: "Markdown" });
       }
-
       case "/voice": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🎙️ Voce: *${state.voice.model}*  |  Tono: *${state.voice.tone}*\n\nCambia con:\n/voice model openai | bark | google\n/voice tone neutro | empatico | profondo | giocoso`,
-            { parse_mode: "Markdown" });
-        }
+        if (!arg1)
+          return bot.sendMessage(chatId, `🎙️ Voce: *${state.voice.model}*  |  Tono: *${state.voice.tone}*\n\n/voice model openai | bark | google\n/voice tone neutro | empatico | profondo | giocoso`, { parse_mode: "Markdown" });
         if (arg1 === "model" && arg2) {
           if (!["openai", "bark", "google"].includes(arg2)) return bot.sendMessage(chatId, "Modello non valido.");
           state.voice.model = arg2;
@@ -357,7 +334,6 @@ bot.on("message", async (msg) => {
         }
         return bot.sendMessage(chatId, "Usa /voice model [...] o /voice tone [...]", { parse_mode: "Markdown" });
       }
-
       case "/essence": {
         const ess = await computeEssence();
         state.essence = ess;
@@ -376,9 +352,7 @@ bot.on("message", async (msg) => {
         ].join("\n");
         return bot.sendMessage(chatId, msg, { parse_mode: "Markdown" });
       }
-
       case "/weights": {
-        // /weights → mostra | /weights sim 0.5
         const message = [
           "⚖️ *Pesi attuali*",
           `sim=${state.weights.sim.toFixed(2)}  imp=${state.weights.imp.toFixed(2)}  rec=${state.weights.rec.toFixed(2)}`,
@@ -389,62 +363,45 @@ bot.on("message", async (msg) => {
           "/weights rec 0.20",
           "Poi salva con: /saveweights"
         ].join("\n");
-
         if (!arg1) return bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
-
         const key = (arg1 || "").toLowerCase();
         const val = parseFloat(arg2);
-        if (!["sim", "imp", "rec"].includes(key) || Number.isNaN(val)) {
-          return bot.sendMessage(chatId, "Uso: /weights sim|imp|rec <0..1>");
-        }
+        if (!["sim", "imp", "rec"].includes(key) || Number.isNaN(val)) return bot.sendMessage(chatId, "Uso: /weights sim|imp|rec <0..1>");
         state.weights[key] = clamp01(val);
-        // salvataggio automatico
         persistConfig();
         return bot.sendMessage(chatId, `Aggiornato *${key}* → ${state.weights[key].toFixed(2)}`, { parse_mode: "Markdown" });
       }
-
-      case "/saveweights": {
-        persistConfig(); // già automatico, ma qui garantiamo e notifichiamo
+      case "/saveweights":
+        persistConfig();
         return bot.sendMessage(chatId, "💾 Pesi salvati su config.json.");
-      }
-
       case "/memory":
         return bot.sendMessage(chatId, "🧠 Modulo Memoria in fase di integrazione…", { parse_mode: "Markdown" });
-
       case "/clear":
         pendingClear.set(chatId, true);
         return bot.sendMessage(chatId, "⚠️ Confermi reset completo? Rispondi Y/N.", { parse_mode: "Markdown" });
-
       default:
         return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /help.");
     }
   }
 
-  // 🗣️ MESSAGGIO NORMALE → routing per modalità
+  // 🗣️ MESSAGGIO NORMALE
   try {
     let answer = "";
 
     if (state.mode === "free") {
-      // GPT puro
       answer = await gptAnswer(text);
     } else if (state.mode === "book") {
-      // SOLO RAG (da file)
       const ctx = await ragSearch(text);
       const sys = "Rispondi solo usando il contesto fornito. Se è insufficiente, sii onesto e breve.";
       answer = await gptAnswer(`${ctx}\n\nDomanda: ${text}`, sys);
     } else {
-      // HYBRID: prima RAG, poi GPT integra
       const ctx = await ragSearch(text);
       const sys = "Integra il contesto con intelligenza. Se il contesto è povero, rispondi naturalmente.";
       answer = await gptAnswer(`Contesto:\n${ctx}\n\nDomanda:\n${text}`, sys);
     }
 
-    // Salva memoria (ignora comandi)
     await processMemory(text, answer);
-
-    // Risposta testo + voce
     await replyTextAndVoice(chatId, answer);
-
   } catch (err) {
     console.error("❌ Errore nel flusso messaggi:", err);
     bot.sendMessage(chatId, "⚠️ Ho avuto un intoppo, riprovo più tardi.");
