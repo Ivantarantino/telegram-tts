@@ -4,11 +4,11 @@ import path from "path";
 import express from "express";
 import bodyParser from "body-parser";
 import { fileURLToPath } from "url";
-import { configManager } from "./configManager.js";
-import { memoryManager } from "./memoryManager.js";
-import { tts } from "./tts.js";
-import { essence } from "./essence.js";
-import { ragSearch } from "./ragSearch.js";
+import configManager from "./configManager.js";
+import memoryManager from "./memoryManager.js";
+import tts from "./tts.js";
+import essence from "./essence.js";
+import ragSearch from "./ragSearch.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,7 +66,7 @@ bot.onText(/\/mode (.+)/, async (msg, match) => {
   await configManager.updateConfig({ mode });
   bot.sendMessage(
     msg.chat.id,
-    `🧭 *Modalità attuale:* ${mode}\n✏️ Cambia con: /mode book | free | hy`,
+    `🧭 *Modalità attuale:* ${mode}\n✏️ *Cambia con:* /mode book | free | hy`,
     { parse_mode: "Markdown" }
   );
 });
@@ -77,7 +77,7 @@ bot.onText(/\/model (.+)/, async (msg, match) => {
   await configManager.updateConfig({ model });
   bot.sendMessage(
     msg.chat.id,
-    `🧠 *Modello attuale:* ${model}\n✏️ Cambia con: /model gpt-4o-mini | gpt-4o`,
+    `🧠 *Modello attuale:* ${model}\n✏️ *Cambia con:* /model gpt-4o-mini | gpt-4o`,
     { parse_mode: "Markdown" }
   );
 });
@@ -88,7 +88,7 @@ bot.onText(/\/voice (.+)/, async (msg, match) => {
   await configManager.updateConfig({ voice });
   bot.sendMessage(
     msg.chat.id,
-    `🎙️ *Voce attuale:* ${voice}\n✏️ Cambia con: /voice gpt_openai`,
+    `🎙️ *Voce attuale:* ${voice}\n✏️ *Cambia con:* /voice gpt_openai`,
     { parse_mode: "Markdown" }
   );
 });
@@ -99,7 +99,7 @@ bot.onText(/\/lang (.+)/, async (msg, match) => {
   await configManager.updateConfig({ language });
   bot.sendMessage(
     msg.chat.id,
-    `🌐 *Lingua attuale:* ${language}\n✏️ Cambia con: /lang it | en | es | fr`,
+    `🌐 *Lingua attuale:* ${language}\n✏️ *Cambia con:* /lang it | en | es | fr`,
     { parse_mode: "Markdown" }
   );
 });
@@ -115,7 +115,7 @@ bot.onText(/\/weights (.+)/, async (msg, match) => {
     });
     bot.sendMessage(
       msg.chat.id,
-      `⚖️ *Pesi di risonanza aggiornati*\n🧩 Similitudine: ${weights[0]}\n🧩 Importanza: ${weights[1]}\n🧩 Recenza: ${weights[2]}\n✏️ Cambia con: /weights 0.5 0.3 0.2`,
+      `⚖️ *Pesi di risonanza aggiornati*\n🧩 Similitudine: ${weights[0]}\n🧩 Importanza: ${weights[1]}\n🧩 Recenza: ${weights[2]}\n✏️ *Cambia con:* /weights 0.5 0.3 0.2`,
       { parse_mode: "Markdown" }
     );
   } else {
@@ -139,6 +139,7 @@ bot.onText(/\/config/, async (msg) => {
 - w_sim: ${cfg.w_sim}
 - w_imp: ${cfg.w_imp}
 - w_rec: ${cfg.w_rec}
+✏️ *Cambia con:* /mode, /voice, /model, /lang, /weights
   `;
   bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
 });
@@ -179,7 +180,6 @@ bot.on("message", async (msg) => {
 
   const response = await ragSearch(text, cfg);
 
-  // TTS + testo
   const audioBuffer = await tts.speak(response, cfg.voice_mode);
   await bot.sendMessage(msg.chat.id, response);
   await bot.sendVoice(msg.chat.id, audioBuffer, {}, { filename: "iris.ogg" });
