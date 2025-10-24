@@ -30,6 +30,8 @@
   "license": "MIT",
   "overrides": {
     "form-data": "^4.0.0",
-    "tough-cookie": "^4.1.4"
+    "tough-cookie": "^4.1.4",
+    "@cypress/request-promise": "^5.0.0",
+    "request-promise-core": "^1.1.4"
   }
 }
