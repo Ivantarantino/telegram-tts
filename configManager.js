@@ -1,35 +1,31 @@
-// =============================================================
-// IRIS 3.8.8 – Config Manager
-// Gestisce lettura e aggiornamento del file di configurazione.
-// =============================================================
-
 import fs from "fs";
 
-const CONFIG_PATH = "./config.json";
+let config = {};
 
-function initConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
-    const defaultConfig = {
-      telegram_bot_token: "INSERISCI_IL_TUO_TOKEN",
-      mode: "hy",
-      model: "iris",
-      language: "it",
-      weights: "default",
-      voice_mode: "neutral"
-    };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
-    console.log(`🆕 File di configurazione creato: ${CONFIG_PATH}`);
+try {
+  if (fs.existsSync("./config.json")) {
+    const fileData = fs.readFileSync("./config.json", "utf8");
+    config = JSON.parse(fileData);
   }
+} catch (err) {
+  console.warn("⚠️ Nessun file di configurazione trovato, userò ENV vars o default.");
+  config = {};
 }
 
-function getConfig() {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH));
-}
+// 🔹 Usa prima ENV, poi config.json, poi valori di default
+config.telegram_bot_token = process.env.TELEGRAM_TOKEN || config.telegram_bot_token || "";
+config.openai_api_key = process.env.OPENAI_API_KEY || config.openai_api_key || "";
+config.voice_mode = process.env.IRIS_MODE || config.voice_mode || "hybrid";
+config.language = process.env.IRIS_LANG_DEFAULT || config.language || "it";
+config.memory_enabled = config.memory_enabled ?? true;
+config.memory_file = config.memory_file || "./memory.json";
+config.tts_engine = config.tts_engine || "openai";
+config.server_port = process.env.PORT || config.server_port || 10000;
 
-function updateConfig(newValues) {
-  const config = getConfig();
-  const updated = { ...config, ...newValues };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2));
-}
-
-export default { initConfig, getConfig, updateConfig };
+export default {
+  getConfig: () => config,
+  saveConfig: (newCfg) => {
+    Object.assign(config, newCfg);
+    fs.writeFileSync("./config.json", JSON.stringify(config, null, 2));
+  },
+};
