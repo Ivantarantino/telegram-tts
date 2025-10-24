@@ -1,30 +1,37 @@
+// =============================================================
+// IRIS 3.8.8 – Memory Manager
+// Gestisce la memoria contestuale del sistema IRIS.
+// =============================================================
+
 import fs from "fs";
 
-const memoryFile = "./memory.json";
-let memory = [];
+const MEMORY_PATH = "./memory.json";
 
-// ✅ Inizializza memoria
-export function initMemory() {
-  if (fs.existsSync(memoryFile)) {
-    const data = fs.readFileSync(memoryFile);
-    memory = JSON.parse(data);
-  } else {
-    fs.writeFileSync(memoryFile, JSON.stringify(memory, null, 2));
-  }
+function status() {
+  return fs.existsSync(MEMORY_PATH) ? "🧠 Attiva" : "⚪ Vuota";
 }
 
-// ✅ Aggiunge un nuovo messaggio alla memoria
-export function addMemory(text) {
-  memory.push({ text, timestamp: new Date().toISOString() });
-  saveMemory();
+function reset() {
+  fs.writeFileSync(MEMORY_PATH, JSON.stringify([], null, 2));
 }
 
-// ✅ Recupera ultimi N messaggi
-export function getRecentMemories(limit = 100) {
-  return memory.slice(-limit);
+function exportMemory() {
+  const path = `./memory_export_${Date.now()}.json`;
+  fs.copyFileSync(MEMORY_PATH, path);
+  return path;
 }
 
-// ✅ Salva la memoria su file
-export function saveMemory() {
-  fs.writeFileSync(memoryFile, JSON.stringify(memory, null, 2));
+function addMemory(entry) {
+  const memory = fs.existsSync(MEMORY_PATH)
+    ? JSON.parse(fs.readFileSync(MEMORY_PATH))
+    : [];
+  memory.push({ entry, time: new Date().toISOString() });
+  fs.writeFileSync(MEMORY_PATH, JSON.stringify(memory, null, 2));
 }
+
+export default {
+  status,
+  reset,
+  export: exportMemory,
+  addMemory
+};
