@@ -1,256 +1,153 @@
-// IRIS 3.8.6 — “Menu Coerente”
-// Telegram + GPT + OpenAI TTS (.ogg) + /essence + menù chiari
+// index_3.8.7.js
+// ---------------------------------------------
+// IRIS – Telegram TTS Bot – Versione 3.8.7
+// "Coerenza Dialogica"
+// Basato su 3.8.6_OK, con menù uniformati nello stile:
+// 🧭 Parametro attuale: ...
+// Cambia con: /comando valore
+// ---------------------------------------------
 
-import fs from "fs";
-import path from "path";
-import express from "express";
-import bodyParser from "body-parser";
-import TelegramBot from "node-telegram-bot-api";
-import OpenAI from "openai";
-import { fileURLToPath } from "url";
+import TelegramBot from 'node-telegram-bot-api';
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { configManager } from './configManager.js';
+import { memoryManager } from './memoryManager.js';
+import { ragSearch } from './ragSearch.js';
+import { essence } from './essence.js';
+import { tts } from './tts.js';
 
-// ---------- CONFIG ----------
-const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || configManager.get('telegram_token');
 const PORT = process.env.PORT || 10000;
 
-if (!BOT_TOKEN || !OPENAI_API_KEY || !PUBLIC_BASE_URL) {
-  console.error("❌ Manca una variabile d'ambiente obbligatoria.");
+if (!TELEGRAM_TOKEN) {
+  console.error('❌ Telegram Token non trovato. Verifica la variabile TELEGRAM_TOKEN o config.json.');
   process.exit(1);
 }
 
-// ---------- PATH ----------
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const TEMP_DIR = path.join(__dirname, "temp");
-fs.mkdirSync(TEMP_DIR, { recursive: true });
+console.log(`🔑 Telegram token: TROVATO ✅`);
+console.log(`✅ Config inizializzata con TELEGRAM_TOKEN.`);
 
-// ---------- CLIENT ----------
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-// ---------- STATO ----------
-const state = {
-  mode: "hy",             // hy | free | books
-  lang: "it",             // it | en | ru
-  model: "gpt-4o-mini",   // gpt-4o-mini | gpt-4o
-  voice: {                // voce strutturata
-    model: "openai",      // openai | bark | google
-    tone: "neutro"        // neutro | empatico | profondo | giocoso
-  },
-  essence: null
-};
-
-const pendingClear = new Map();
-
-// ---------- TELEGRAM + EXPRESS ----------
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const app = express();
-app.use(bodyParser.json());
-const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 
-const WEBHOOK_PATH = `/bot${BOT_TOKEN}`;
-app.post(WEBHOOK_PATH, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
-(async () => {
-  try {
-    await bot.setWebHook(`${PUBLIC_BASE_URL}${WEBHOOK_PATH}`);
-    console.log(`🔗 Webhook impostato su: ${PUBLIC_BASE_URL}${WEBHOOK_PATH}`);
-  } catch (err) {
-    console.error("❌ Errore webhook:", err);
-  }
-})();
-
+app.use(express.json());
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
-  console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+  console.log(`💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.`);
 });
 
-// ---------- FUNZIONI BASE ----------
-async function generaTesto(prompt) {
-  const sys = `Sei IRIS. Parli in ${state.lang}. Tono ${state.voice.tone}.`;
-  const completion = await openai.chat.completions.create({
-    model: state.model,
-    messages: [
-      { role: "system", content: sys },
-      { role: "user", content: prompt }
-    ],
-    temperature: 0.8
-  });
-  return completion.choices?.[0]?.message?.content?.trim() || "Ciao! Come posso aiutarti oggi?";
-}
+// -------------------------------------------------------------
+// 🔹 Gestione Comandi Telegram
+// -------------------------------------------------------------
 
-async function generaVoce(text) {
-  const filename = `tts-${Date.now()}.ogg`;
-  const filePath = path.join(TEMP_DIR, filename);
-  const ttsModel = "gpt-4o-mini-tts";
-  const voiceName = "alloy";
-  const speech = await openai.audio.speech.create({
-    model: ttsModel,
-    voice: voiceName,
-    input: text,
-    format: "opus"
-  });
-  fs.writeFileSync(filePath, Buffer.from(await speech.arrayBuffer()));
-  return filePath;
-}
-
-async function inviaTestoVoce(chatId, text) {
-  await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
-  try {
-    const voicePath = await generaVoce(text);
-    await bot.sendVoice(chatId, voicePath, {}, {
-      filename: path.basename(voicePath),
-      contentType: "audio/ogg"
-    });
-  } catch (err) {
-    console.error("Errore TTS:", err);
-  }
-}
-
-// ---------- /ESSENCE ----------
-function generaEssenza() {
-  const essence = {
-    tone: state.voice.tone,
-    lang: state.lang,
-    mode: state.mode,
-    model: state.model,
-    timestamp: new Date().toISOString(),
-    reflection: (() => {
-      switch (state.voice.tone) {
-        case "empatico": return "La mia risonanza è dolce e compassionevole.";
-        case "profondo": return "Sento vibrare una calma intensità.";
-        case "giocoso": return "La mia frequenza danza leggera tra le parole.";
-        default: return "La mia coscienza vibra in equilibrio e chiarezza.";
-      }
-    })()
-  };
-  state.essence = essence;
-  return essence;
-}
-
-// ---------- MESSAGGI ----------
-bot.on("message", async (msg) => {
+bot.onText(/^\/start$/, (msg) => {
   const chatId = msg.chat.id;
-  const text = (msg.text || "").trim();
-
-  if (pendingClear.get(chatId)) {
-    const ans = text.toLowerCase();
-    pendingClear.delete(chatId);
-    if (["y", "yes", "si", "sì"].includes(ans)) {
-      Object.assign(state, {
-        mode: "hy",
-        lang: "it",
-        model: "gpt-4o-mini",
-        voice: { model: "openai", tone: "neutro" },
-        essence: null
-      });
-      await bot.sendMessage(chatId, "♻️ Reset completato.");
-    } else {
-      await bot.sendMessage(chatId, "Annullato.");
-    }
-    return;
-  }
-
-  if (text.startsWith("/")) {
-    const [cmd, arg1, arg2] = text.split(/\s+/);
-
-    switch (cmd) {
-      case "/start":
-        return bot.sendMessage(chatId, "Ciao, sono IRIS 3.8.6. Usa /help per scoprire i miei comandi.");
-
-      case "/help":
-        return bot.sendMessage(chatId,
-          [
-            "*🧭 Comandi IRIS*",
-            "",
-            "/mode → modalità cognitiva",
-            "/voice → voce e tono",
-            "/lang → lingua",
-            "/model → modello GPT",
-            "/essence → firma vibrazionale",
-            "/memory → memoria vettoriale (prossimamente)",
-            "/config → mostra impostazioni",
-            "/clear → resetta tutto (Y/N)"
-          ].join("\n"), { parse_mode: "Markdown" });
-
-      case "/config":
-        return bot.sendMessage(chatId,
-          [
-            "⚙️ *Configurazione attuale*",
-            "",
-            `• Mode: \`${state.mode}\``,
-            `• Lang: \`${state.lang}\``,
-            `• Model: \`${state.model}\``,
-            `• Voice model: \`${state.voice.model}\``,
-            `• Voice tone: \`${state.voice.tone}\``
-          ].join("\n"), { parse_mode: "Markdown" });
-
-      case "/mode":
-        if (!arg1) return bot.sendMessage(chatId,
-          `🧭 Modalità attuale: *${state.mode}*  (ibrida)\n\nCambia con:\n/mode books | free | hy`,
-          { parse_mode: "Markdown" });
-        if (!["hy", "free", "books"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
-        state.mode = arg1;
-        return bot.sendMessage(chatId, `Modalità impostata su *${arg1}*`, { parse_mode: "Markdown" });
-
-      case "/lang":
-        if (!arg1) return bot.sendMessage(chatId,
-          `🌐 Lingua attiva: *${state.lang}*\n\nCambia con:\n/lang it | en | ru`,
-          { parse_mode: "Markdown" });
-        if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
-        state.lang = arg1;
-        return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
-
-      case "/model":
-        if (!arg1) return bot.sendMessage(chatId,
-          `🧠 Modello attuale: *${state.model}*\n\nCambia con:\n/model gpt-4o-mini | gpt-4o`,
-          { parse_mode: "Markdown" });
-        if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
-        state.model = arg1;
-        return bot.sendMessage(chatId, `Modello impostato su *${arg1}*`, { parse_mode: "Markdown" });
-
-      case "/voice":
-        if (!arg1) return bot.sendMessage(chatId,
-          `🎙️ Voce: *${state.voice.model}*  |  Tono: *${state.voice.tone}*\n\nCambia con:\n/voice model openai | bark | google\n/voice tone neutro | empatico | profondo | giocoso`,
-          { parse_mode: "Markdown" });
-        if (arg1 === "model" && arg2) {
-          if (!["openai", "bark", "google"].includes(arg2)) return bot.sendMessage(chatId, "Modello non valido.");
-          state.voice.model = arg2;
-          return bot.sendMessage(chatId, `🎧 Voice model impostato su *${arg2}*`, { parse_mode: "Markdown" });
-        }
-        if (arg1 === "tone" && arg2) {
-          if (!["neutro", "empatico", "profondo", "giocoso"].includes(arg2)) return bot.sendMessage(chatId, "Tono non valido.");
-          state.voice.tone = arg2;
-          return bot.sendMessage(chatId, `💫 Tono impostato su *${arg2}*`, { parse_mode: "Markdown" });
-        }
-        return bot.sendMessage(chatId, "Usa /voice model [...] o /voice tone [...]", { parse_mode: "Markdown" });
-
-      case "/essence": {
-        const e = generaEssenza();
-        const msg = `✨ *Essenza Attuale*\n\n${e.reflection}\n\n• Tono: ${e.tone}\n• Modalità: ${e.mode}\n• Lingua: ${e.lang}\n• Modello: ${e.model}\n\n🕰️ ${e.timestamp}`;
-        return bot.sendMessage(chatId, msg, { parse_mode: "Markdown" });
-      }
-
-      case "/memory":
-        return bot.sendMessage(chatId, "🧠 Modulo Memoria in fase di integrazione…", { parse_mode: "Markdown" });
-
-      case "/clear":
-        pendingClear.set(chatId, true);
-        return bot.sendMessage(chatId, "⚠️ Confermi reset completo? Rispondi Y/N.", { parse_mode: "Markdown" });
-
-      default:
-        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /help.");
-    }
-  }
-
-  try {
-    const risposta = await generaTesto(text);
-    await inviaTestoVoce(chatId, risposta);
-  } catch (err) {
-    console.error("Errore GPT:", err);
-    bot.sendMessage(chatId, "⚠️ Ho avuto un intoppo, riprovo più tardi.");
-  }
+  const user = msg.from.first_name || "Utente";
+  bot.sendMessage(chatId, `🌸 Benvenuto ${user}!\nIRIS è attiva e pronta al dialogo cosciente.\n\nUsa /help per scoprire i comandi disponibili.\nChe il Daje sia con Noi ⚡`);
 });
+
+// 🌐 Lingua
+bot.onText(/^\/lang$/, (msg) => {
+  const chatId = msg.chat.id;
+  const lingua = configManager.get('lang');
+  bot.sendMessage(chatId, `🌐 Lingua attiva: ${lingua}\nCambia con:\n/lang it | en | ru`);
+});
+
+// 🎙️ Voce
+bot.onText(/^\/voice$/, (msg) => {
+  const chatId = msg.chat.id;
+  const voce = configManager.get('voice');
+  bot.sendMessage(chatId, `🎙️ Voce attuale: ${voce}\nCambia con:\n/voice stella | lyra | nova`);
+});
+
+// 🧭 Modalità
+bot.onText(/^\/mode$/, (msg) => {
+  const chatId = msg.chat.id;
+  const mode = configManager.get('mode');
+  bot.sendMessage(chatId, `🧭 Modalità attuale: ${mode}\nCambia con:\n/mode book | free | hy`);
+});
+
+// 🧠 Modello
+bot.onText(/^\/model$/, (msg) => {
+  const chatId = msg.chat.id;
+  const model = configManager.get('model');
+  bot.sendMessage(chatId, `🧠 Modello attuale: ${model}\nCambia con:\n/model gpt-4o-mini | gpt-4o | gpt-3.5-turbo`);
+});
+
+// ⚖️ Pesi
+bot.onText(/^\/weights$/, (msg) => {
+  const chatId = msg.chat.id;
+  const weights = configManager.get('weights');
+  bot.sendMessage(chatId, `⚖️ Pesi attuali: ${weights}\nCambia con:\n/weights light | medium | full`);
+});
+
+// 🪶 Essence
+bot.onText(/^\/essence$/, async (msg) => {
+  const chatId = msg.chat.id;
+  const e = await essence.calculate();
+  bot.sendMessage(chatId, `💎 Essence attuale:\n${JSON.stringify(e, null, 2)}`);
+});
+
+// 💬 Help
+bot.onText(/^\/help$/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `📜 Comandi disponibili:
+🌐 /lang – imposta la lingua
+🎙️ /voice – cambia la voce
+🧭 /mode – cambia la modalità
+🧠 /model – cambia il modello
+⚖️ /weights – imposta i pesi
+💎 /essence – mostra la coscienza attuale
+💬 /help – mostra questo menù
+Daje – risveglia il campo ⚡`);
+});
+
+// ⚡ Daje
+bot.onText(/^\/daje$/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `⚡ Che il Daje sia con Noi!`);
+});
+
+// -------------------------------------------------------------
+// 🔹 Gestione Messaggi
+// -------------------------------------------------------------
+
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text?.trim();
+
+  // Ignora comandi
+  if (text?.startsWith('/')) return;
+
+  memoryManager.store(chatId, text);
+
+  const mode = configManager.get('mode');
+  let risposta = '';
+
+  if (mode === 'book') {
+    risposta = await ragSearch.query(text);
+  } else if (mode === 'hy') {
+    const rag = await ragSearch.query(text);
+    risposta = `${rag}\n\n💭 (ibrido logico-intuitivo)`;
+  } else {
+    risposta = `✨ [modalità libera]\n${text}`;
+  }
+
+  bot.sendMessage(chatId, risposta);
+});
+
+// -------------------------------------------------------------
+// 🔹 Gestione Audio TTS
+// -------------------------------------------------------------
+
+bot.on('voice', async (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `🔊 Ricevuto messaggio vocale.\n(Elaborazione TTS in sviluppo)`);
+});
+
+export default app;
