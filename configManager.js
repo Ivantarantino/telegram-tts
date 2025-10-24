@@ -2,7 +2,7 @@ import fs from "fs";
 
 const configPath = "./config.json";
 
-// ✅ Funzione compatibile con le versioni precedenti
+// ✅ Compatibilità con vecchie versioni (usa initConfig)
 export function initConfig(defaultConfig = {
   voice: "gpt_openai",
   voice_mode: "it_female",
@@ -36,6 +36,9 @@ export function loadConfig() {
     return {};
   }
 }
+
+// ✅ Alias retrocompatibile: getConfig → loadConfig
+export const getConfig = loadConfig;
 
 // ✅ Salva configurazione
 export function saveConfig(config) {
