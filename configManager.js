@@ -1,55 +1,45 @@
-// configManager.js
+// =========================================
+// CONFIG MANAGER – IRIS 3.8.7
+// =========================================
+
 import fs from "fs";
 import path from "path";
 
 const CONFIG_PATH = path.resolve("./config.json");
 
-const defaultConfig = {
-  voice: "gpt_openai",        // opzioni: gpt_openai | google_tts | bark
-  voice_mode: "it_female",    // sottotipo o timbro
-  language: "it",             // it | en | ru
-  model: "gpt-4o-mini",       // gpt-4o-mini | gpt-4o
-  mode: "hy",                 // hy (ibrida) | free (openai) | books (rag)
-  lastEssence: "",
-  version: "3.1.0"
-};
-
-// 📦 Inizializza il file di configurazione se non esiste
-export function initConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
-    console.log("🆕 File di configurazione creato:", CONFIG_PATH);
-  } else {
-    console.log("⚙️ Configurazione trovata:", CONFIG_PATH);
-  }
-}
-
-// 📖 Legge la configurazione attuale
-export function getConfig() {
+// 🔹 Carica la configurazione
+export function loadConfig() {
   try {
-    const data = fs.readFileSync(CONFIG_PATH, "utf8");
-    return JSON.parse(data);
+    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    const config = JSON.parse(raw);
+    console.log("✅ Config caricata correttamente.");
+    return config;
   } catch (err) {
-    console.error("❌ Errore nel leggere config.json:", err);
+    console.warn("⚠️ Nessuna config trovata, creazione default.");
+    const defaultConfig = {
+      mode: "free",
+      lang: "it",
+      model: "gpt-4o-mini",
+      voice: { tone: "neutro" }
+    };
+    saveConfig(defaultConfig);
     return defaultConfig;
   }
 }
 
-// 💾 Aggiorna una o più chiavi della configurazione
-export function updateConfig(newData) {
+// 🔹 Salva la configurazione
+export function saveConfig(config) {
   try {
-    const current = getConfig();
-    const updated = { ...current, ...newData };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2));
-    console.log("💾 Configurazione aggiornata:", updated);
-    return updated;
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    console.log("💾 Config salvata correttamente.");
   } catch (err) {
-    console.error("❌ Errore nell'aggiornamento di config.json:", err);
+    console.error("❌ Errore nel salvataggio config:", err);
   }
 }
 
-// 🔍 Mostra configurazione attuale (per debug)
-export function printConfig() {
-  const config = getConfig();
-  console.log("📘 CONFIG ATTUALE:", config);
+// 🔹 Reset
+export function resetConfig() {
+  if (fs.existsSync(CONFIG_PATH)) fs.unlinkSync(CONFIG_PATH);
+  console.log("🧹 Config reset completato.");
+  return loadConfig();
 }
