@@ -68,6 +68,7 @@ function persistConfig(update = {}) {
 const app = express();
 app.use(express.json());
 
+console.log(`📦 node-telegram-bot-api version: ${require('node-telegram-bot-api/package.json').version}`);
 const bot = new TelegramBot(BOT_TOKEN, { polling: false, filepath: false });
 const WEBHOOK_PATH = `/bot${BOT_TOKEN}`;
 
@@ -107,6 +108,7 @@ async function ttsToOgg(text) {
   });
   const buffer = Buffer.from(await speech.arrayBuffer());
   fs.writeFileSync(filePath, buffer); // Salva il file per debug o usi futuri
+  console.log(`🔊 File audio TTS creato: ${filePath}`);
   return { filePath, buffer };
 }
 

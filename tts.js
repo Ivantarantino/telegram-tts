@@ -24,7 +24,7 @@ export async function synthToFile(text, outputPath) {
     // ✅ Scrive il file binario correttamente e chiude il flusso
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(outputPath, buffer);
-    console.log(`🔊 File vocale creato: ${outputPath}`);
+    console.log(`🔊 File vocale MP3 creato: ${outputPath}`);
     return outputPath;
   } catch (err) {
     console.error("❌ Errore nella sintesi vocale:", err.message);
