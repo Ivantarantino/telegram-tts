@@ -1,33 +1,36 @@
 import fs from "fs";
-import OpenAI from "openai";
+import path from "path";
+import axios from "axios";
+import dotenv from "dotenv";
+dotenv.config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-/**
- * Genera un file vocale MP3 con il testo specificato.
- * @param {string} text - Testo da sintetizzare.
- * @param {string} outputPath - Percorso del file da creare (es. ./temp/voce.mp3).
- */
-export async function synthToFile(text, outputPath) {
+// 🔹 Funzione principale: genera il parlato da testo
+async function speak(text, voiceMode = "default") {
   try {
-    if (!text || text.trim() === "") throw new Error("Testo vuoto nella sintesi vocale.");
+    const ttsEndpoint = process.env.TTS_ENDPOINT || "http://localhost:8001/speak";
+    const response = await axios.post(ttsEndpoint, { text, voiceMode }, { responseType: "arraybuffer" });
 
-    const response = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "alloy",
-      input: text,
-      format: "mp3",
-    });
-
-    // ✅ Scrive il file binario correttamente e chiude il flusso
-    const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(outputPath, buffer);
-    console.log(`🔊 File vocale creato: ${outputPath}`);
-    return outputPath;
-  } catch (err) {
-    console.error("❌ Errore nella sintesi vocale:", err.message);
-    throw err;
+    const filePath = path.resolve(`./audio_${Date.now()}.mp3`);
+    fs.writeFileSync(filePath, Buffer.from(response.data));
+    console.log(`🔊 Audio generato e salvato in: ${filePath}`);
+    return fs.readFileSync(filePath);
+  } catch (error) {
+    console.error("❌ Errore in tts.speak:", error.message);
+    return null;
   }
 }
+
+// 🔹 Funzione di test (opzionale)
+async function testConnection() {
+  console.log("🔎 Test connessione TTS...");
+  try {
+    const response = await axios.get(process.env.TTS_ENDPOINT || "http://localhost:8001/status");
+    console.log("✅ TTS attivo:", response.data);
+  } catch (err) {
+    console.warn("⚠️ TTS non raggiungibile:", err.message);
+  }
+}
+
+// ✅ Compatibilità piena con index.js
+export default { speak, testConnection };
+export { speak, testConnection };
