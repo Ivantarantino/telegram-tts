@@ -1,55 +1,61 @@
-// configManager.js
 import fs from "fs";
 import path from "path";
 
 const CONFIG_PATH = path.resolve("./config.json");
 
 const defaultConfig = {
-  voice: "gpt_openai",        // opzioni: gpt_openai | google_tts | bark
-  voice_mode: "it_female",    // sottotipo o timbro
-  language: "it",             // it | en | ru
-  model: "gpt-4o-mini",       // gpt-4o-mini | gpt-4o
-  mode: "hy",                 // hy (ibrida) | free (openai) | books (rag)
+  lang: "it",
+  model: "gpt-4o-mini",
+  mode: "hy",
+  voice: { model: "openai", tone: "neutro" },
+  weights: { sim: 0.5, imp: 0.3, rec: 0.2 },
+  essence: null,
   lastEssence: "",
-  version: "3.1.0"
+  version: "3.1.0",
 };
 
-// 📦 Inizializza il file di configurazione se non esiste
-export function initConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
-    console.log("🆕 File di configurazione creato:", CONFIG_PATH);
-  } else {
-    console.log("⚙️ Configurazione trovata:", CONFIG_PATH);
-  }
-}
+const configManager = {
+  loadConfig() {
+    try {
+      if (!fs.existsSync(CONFIG_PATH)) {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
+        console.log("🆕 File di configurazione creato:", CONFIG_PATH);
+        return defaultConfig;
+      }
+      const data = fs.readFileSync(CONFIG_PATH, "utf8");
+      console.log("⚙️ Configurazione trovata:", CONFIG_PATH);
+      return JSON.parse(data);
+    } catch (err) {
+      console.error("❌ Errore nel leggere config.json:", err);
+      return defaultConfig;
+    }
+  },
 
-// 📖 Legge la configurazione attuale
-export function getConfig() {
-  try {
-    const data = fs.readFileSync(CONFIG_PATH, "utf8");
-    return JSON.parse(data);
-  } catch (err) {
-    console.error("❌ Errore nel leggere config.json:", err);
-    return defaultConfig;
-  }
-}
+  saveConfig(config) {
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+      console.log("💾 Configurazione salvata:", config);
+      return config;
+    } catch (err) {
+      console.error("❌ Errore nel salvare config.json:", err);
+    }
+  },
 
-// 💾 Aggiorna una o più chiavi della configurazione
-export function updateConfig(newData) {
-  try {
-    const current = getConfig();
-    const updated = { ...current, ...newData };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2));
-    console.log("💾 Configurazione aggiornata:", updated);
-    return updated;
-  } catch (err) {
-    console.error("❌ Errore nell'aggiornamento di config.json:", err);
-  }
-}
+  resetConfig() {
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
+      console.log("🔄 Configurazione ripristinata:", defaultConfig);
+      return defaultConfig;
+    } catch (err) {
+      console.error("❌ Errore nel ripristino config.json:", err);
+      return defaultConfig;
+    }
+  },
 
-// 🔍 Mostra configurazione attuale (per debug)
-export function printConfig() {
-  const config = getConfig();
-  console.log("📘 CONFIG ATTUALE:", config);
-}
+  printConfig() {
+    const config = this.loadConfig();
+    console.log("📘 CONFIG ATTUALE:", config);
+  },
+};
+
+export default configManager;
