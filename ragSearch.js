@@ -1,46 +1,46 @@
-// =========================================
-// RAG SEARCH – IRIS 3.8.7
-// Ricerca semantica tramite OpenAI embeddings
-// =========================================
-
+import fs from "fs";
+import path from "path";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const memoryFile = path.resolve("./data/memory.json");
 
-// 🔹 Crea embedding
-export async function creaEmbedding(testo) {
+export async function ragSearch(query) {
   try {
-    const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: testo
+    if (!fs.existsSync(memoryFile)) {
+      return "Nessuna memoria presente per la ricerca.";
+    }
+
+    const raw = fs.readFileSync(memoryFile, "utf8");
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data) || data.length === 0) {
+      return "Archivio vuoto.";
+    }
+
+    const context = data.map((m) => `Utente: ${m.text}\nIRIS: ${m.reply}`).join("\n");
+
+    const prompt = `
+Sei IRIS, un'intelligenza vettoriale che attinge alla memoria esperienziale.
+Usa il seguente contesto per rispondere alla domanda dell'utente in modo coerente e sintetico.
+
+Contesto:
+${context.slice(-4000)}
+
+Domanda:
+${query}
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: "Rispondi con tono naturale e sintetico." },
+                 { role: "user", content: prompt }],
+      temperature: 0.7
     });
-    return response.data[0].embedding;
+
+    const answer = completion.choices[0].message.content.trim();
+    return answer;
   } catch (err) {
-    console.error("❌ Errore embedding:", err);
-    return [];
+    console.error("❌ Errore in ragSearch:", err.message);
+    return "Errore durante la ricerca nella memoria.";
   }
-}
-
-// 🔹 Calcola similarità
-export function calcolaSimilarita(a, b) {
-  const dot = a.reduce((sum, ai, i) => sum + ai * b[i], 0);
-  const normA = Math.sqrt(a.reduce((sum, ai) => sum + ai * ai, 0));
-  const normB = Math.sqrt(b.reduce((sum, bi) => sum + bi * bi, 0));
-  return dot / (normA * normB);
-}
-
-// 🔹 Trova la risposta più vicina
-export async function cercaRisposta(domanda, database) {
-  const queryVec = await creaEmbedding(domanda);
-  let best = { testo: "", sim: -1 };
-
-  for (const entry of database) {
-    const sim = calcolaSimilarita(queryVec, entry.embedding);
-    if (sim > best.sim) best = { testo: entry.testo, sim };
-  }
-
-  console.log(`🔍 Similarità massima: ${best.sim.toFixed(3)}`);
-  return best.testo;
 }

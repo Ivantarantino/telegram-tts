@@ -1,37 +1,41 @@
-// =========================================
-// MEMORY MANAGER – IRIS 3.8.7
-// Gestione locale della memoria sequenziale
-// =========================================
-
 import fs from "fs";
 import path from "path";
 
-const MEMORY_PATH = path.resolve("./memory.json");
+const memoryDir = "./data";
+const memoryFile = path.resolve(`${memoryDir}/memory.json`);
 
-// 🔹 Carica memoria
-export function loadMemory() {
+export async function processMemory(message, response) {
   try {
-    const raw = fs.readFileSync(MEMORY_PATH, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    console.warn("⚠️ Nessuna memoria trovata, creazione nuova.");
-    const initial = [];
-    saveMemory(initial);
-    return initial;
+    // ❌ Ignora comandi Telegram tipo /mode, /voice, ecc.
+    if (message?.trim().startsWith("/")) {
+      console.log("⚙️ Comando ignorato nella memoria:", message);
+      return false;
+    }
+
+    if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
+
+    let data = [];
+    if (fs.existsSync(memoryFile)) {
+      const raw = fs.readFileSync(memoryFile, "utf8");
+      data = JSON.parse(raw);
+    }
+
+    const newEntry = {
+      date: new Date().toISOString(),
+      text: message,
+      reply: response
+    };
+
+    data.push(newEntry);
+
+    // 🔒 Mantieni solo gli ultimi 200 elementi per non appesantire
+    if (data.length > 200) data = data.slice(-200);
+
+    fs.writeFileSync(memoryFile, JSON.stringify(data, null, 2));
+    console.log("💾 Memoria aggiornata:", message.slice(0, 60));
+    return true;
+  } catch (err) {
+    console.error("❌ Errore in processMemory:", err.message);
+    return false;
   }
-}
-
-// 🔹 Salva memoria
-export function saveMemory(memory) {
-  fs.writeFileSync(MEMORY_PATH, JSON.stringify(memory, null, 2));
-  console.log("🧠 Memoria salvata.");
-}
-
-// 🔹 Aggiungi record
-export function addMemory(entry) {
-  const memory = loadMemory();
-  memory.push(entry);
-  if (memory.length > 150) memory.shift();
-  saveMemory(memory);
-  return memory;
 }
