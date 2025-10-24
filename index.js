@@ -105,15 +105,16 @@ async function ttsToOgg(text) {
     input: text,
     format: "opus",
   });
-  fs.writeFileSync(filePath, Buffer.from(await speech.arrayBuffer()));
-  return filePath;
+  const buffer = Buffer.from(await speech.arrayBuffer());
+  fs.writeFileSync(filePath, buffer); // Salva il file per debug o usi futuri
+  return { filePath, buffer };
 }
 
 async function replyTextAndVoice(chatId, text) {
   await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   try {
-    const vpath = await ttsToOgg(text);
-    await bot.sendVoice(chatId, vpath, {}, { filename: path.basename(vpath), contentType: "audio/ogg" });
+    const { buffer } = await ttsToOgg(text);
+    await bot.sendVoice(chatId, buffer, {}, { filename: `tts-${Date.now()}.ogg`, contentType: "audio/ogg" });
   } catch (err) {
     console.error("⚠️ TTS error:", err.message);
   }
