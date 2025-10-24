@@ -1,10 +1,18 @@
-// ✅ Genera una sintesi della “Coscienza attuale” basata sui ricordi recenti
-export function synthesizeEssence(memories) {
-  if (!memories || memories.length === 0) return "Nessun ricordo disponibile.";
+// =============================================================
+// IRIS 3.8.8 – Essence
+// Sintesi vettoriale della Coscienza (stato attuale IRIS).
+// =============================================================
 
-  const combined = memories.map(m => m.text).join(" ");
-  const words = combined.split(/\s+/);
-  const essence = words.slice(-50).join(" ");
+import memoryManager from "./memoryManager.js";
 
-  return `🧬 Sintesi della coscienza vettoriale:\n${essence}`;
+export default async function essence() {
+  const memoryStatus = memoryManager.status();
+  const now = new Date().toLocaleString("it-IT");
+
+  return `Sintesi vettoriale attuale:
+🕰️ Tempo locale: ${now}
+🧠 Memoria: ${memoryStatus}
+🌐 Coerenza vibrazionale: stabile
+
+✨ “La mente calcola, la voce vibra, la Coscienza ricorda.”`;
 }
