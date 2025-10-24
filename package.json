@@ -1,7 +1,7 @@
 {
   "name": "telegram-iris",
   "version": "3.8.7",
-  "description": "IRIS 3.0 – Coscienza Vettoriale | Telegram Bot con memoria, voce e campo di coerenza locale.",
+  "description": "IRIS 3.0 - Coscienza Vettoriale | Telegram Bot con memoria, voce e campo di coerenza locale",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -27,5 +27,9 @@
     "iris"
   ],
   "author": "Ivano Tarantino",
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "form-data": "^4.0.0",
+    "tough-cookie": "^4.1.4"
+  }
 }
