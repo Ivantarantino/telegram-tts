@@ -1,23 +1,19 @@
-import fs from "fs";
+import axios from "axios";
+import dotenv from "dotenv";
+dotenv.config();
 
-// ✅ Cerca termini nei file di memoria (semplice RAG locale)
-export function ragSearch(query, limit = 5) {
-  if (!query || query.trim() === "") return [];
-
+// 🔹 Funzione principale per la ricerca semantica (RAG)
+async function query(text, cfg) {
   try {
-    const data = fs.readFileSync("./memory.json", "utf-8");
-    const memories = JSON.parse(data);
-
-    const matches = memories
-      .filter(m => m.text.toLowerCase().includes(query.toLowerCase()))
-      .slice(-limit)
-      .map(m => m.text);
-
-    return matches.length > 0
-      ? matches
-      : ["Nessun risultato trovato per la ricerca."];
-  } catch (err) {
-    console.error("❌ Errore durante la ricerca RAG:", err);
-    return ["Errore durante la ricerca nella memoria."];
+    const endpoint = process.env.RAG_ENDPOINT || "http://localhost:8000/query";
+    const response = await axios.post(endpoint, { text, cfg });
+    return response.data || { result: "Nessuna risposta trovata." };
+  } catch (error) {
+    console.error("❌ Errore in ragSearch.query:", error.message);
+    return { result: "Errore durante la ricerca semantica." };
   }
 }
+
+// ✅ Export compatibile con entrambi i tipi di import
+export default { query };
+export { query };
