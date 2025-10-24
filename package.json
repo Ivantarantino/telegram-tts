@@ -1,7 +1,7 @@
 {
   "name": "telegram-iris",
-  "version": "3.8.7a",
-  "description": "IRIS – Telegram TTS Bot · Versione 3.8.7a · Coerenza Dialogica – Stable Import",
+  "version": "3.8.7",
+  "description": "IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -9,22 +9,13 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "node-fetch": "^3.3.2",
-    "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.52.0"
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.61.0"
   },
   "engines": {
     "node": ">=20 <=25"
   },
   "author": "Ivano Tarantino",
-  "license": "MIT",
-  "keywords": [
-    "telegram",
-    "bot",
-    "tts",
-    "iris",
-    "coscienza",
-    "ai",
-    "openai"
-  ]
+  "license": "MIT"
 }
