@@ -17,6 +17,14 @@ console.log("🔑 Telegram token:", process.env.TELEGRAM_TOKEN ? "TROVATO ✅" :
 configManager.initConfig();
 const cfg = configManager.getConfig();
 
+// 🧩 Sincronizza token Telegram da variabili d’ambiente
+if (process.env.TELEGRAM_TOKEN) {
+  cfg.telegram_token = process.env.TELEGRAM_TOKEN;
+  console.log("✅ Config inizializzata con TELEGRAM_TOKEN.");
+} else {
+  console.log("⚠️ Nessun TELEGRAM_TOKEN trovato nelle variabili d’ambiente.");
+}
+
 // Inizializzazione bot Telegram
 const bot = new TelegramBot(cfg.telegram_token, { polling: true });
 
