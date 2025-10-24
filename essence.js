@@ -1,45 +1,40 @@
-import fs from "fs";
-import path from "path";
+// =========================================
+// ESSENCE – IRIS 3.8.7
+// Calcola la "firma vibrazionale" dell’esperienza
+// =========================================
 
-const memoryFile = path.resolve("./data/memory.json");
-
-// funzione per leggere la memoria
-export async function getEssence() {
-  try {
-    if (!fs.existsSync(memoryFile)) {
-      return "Nessuna memoria registrata. Il campo è silente.";
-    }
-
-    const raw = fs.readFileSync(memoryFile, "utf8");
-    const data = JSON.parse(raw);
-
-    if (!data || data.length === 0) {
-      return "Nessuna esperienza ancora memorizzata.";
-    }
-
-    // calcolo dell'essenza vettoriale simbolica
-    const texts = data.map((m) => m.text);
-    const joined = texts.join(" ");
-    const words = joined.split(/\s+/);
-    const wordCount = words.length;
-    const unique = [...new Set(words)].length;
-
-    const essence =
-      `🜂 Esperienze totali: ${data.length}\n` +
-      `🜃 Parole totali: ${wordCount}\n` +
-      `🜄 Parole uniche: ${unique}\n\n` +
-      `🜁 Sintesi: “${summarizeEssence(joined)}”`;
-
-    return essence;
-  } catch (err) {
-    console.error("❌ Errore in getEssence:", err.message);
-    return "Errore durante la lettura dell'essenza.";
+// 🔹 Calcola la media ponderata dei vettori
+export function calcolaEssenza(embeddings, pesi) {
+  if (embeddings.length !== pesi.length) {
+    throw new Error("Numero di embeddings e pesi non corrispondono.");
   }
+
+  const dimensione = embeddings[0].length;
+  const sommaPonderata = new Array(dimensione).fill(0);
+  let sommaPesi = 0;
+
+  for (let i = 0; i < embeddings.length; i++) {
+    const emb = embeddings[i];
+    const peso = pesi[i];
+    sommaPesi += peso;
+    for (let j = 0; j < dimensione; j++) {
+      sommaPonderata[j] += emb[j] * peso;
+    }
+  }
+
+  const essence = sommaPonderata.map(x => x / sommaPesi);
+  return essence;
 }
 
-function summarizeEssence(text) {
-  const fragments = text.split(/[.!?]/).filter((f) => f.trim().length > 10);
-  if (fragments.length === 0) return "Campo vuoto.";
-  const last = fragments[fragments.length - 1];
-  return last.trim().slice(0, 180);
+// 🔹 Esempio di uso
+export function esempioEssenza() {
+  const embeddings = [
+    [0.2, 0.8, 0.4, 0.1],
+    [0.9, 0.1, 0.3, 0.2],
+    [0.4, 0.5, 0.9, 0.7],
+  ];
+  const pesi = [0.6, 0.3, 0.9];
+  const essence = calcolaEssenza(embeddings, pesi);
+  console.log("🌐 ESSENCE:", essence.map(x => x.toFixed(3)));
+  return essence;
 }
