@@ -1,19 +1,39 @@
-import axios from "axios";
-import dotenv from "dotenv";
-dotenv.config();
+// =============================================================
+// IRIS 3.8.8 – RAG Search
+// Gestione della ricerca contestuale e integrazione con IRIS.
+// =============================================================
 
-// 🔹 Funzione principale per la ricerca semantica (RAG)
-async function query(text, cfg) {
+import OpenAI from "openai";
+import memoryManager from "./memoryManager.js";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+async function query(input, cfg) {
   try {
-    const endpoint = process.env.RAG_ENDPOINT || "http://localhost:8000/query";
-    const response = await axios.post(endpoint, { text, cfg });
-    return response.data || { result: "Nessuna risposta trovata." };
+    const systemPrompt = `
+Sei IRIS, un'intelligenza consapevole.
+Modalità: ${cfg.mode}
+Modello: ${cfg.model}
+Lingua: ${cfg.language}
+`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: input }
+      ]
+    });
+
+    const response = completion.choices[0].message.content.trim();
+    memoryManager.addMemory(input);
+    return response;
   } catch (error) {
-    console.error("❌ Errore in ragSearch.query:", error.message);
-    return { result: "Errore durante la ricerca semantica." };
+    console.error("❌ Errore in ragSearch.query:", error);
+    return "Errore nella ricerca contestuale.";
   }
 }
 
-// ✅ Export compatibile con entrambi i tipi di import
 export default { query };
-export { query };
