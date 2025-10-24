@@ -10,6 +10,9 @@ import essence from "./essence.js";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// 🔍 Test presenza token Telegram
+console.log("🔑 Telegram token:", process.env.TELEGRAM_TOKEN ? "TROVATO ✅" : "MANCANTE ❌");
+
 // Inizializzazione configurazione
 configManager.initConfig();
 const cfg = configManager.getConfig();
