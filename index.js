@@ -68,7 +68,7 @@ function persistConfig(update = {}) {
 const app = express();
 app.use(express.json());
 
-const bot = new TelegramBot(BOT_TOKEN, { polling: false });
+const bot = new TelegramBot(BOT_TOKEN, { polling: false, filepath: false }); // Aggiunto filepath: false
 const WEBHOOK_PATH = `/bot${BOT_TOKEN}`;
 
 app.post(WEBHOOK_PATH, (req, res) => {

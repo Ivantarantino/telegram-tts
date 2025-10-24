@@ -11,10 +11,10 @@
     "node": ">=20.0.0 <=25.0.0"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.72.0",
-    "@qdrant/js-client-rest": "^1.8.2"
+    "express": "^4.19.5",
+    "node-telegram-bot-api": "^0.68.0",
+    "openai": "^4.76.0",
+    "@qdrant/js-client-rest": "^1.12.0"
   },
   "keywords": [
     "telegram",
