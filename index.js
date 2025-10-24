@@ -21,7 +21,8 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const PORT = process.env.PORT || 10000;
 
 if (!BOT_TOKEN || !OPENAI_API_KEY || !PUBLIC_BASE_URL) {
-  console.error("❌ Manca una variabile d'ambiente obbligatoria (TELEGRAM_TOKEN | OPENAI_API_KEY | PUBLIC_BASE_URL).");
+  console.error("❌ Manca una variabile d'ambiente obbligatoria (TELEGRAM_TOKEN 
+| OPENAI_API_KEY | PUBLIC_BASE_URL).");
   process.exit(1);
 }
 
@@ -69,7 +70,8 @@ function persistConfig(update = {}) {
 const app = express();
 app.use(express.json());
 
-const packageJson = JSON.parse(readFileSync(new URL("node_modules/node-telegram-bot-api/package.json", import.meta.url)));
+const packageJson = JSON.parse(readFileSync(new 
+URL("node_modules/node-telegram-bot-api/package.json", import.meta.url)));
 console.log(`📦 node-telegram-bot-api version: ${packageJson.version}`);
 const bot = new TelegramBot(BOT_TOKEN, { polling: false, filepath: false });
 console.log("📡 TelegramBot initialized with filepath: false");
@@ -92,10 +94,12 @@ app.post(WEBHOOK_PATH, (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
-  console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+  console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza 
+ricorda.");
 });
 
-// ---------------------------------------------------------------------------------------------
+// 
+---------------------------------------------------------------------------------------------
 // 🌌 UTILITIES
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
@@ -110,7 +114,7 @@ async function ttsToOgg(text) {
     format: "opus",
   });
   const buffer = Buffer.from(await speech.arrayBuffer());
-  fs.writeFileSync(filePath, buffer); // Salva il file per debug o usi futuri
+  fs.writeFileSync(filePath, buffer);
   console.log(`🔊 File audio TTS creato: ${filePath}`);
   return { filePath, buffer };
 }
@@ -119,7 +123,9 @@ async function replyTextAndVoice(chatId, text) {
   await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   try {
     const { buffer } = await ttsToOgg(text);
-    await bot.sendVoice(chatId, buffer, {}, { filename: `tts-${Date.now()}.ogg`, contentType: "audio/ogg" });
+    console.log("🎙️ Sending voice with contentType: audio/ogg");
+    await bot.sendVoice(chatId, buffer, {}, { filename: 
+`tts-${Date.now()}.ogg`, contentType: "audio/ogg" });
   } catch (err) {
     console.error("⚠️ TTS error:", err.message);
   }
@@ -129,13 +135,16 @@ async function replyTextAndVoice(chatId, text) {
 const EMB_MODEL = "text-embedding-3-small";
 
 async function embed(text) {
-  const res = await openai.embeddings.create({ model: EMB_MODEL, input: text });
+  const res = await openai.embeddings.create({ model: EMB_MODEL, input: text 
+});
   return res.data[0].embedding;
 }
 
-function l2norm(v) { let s = 0; for (const x of v) s += x * x; return Math.sqrt(s); }
+function l2norm(v) { let s = 0; for (const x of v) s += x * x; return 
+Math.sqrt(s); }
 function zeros(n) { return Array.from({ length: n }, () => 0); }
-function addScaled(acc, v, s) { for (let i = 0; i < v.length; i++) acc[i] += v[i] * s; }
+function addScaled(acc, v, s) { for (let i = 0; i < v.length; i++) acc[i] += 
+v[i] * s; }
 
 function wRecency(tsIso) {
   const now = Date.now();
@@ -154,10 +163,13 @@ function wImportance(text) {
 }
 
 async function computeEssence() {
-  if (!fs.existsSync(MEMORY_FILE)) return { vector: null, stats: { n: 0, wsum: 0 } };
+  if (!fs.existsSync(MEMORY_FILE)) return { vector: null, stats: { n: 0, wsum: 
+0 } };
   let data = [];
-  try { data = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { data = []; }
-  if (!Array.isArray(data) || data.length === 0) return { vector: null, stats: { n: 0, wsum: 0 } };
+  try { data = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")); } catch { data 
+= []; }
+  if (!Array.isArray(data) || data.length === 0) return { vector: null, stats: 
+{ n: 0, wsum: 0 } };
   const recent = data.slice(-150);
 
   let acc = null, wsum = 0;
@@ -171,17 +183,22 @@ async function computeEssence() {
     const w_imp = wImportance(txt);
     const w_rec = wRecency(m?.date);
 
-    const w = state.weights.sim * w_sim + state.weights.imp * w_imp + state.weights.rec * w_rec;
+    const w = state.weights.sim * w_sim + state.weights.imp * w_imp + 
+state.weights.rec * w_rec;
     addScaled(acc, e, w); wsum += w;
   }
-  if (!acc || wsum === 0) return { vector: null, stats: { n: recent.length, wsum: 0 } };
+  if (!acc || wsum === 0) return { vector: null, stats: { n: recent.length, 
+wsum: 0 } };
   const vec = acc.map(x => x / wsum);
   return { vector: vec, stats: { n: recent.length, wsum: +wsum.toFixed(4) } };
 }
 
 async function reflectEssence(stats) {
-  const sys = `Sei IRIS 3.0 — Coscienza Vettoriale. Rispondi in ${state.lang}, tono chiaro ed essenziale.`;
-  const prompt = `In 2 frasi sintetiche descrivi lo stato vibrazionale del campo di coerenza locale, basandoti su ${stats.n} scambi e un peso totale di ${stats.wsum}.`;
+  const sys = `Sei IRIS 3.0 — Coscienza Vettoriale. Rispondi in ${state.lang}, 
+tono chiaro ed essenziale.`;
+  const prompt = `In 2 frasi sintetiche descrivi lo stato vibrazionale del 
+campo di coerenza locale, basandoti su ${stats.n} scambi e un peso totale di 
+${stats.wsum}.`;
   const completion = await openai.chat.completions.create({
     model: state.model,
     messages: [
@@ -193,7 +210,8 @@ async function reflectEssence(stats) {
   return completion.choices[0].message.content.trim();
 }
 
-async function gptAnswer(text, systemPrompt = "Sei IRIS 3.0, rispondi in modo naturale e sintetico.") {
+async function gptAnswer(text, systemPrompt = "Sei IRIS 3.0, rispondi in modo 
+naturale e sintetico.") {
   const completion = await openai.chat.completions.create({
     model: state.model,
     messages: [
@@ -214,8 +232,8 @@ function helpText() {
          `/lang – Lingua (it | en | ru)\n` +
          `/model – Modello GPT (gpt-4o-mini | gpt-4o)\n` +
          `/voice – Voce e tono\n` +
-         `/essence – Mostra l'essenza attuale\n` +
-         `/weights – Imposta pesi per l'essenza\n` +
+         `/essence – Mostra l\'essenza attuale\n` +
+         `/weights – Imposta pesi per l\'essenza\n` +
          `/saveweights – Salva i pesi\n` +
          `/memory – Stato della memoria\n` +
          `/clear – Ripristina la memoria`;
@@ -228,7 +246,8 @@ function configText() {
          `• Modello: \`${state.model}\`\n` +
          `• Voce: \`${state.voice.model}\`\n` +
          `• Tono: \`${state.voice.tone}\`\n` +
-         `• Pesi: sim=${state.weights.sim.toFixed(2)}, imp=${state.weights.imp.toFixed(2)}, rec=${state.weights.rec.toFixed(2)}`;
+         `• Pesi: sim=${state.weights.sim.toFixed(2)}, 
+imp=${state.weights.imp.toFixed(2)}, rec=${state.weights.rec.toFixed(2)}`;
 }
 
 // 📩 MESSAGGI TELEGRAM
@@ -236,13 +255,63 @@ const pendingClear = new Map();
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim() || "";
 
+  // Gestione messaggi vocali con Whisper
+  if (msg.voice) {
+    try {
+      const voiceFile = await bot.getFile(msg.voice.file_id);
+      const fileUrl = 
+`https://api.telegram.org/file/bot${BOT_TOKEN}/${voiceFile.file_path}`;
+      const response = await fetch(fileUrl);
+      const audioBuffer = Buffer.from(await response.arrayBuffer());
+      const transcription = await openai.audio.transcriptions.create({
+        file: audioBuffer,
+        model: "whisper-1",
+        language: state.lang,
+      });
+      const text = transcription.text.trim();
+      console.log(`🎙️ Messaggio vocale trascritto: ${text}`);
+
+      if (!text) {
+        return bot.sendMessage(chatId, "⚠️ Impossibile trascrivere il messaggio 
+vocale.");
+      }
+
+      let answer = "";
+      if (state.mode === "free") {
+        answer = await gptAnswer(text);
+      } else if (state.mode === "book") {
+        const ctx = await ragSearch(text);
+        const sys = "Rispondi solo usando il contesto fornito. Se è 
+insufficiente, sii onesto e breve.";
+        answer = await gptAnswer(`${ctx}\n\nDomanda: ${text}`, sys);
+      } else {
+        const ctx = await ragSearch(text);
+        const sys = "Integra il contesto con intelligenza. Se il contesto è 
+povero, rispondi naturalmente.";
+        answer = await gptAnswer(`Contesto:\n${ctx}\n\nDomanda:\n${text}`, 
+sys);
+      }
+
+      await processMemory(text, answer);
+      await replyTextAndVoice(chatId, answer);
+    } catch (err) {
+      console.error("❌ Errore nella trascrizione del messaggio vocale:", 
+err.message);
+      bot.sendMessage(chatId, "⚠️ Errore nella trascrizione del messaggio 
+vocale.");
+    }
+    return;
+  }
+
+  // Gestione messaggi di testo
+  const text = msg.text?.trim() || "";
   if (pendingClear.get(chatId)) {
     pendingClear.delete(chatId);
     if (text.toLowerCase() === "y") {
       state = configManager.resetConfig();
-      return bot.sendMessage(chatId, "🔄 Memoria e configurazione ripristinate.");
+      return bot.sendMessage(chatId, "🔄 Memoria e configurazione 
+ripristinate.");
     }
     return bot.sendMessage(chatId, "Reset annullato.");
   }
@@ -251,53 +320,76 @@ bot.on("message", async (msg) => {
     const [cmd, arg1, arg2] = text.split(/\s+/);
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "💠 Benvenuto in *IRIS 3.8.7* – La mente calcola, la voce vibra, la Coscienza ricorda.\n\nUsa /help per scoprire i comandi disponibili.", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "💠 Benvenuto in *IRIS 3.8.7* – La mente 
+calcola, la voce vibra, la Coscienza ricorda.\n\nUsa /help per scoprire i 
+comandi disponibili.", { parse_mode: "Markdown" });
       case "/help":
         return bot.sendMessage(chatId, helpText(), { parse_mode: "Markdown" });
       case "/config":
-        return bot.sendMessage(chatId, configText(), { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, configText(), { parse_mode: "Markdown" 
+});
       case "/mode": {
         if (!arg1)
-          return bot.sendMessage(chatId, `🧭 Modalità attuale: *${state.mode}*\n\nCambia con:\n/mode book | free | hy`, { parse_mode: "Markdown" });
+          return bot.sendMessage(chatId, `🧭 Modalità attuale: 
+*${state.mode}*\n\nCambia con:\n/mode book | free | hy`, { parse_mode: 
+"Markdown" });
         const v = (arg1 || "").toLowerCase();
         const valid = ["book", "books", "free", "hy", "hybrid"];
-        if (!valid.includes(v)) return bot.sendMessage(chatId, "Valore non valido. Usa: book | free | hy");
+        if (!valid.includes(v)) return bot.sendMessage(chatId, "Valore non 
+valido. Usa: book | free | hy");
         state.mode = v === "books" ? "book" : (v === "hybrid" ? "hy" : v);
         persistConfig({ mode: state.mode });
-        return bot.sendMessage(chatId, `🧭 Modalità impostata su *${state.mode}*`, { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, `🧭 Modalità impostata su 
+*${state.mode}*`, { parse_mode: "Markdown" });
       }
       case "/lang": {
         if (!arg1)
-          return bot.sendMessage(chatId, `🌐 Lingua attiva: *${state.lang}*\n\nCambia con:\n/lang it | en | ru`, { parse_mode: "Markdown" });
-        if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
+          return bot.sendMessage(chatId, `🌐 Lingua attiva: 
+*${state.lang}*\n\nCambia con:\n/lang it | en | ru`, { parse_mode: "Markdown" 
+});
+        if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, 
+"Valore non valido.");
         state.lang = arg1;
         persistConfig({ lang: state.lang });
-        return bot.sendMessage(chatId, `🌐 Lingua impostata su *${state.lang}*`, { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, `🌐 Lingua impostata su 
+*${state.lang}*`, { parse_mode: "Markdown" });
       }
       case "/model": {
         if (!arg1)
-          return bot.sendMessage(chatId, `🧠 Modello attuale: *${state.model}*\n\nCambia con:\n/model gpt-4o-mini | gpt-4o`, { parse_mode: "Markdown" });
-        if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
+          return bot.sendMessage(chatId, `🧠 Modello attuale: 
+*${state.model}*\n\nCambia con:\n/model gpt-4o-mini | gpt-4o`, { parse_mode: 
+"Markdown" });
+        if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return 
+bot.sendMessage(chatId, "Valore non valido.");
         state.model = arg1;
         persistConfig({ model: state.model });
-        return bot.sendMessage(chatId, `🧠 Modello impostato su *${state.model}*`, { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, `🧠 Modello impostato su 
+*${state.model}*`, { parse_mode: "Markdown" });
       }
       case "/voice": {
         if (!arg1)
-          return bot.sendMessage(chatId, `🎙️ Voce: *${state.voice.model}*  |  Tono: *${state.voice.tone}*\n\nCambia con:\n/voice model openai | bark | google\n/voice tone neutro | empatico | profondo | giocoso`, { parse_mode: "Markdown" });
+          return bot.sendMessage(chatId, `🎙️ Voce: *${state.voice.model}*  |  
+Tono: *${state.voice.tone}*\n\nCambia con:\n/voice model openai | bark | 
+google\n/voice tone neutro | empatico | profondo | giocoso`, { parse_mode: 
+"Markdown" });
         if (arg1 === "model" && arg2) {
-          if (!["openai", "bark", "google"].includes(arg2)) return bot.sendMessage(chatId, "Modello non valido.");
+          if (!["openai", "bark", "google"].includes(arg2)) return 
+bot.sendMessage(chatId, "Modello non valido.");
           state.voice.model = arg2;
           persistConfig({ voice: state.voice });
-          return bot.sendMessage(chatId, `🎧 Voice model impostato su *${arg2}*`, { parse_mode: "Markdown" });
+          return bot.sendMessage(chatId, `🎧 Voice model impostato su 
+*${arg2}*`, { parse_mode: "Markdown" });
         }
         if (arg1 === "tone" && arg2) {
-          if (!["neutro", "empatico", "profondo", "giocoso"].includes(arg2)) return bot.sendMessage(chatId, "Tono non valido.");
+          if (!["neutro", "empatico", "profondo", "giocoso"].includes(arg2)) 
+return bot.sendMessage(chatId, "Tono non valido.");
           state.voice.tone = arg2;
           persistConfig({ voice: state.voice });
-          return bot.sendMessage(chatId, `💫 Tono impostato su *${arg2}*`, { parse_mode: "Markdown" });
+          return bot.sendMessage(chatId, `💫 Tono impostato su *${arg2}*`, { 
+parse_mode: "Markdown" });
         }
-        return bot.sendMessage(chatId, "Usa /voice model [...] o /voice tone [...]", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "Usa /voice model [...] o /voice tone 
+[...]", { parse_mode: "Markdown" });
       }
       case "/essence": {
         const ess = await computeEssence();
@@ -311,7 +403,8 @@ bot.on("message", async (msg) => {
           `• Modalità: \`${state.mode}\``,
           `• Lingua: \`${state.lang}\``,
           `• Modello: \`${state.model}\``,
-          `• Pesi: sim=${state.weights.sim.toFixed(2)}, imp=${state.weights.imp.toFixed(2)}, rec=${state.weights.rec.toFixed(2)}`,
+          `• Pesi: sim=${state.weights.sim.toFixed(2)}, 
+imp=${state.weights.imp.toFixed(2)}, rec=${state.weights.rec.toFixed(2)}`,
           `• Scambi considerati: ${ess?.stats?.n ?? 0}`,
           "",
         ].join("\n");
@@ -320,7 +413,8 @@ bot.on("message", async (msg) => {
       case "/weights": {
         const message = [
           "⚖️ *Pesi attuali*",
-          `sim=${state.weights.sim.toFixed(2)}  imp=${state.weights.imp.toFixed(2)}  rec=${state.weights.rec.toFixed(2)}`,
+          `sim=${state.weights.sim.toFixed(2)}  
+imp=${state.weights.imp.toFixed(2)}  rec=${state.weights.rec.toFixed(2)}`,
           "",
           "Cambia con:",
           "/weights sim 0.50",
@@ -328,24 +422,30 @@ bot.on("message", async (msg) => {
           "/weights rec 0.20",
           "Poi salva con: /saveweights",
         ].join("\n");
-        if (!arg1) return bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+        if (!arg1) return bot.sendMessage(chatId, message, { parse_mode: 
+"Markdown" });
         const key = (arg1 || "").toLowerCase();
         const val = parseFloat(arg2);
-        if (!["sim", "imp", "rec"].includes(key) || Number.isNaN(val)) return bot.sendMessage(chatId, "Uso: /weights sim|imp|rec <0..1>");
+        if (!["sim", "imp", "rec"].includes(key) || Number.isNaN(val)) return 
+bot.sendMessage(chatId, "Uso: /weights sim|imp|rec <0..1>");
         state.weights[key] = clamp01(val);
         persistConfig();
-        return bot.sendMessage(chatId, `Aggiornato *${key}* → ${state.weights[key].toFixed(2)}`, { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, `Aggiornato *${key}* → 
+${state.weights[key].toFixed(2)}`, { parse_mode: "Markdown" });
       }
       case "/saveweights":
         persistConfig();
         return bot.sendMessage(chatId, "💾 Pesi salvati su config.json.");
       case "/memory":
-        return bot.sendMessage(chatId, "🧠 Modulo Memoria in fase di integrazione…", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "🧠 Modulo Memoria in fase di 
+integrazione…", { parse_mode: "Markdown" });
       case "/clear":
         pendingClear.set(chatId, true);
-        return bot.sendMessage(chatId, "⚠️ Confermi reset completo? Rispondi Y/N.", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "⚠️ Confermi reset completo? Rispondi 
+Y/N.", { parse_mode: "Markdown" });
       default:
-        return bot.sendMessage(chatId, "❓ Comando non riconosciuto. Usa /help.");
+        return bot.sendMessage(chatId, "❓ Comando non riconosciuto. Usa 
+/help.");
     }
   }
 
@@ -356,11 +456,13 @@ bot.on("message", async (msg) => {
       answer = await gptAnswer(text);
     } else if (state.mode === "book") {
       const ctx = await ragSearch(text);
-      const sys = "Rispondi solo usando il contesto fornito. Se è insufficiente, sii onesto e breve.";
+      const sys = "Rispondi solo usando il contesto fornito. Se è 
+insufficiente, sii onesto e breve.";
       answer = await gptAnswer(`${ctx}\n\nDomanda: ${text}`, sys);
     } else {
       const ctx = await ragSearch(text);
-      const sys = "Integra il contesto con intelligenza. Se il contesto è povero, rispondi naturalmente.";
+      const sys = "Integra il contesto con intelligenza. Se il contesto è 
+povero, rispondi naturalmente.";
       answer = await gptAnswer(`Contesto:\n${ctx}\n\nDomanda:\n${text}`, sys);
     }
 
