@@ -1,7 +1,7 @@
-// index_3.8.7.js
+// index_3.8.7_fixed.js
 // ---------------------------------------------
-// IRIS – Telegram TTS Bot – Versione 3.8.7
-// "Coerenza Dialogica"
+// IRIS – Telegram TTS Bot – Versione 3.8.7a
+// "Coerenza Dialogica – Stable Import"
 // Basato su 3.8.6_OK, con menù uniformati nello stile:
 // 🧭 Parametro attuale: ...
 // Cambia con: /comando valore
@@ -12,7 +12,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { configManager } from './configManager.js';
+import * as configManager from './configManager.js';   // ✅ FIX IMPORT
 import { memoryManager } from './memoryManager.js';
 import { ragSearch } from './ragSearch.js';
 import { essence } from './essence.js';
@@ -21,7 +21,8 @@ import { tts } from './tts.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || configManager.get('telegram_token');
+// 🔐 Recupero Token e Porta
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_API_KEY || null;
 const PORT = process.env.PORT || 10000;
 
 if (!TELEGRAM_TOKEN) {
@@ -30,8 +31,10 @@ if (!TELEGRAM_TOKEN) {
 }
 
 console.log(`🔑 Telegram token: TROVATO ✅`);
+configManager.initConfig();
 console.log(`✅ Config inizializzata con TELEGRAM_TOKEN.`);
 
+// 🚀 Avvio bot e server
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const app = express();
 
@@ -54,39 +57,39 @@ bot.onText(/^\/start$/, (msg) => {
 // 🌐 Lingua
 bot.onText(/^\/lang$/, (msg) => {
   const chatId = msg.chat.id;
-  const lingua = configManager.get('lang');
+  const lingua = configManager.getConfig('lang');
   bot.sendMessage(chatId, `🌐 Lingua attiva: ${lingua}\nCambia con:\n/lang it | en | ru`);
 });
 
 // 🎙️ Voce
 bot.onText(/^\/voice$/, (msg) => {
   const chatId = msg.chat.id;
-  const voce = configManager.get('voice');
+  const voce = configManager.getConfig('voice');
   bot.sendMessage(chatId, `🎙️ Voce attuale: ${voce}\nCambia con:\n/voice stella | lyra | nova`);
 });
 
 // 🧭 Modalità
 bot.onText(/^\/mode$/, (msg) => {
   const chatId = msg.chat.id;
-  const mode = configManager.get('mode');
+  const mode = configManager.getConfig('mode');
   bot.sendMessage(chatId, `🧭 Modalità attuale: ${mode}\nCambia con:\n/mode book | free | hy`);
 });
 
 // 🧠 Modello
 bot.onText(/^\/model$/, (msg) => {
   const chatId = msg.chat.id;
-  const model = configManager.get('model');
+  const model = configManager.getConfig('model');
   bot.sendMessage(chatId, `🧠 Modello attuale: ${model}\nCambia con:\n/model gpt-4o-mini | gpt-4o | gpt-3.5-turbo`);
 });
 
 // ⚖️ Pesi
 bot.onText(/^\/weights$/, (msg) => {
   const chatId = msg.chat.id;
-  const weights = configManager.get('weights');
+  const weights = configManager.getConfig('weights');
   bot.sendMessage(chatId, `⚖️ Pesi attuali: ${weights}\nCambia con:\n/weights light | medium | full`);
 });
 
-// 🪶 Essence
+// 💎 Essence
 bot.onText(/^\/essence$/, async (msg) => {
   const chatId = msg.chat.id;
   const e = await essence.calculate();
@@ -104,7 +107,7 @@ bot.onText(/^\/help$/, (msg) => {
 ⚖️ /weights – imposta i pesi
 💎 /essence – mostra la coscienza attuale
 💬 /help – mostra questo menù
-Daje – risveglia il campo ⚡`);
+⚡ /daje – risveglia il campo`);
 });
 
 // ⚡ Daje
@@ -126,7 +129,7 @@ bot.on('message', async (msg) => {
 
   memoryManager.store(chatId, text);
 
-  const mode = configManager.get('mode');
+  const mode = configManager.getConfig('mode');
   let risposta = '';
 
   if (mode === 'book') {
