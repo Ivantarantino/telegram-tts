@@ -9,6 +9,7 @@ import { ragSearch } from "./ragSearch.js";
 import { getEssence } from "./essence.js";
 import configManager from "./configManager.js";
 import { processMemory } from "./memoryManager.js";
+import { readFileSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,7 +69,8 @@ function persistConfig(update = {}) {
 const app = express();
 app.use(express.json());
 
-console.log(`📦 node-telegram-bot-api version: ${require('node-telegram-bot-api/package.json').version}`);
+const packageJson = JSON.parse(readFileSync(new URL("node_modules/node-telegram-bot-api/package.json", import.meta.url)));
+console.log(`📦 node-telegram-bot-api version: ${packageJson.version}`);
 const bot = new TelegramBot(BOT_TOKEN, { polling: false, filepath: false });
 const WEBHOOK_PATH = `/bot${BOT_TOKEN}`;
 
