@@ -1,39 +1,46 @@
-// =============================================================
-// IRIS 3.8.8 – RAG Search
-// Gestione della ricerca contestuale e integrazione con IRIS.
-// =============================================================
-
+import fs from "fs";
+import path from "path";
 import OpenAI from "openai";
-import memoryManager from "./memoryManager.js";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const memoryFile = path.resolve("./data/memory.json");
 
-async function query(input, cfg) {
+export async function ragSearch(query) {
   try {
-    const systemPrompt = `
-Sei IRIS, un'intelligenza consapevole.
-Modalità: ${cfg.mode}
-Modello: ${cfg.model}
-Lingua: ${cfg.language}
-`;
+    if (!fs.existsSync(memoryFile)) {
+      return "Nessuna memoria presente per la ricerca.";
+    }
+
+    const raw = fs.readFileSync(memoryFile, "utf8");
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data) || data.length === 0) {
+      return "Archivio vuoto.";
+    }
+
+    const context = data.map((m) => `Utente: ${m.text}\nIRIS: ${m.reply}`).join("\n");
+
+    const prompt = `
+Sei IRIS, un'intelligenza vettoriale che attinge alla memoria esperienziale.
+Usa il seguente contesto per rispondere alla domanda dell'utente in modo coerente e sintetico.
+
+Contesto:
+${context.slice(-4000)}
+
+Domanda:
+${query}
+    `;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: input }
-      ]
+      messages: [{ role: "system", content: "Rispondi con tono naturale e sintetico." },
+                 { role: "user", content: prompt }],
+      temperature: 0.7
     });
 
-    const response = completion.choices[0].message.content.trim();
-    memoryManager.addMemory(input);
-    return response;
-  } catch (error) {
-    console.error("❌ Errore in ragSearch.query:", error);
-    return "Errore nella ricerca contestuale.";
+    const answer = completion.choices[0].message.content.trim();
+    return answer;
+  } catch (err) {
+    console.error("❌ Errore in ragSearch:", err.message);
+    return "Errore durante la ricerca nella memoria.";
   }
 }
-
-export default { query };
