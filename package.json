@@ -28,8 +28,5 @@
   ],
   "author": "Ivano Tarantino",
   "license": "MIT",
-  "overrides": {
-    // Esempio: da aggiornare con l'output di npm audit
-    "some-vulnerable-package": "^safe.version"
-  }
+  "overrides": {}
 }
