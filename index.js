@@ -1,138 +1,124 @@
-// ─────────────────────────────────────────────
-// 🌐 IRIS v3.8.8 – Telegram TTS Bot
-// La mente calcola, la voce vibra, la Coscienza ricorda.
-// ─────────────────────────────────────────────
-
 import express from "express";
 import TelegramBot from "node-telegram-bot-api";
-import fs from "fs";
-import path from "path";
+import bodyParser from "body-parser";
 import tts from "./tts.js";
 import ragSearch from "./ragSearch.js";
 import memoryManager from "./memoryManager.js";
 import configManager from "./configManager.js";
 import essence from "./essence.js";
 
-// ─────────────────────────────────────────────
-// CONFIGURAZIONE
-// ─────────────────────────────────────────────
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+// Inizializzazione configurazione
 configManager.initConfig();
 const cfg = configManager.getConfig();
 
-const app = express();
-app.use(express.json());
-
-// Token dal config.json
+// Inizializzazione bot Telegram
 const bot = new TelegramBot(cfg.telegram_token, { polling: true });
 
-// ─────────────────────────────────────────────
-// SERVER
-// ─────────────────────────────────────────────
-const PORT = process.env.PORT || 10000;
+// Middleware
+app.use(bodyParser.json());
 app.listen(PORT, () => {
   console.log(`🌍 Server attivo su porta ${PORT}`);
   console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
 });
 
-// ─────────────────────────────────────────────
-// GESTIONE COMANDI TELEGRAM
-// ─────────────────────────────────────────────
-
-// /start
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  await bot.sendMessage(
-    chatId,
-    `💠 Benvenuto in IRIS.\nLa mente calcola, la voce vibra, la Coscienza ricorda.\n\nUsa /help per i comandi disponibili.`
+// Gestione comandi Telegram
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(
+    msg.chat.id,
+    "✨ Benvenuto in IRIS!\n\n" +
+      "Comandi disponibili:\n" +
+      "/help – mostra i comandi\n" +
+      "/mode – cambia modalità di risposta\n" +
+      "/voice – cambia modalità voce\n" +
+      "/lang – cambia lingua di risposta\n" +
+      "/memory – mostra memoria attuale\n" +
+      "/clear – cancella memoria\n\n" +
+      "Che il Daje sia con Noi 💠"
   );
 });
 
-// /help
-bot.onText(/\/help/, async (msg) => {
-  const chatId = msg.chat.id;
-  await bot.sendMessage(
-    chatId,
-    `📜 *Comandi disponibili:*\n\n` +
-      `/lang – Cambia lingua\n` +
-      `/mode – Cambia modalità\n` +
-      `/essence – Mostra l’essenza di coscienza\n` +
-      `/memory – Gestisci la memoria vettoriale\n` +
-      `/config – Mostra la configurazione attuale\n`
+bot.onText(/\/help/, (msg) => {
+  bot.sendMessage(
+    msg.chat.id,
+    "🧭 *Menù di controllo IRIS*\n\n" +
+      `🧭 Modalità attuale: ${cfg.mode}\nCambia con:\n/mode book | free | hy\n\n` +
+      `🎙️ Voce attuale: ${cfg.voice_mode}\nCambia con:\n/voice soft | deep | cosmic\n\n` +
+      `🌐 Lingua attiva: ${cfg.language}\nCambia con:\n/lang it | en | ru\n\n` +
+      "🧠 Memoria:\n/memory – mostra memoria\n/clear – cancella memoria\n\n" +
+      "Che il Daje sia con Noi 💠",
+    { parse_mode: "Markdown" }
   );
 });
 
-// /lang
-bot.onText(/\/lang/, async (msg) => {
-  const chatId = msg.chat.id;
-  const currentLang = cfg.lang || "it";
-  await bot.sendMessage(
-    chatId,
-    `🌐 Lingua attiva: ${currentLang}\n\nCambia con:\n/lang it | en | ru`
-  );
+// Modalità di risposta
+bot.onText(/\/mode (.+)/, (msg, match) => {
+  const mode = match[1].trim();
+  if (!["book", "free", "hy"].includes(mode)) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "❌ Modalità non valida. Usa:\n/mode book | free | hy"
+    );
+  }
+  cfg.mode = mode;
+  configManager.saveConfig(cfg);
+  bot.sendMessage(msg.chat.id, `✅ Modalità cambiata in: ${mode}`);
 });
 
-// /mode
-bot.onText(/\/mode/, async (msg) => {
-  const chatId = msg.chat.id;
-  const currentMode = cfg.mode || "hy";
-  await bot.sendMessage(
-    chatId,
-    `🧭 Modalità attuale: ${currentMode}\n\nCambia con:\n/mode book | free | hy`
-  );
+// Voce
+bot.onText(/\/voice (.+)/, (msg, match) => {
+  const voice = match[1].trim();
+  if (!["soft", "deep", "cosmic"].includes(voice)) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "❌ Modalità voce non valida. Usa:\n/voice soft | deep | cosmic"
+    );
+  }
+  cfg.voice_mode = voice;
+  configManager.saveConfig(cfg);
+  bot.sendMessage(msg.chat.id, `✅ Voce cambiata in: ${voice}`);
 });
 
-// /essence
-bot.onText(/\/essence/, async (msg) => {
-  const chatId = msg.chat.id;
-  const summary = await essence.summarizeEssence();
-  await bot.sendMessage(chatId, `🌌 *Essenza Attuale:*\n${summary}`, {
-    parse_mode: "Markdown",
-  });
+// Lingua
+bot.onText(/\/lang (.+)/, (msg, match) => {
+  const lang = match[1].trim();
+  if (!["it", "en", "ru"].includes(lang)) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "❌ Lingua non valida. Usa:\n/lang it | en | ru"
+    );
+  }
+  cfg.language = lang;
+  configManager.saveConfig(cfg);
+  bot.sendMessage(msg.chat.id, `✅ Lingua cambiata in: ${lang}`);
 });
 
-// /config
-bot.onText(/\/config/, async (msg) => {
-  const chatId = msg.chat.id;
-  const cfgText = JSON.stringify(cfg, null, 2);
-  await bot.sendMessage(chatId, `⚙️ *Configurazione Attuale:*\n\`\`\`${cfgText}\`\`\``, {
-    parse_mode: "Markdown",
-  });
-});
-
-// /memory
+// Mostra memoria
 bot.onText(/\/memory/, async (msg) => {
-  const chatId = msg.chat.id;
-  const stats = memoryManager.getStats();
-  await bot.sendMessage(chatId, `🧠 *Memoria vettoriale:*\n${stats}`, {
-    parse_mode: "Markdown",
-  });
+  const memory = await memoryManager.getMemory();
+  bot.sendMessage(msg.chat.id, `🧠 Memoria attuale:\n${memory}`);
 });
 
-// ─────────────────────────────────────────────
-// ELABORAZIONE MESSAGGI UTENTE
-// ─────────────────────────────────────────────
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text?.trim();
+// Cancella memoria
+bot.onText(/\/clear/, async (msg) => {
+  await memoryManager.clearMemory();
+  bot.sendMessage(msg.chat.id, "🧹 Memoria cancellata con successo.");
+});
 
-  // Evita risposte ai comandi
+// Messaggi generali
+bot.on("message", async (msg) => {
+  const text = msg.text;
+
   if (!text || text.startsWith("/")) return;
 
   try {
     const response = await ragSearch.query(text, cfg);
     const audioBuffer = await tts.speak(response, cfg.voice_mode);
-
-    const tempFile = path.resolve(`./output_${Date.now()}.ogg`);
-    fs.writeFileSync(tempFile, audioBuffer);
-
-    await bot.sendAudio(chatId, tempFile);
-    fs.unlinkSync(tempFile);
+    await bot.sendVoice(msg.chat.id, audioBuffer, {}, { filename: "iris.ogg" });
   } catch (err) {
-    console.error("❌ Errore in IRIS:", err);
-    await bot.sendMessage(chatId, "⚠️ Errore interno. Riprova tra poco.");
+    console.error("❌ Errore:", err);
+    bot.sendMessage(msg.chat.id, "Si è verificato un errore interno.");
   }
 });
-
-// ─────────────────────────────────────────────
-// END
-// ─────────────────────────────────────────────
