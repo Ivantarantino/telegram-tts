@@ -13,7 +13,7 @@ function initConfig() {
     config = {};
   }
 
-  // 🔹 Usa prima ENV, poi config.json, poi valori di default
+  // 🔹 Manteniamo la logica originale: IRIS usa TELEGRAM_TOKEN
   config.telegram_bot_token = process.env.TELEGRAM_TOKEN || config.telegram_bot_token || "";
   config.openai_api_key = process.env.OPENAI_API_KEY || config.openai_api_key || "";
   config.voice_mode = process.env.IRIS_MODE || config.voice_mode || "hybrid";
@@ -23,7 +23,7 @@ function initConfig() {
   config.tts_engine = config.tts_engine || "openai";
   config.server_port = process.env.PORT || config.server_port || 10000;
 
-  console.log("✅ Config inizializzata.");
+  console.log("✅ Config inizializzata con TELEGRAM_TOKEN.");
 }
 
 function getConfig() {
