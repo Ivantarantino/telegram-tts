@@ -72,6 +72,7 @@ app.use(express.json());
 const packageJson = JSON.parse(readFileSync(new URL("node_modules/node-telegram-bot-api/package.json", import.meta.url)));
 console.log(`📦 node-telegram-bot-api version: ${packageJson.version}`);
 const bot = new TelegramBot(BOT_TOKEN, { polling: false, filepath: false });
+console.log("📡 TelegramBot initialized with filepath: false");
 const WEBHOOK_PATH = `/bot${BOT_TOKEN}`;
 
 app.post(WEBHOOK_PATH, (req, res) => {
