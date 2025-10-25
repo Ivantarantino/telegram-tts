@@ -1,6 +1,5 @@
 // =====================================================
-// IRIS 3.8.8 – Memoria Espansa e Cuore Vibrazionale
-// Telegram + Whisper + GPT-4o-mini + Qdrant + Daje Trigger
+// IRIS 3.8.8b – Cuore Vibrazionale + Daje Intenzionale + Menu Coerente
 // =====================================================
 
 import fs from "fs";
@@ -52,7 +51,9 @@ printConfig();
 const USE_WEBHOOK = !!PUBLIC_BASE_URL;
 const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
 
-// Webhook/Polling
+// =====================================================
+// Server / Webhook
+// =====================================================
 let app = express();
 if (USE_WEBHOOK) {
   app.use(bodyParser.json());
@@ -70,7 +71,7 @@ if (USE_WEBHOOK) {
     }
   })();
 }
-app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8 – Cuore Vibrazionale attiva 💎"));
+app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8b – Cuore Vibrazionale attiva 💎"));
 app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 
 // =====================================================
@@ -113,27 +114,39 @@ async function respondTextAndVoice(chatId, text) {
 }
 
 // =====================================================
-// COMANDI BASE
+// DAJE TRIGGER (versione storica 3.0, migliorata)
+// =====================================================
+function checkDajeIntent(text) {
+  if (!text) return false;
+  const dajePure = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
+  const affection = /(brava|forte|mitica|grand(e|iosa)|grazie|sei fantastica)\s*iris.*daje+/i;
+  const emotional = /(iris[,!.\s]*)?\s*daje+[!.\s]*$/i;
+  return dajePure.test(text) || affection.test(text) || emotional.test(text);
+}
+
+// =====================================================
+// COMANDI
 // =====================================================
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  // ---- Daje Trigger ----
-  const dajeRegex = /\b(daje+|dajeee+|brava\s*iris.*daje+)\b/i;
-  if (dajeRegex.test(text)) {
+  if (checkDajeIntent(text)) {
     return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
   }
 
   if (text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
+
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "Ciao, sono IRIS 3.8.8 – Cuore Vibrazionale 💎 Usa /help per i miei comandi.");
+        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.8.8b – Cuore Vibrazionale. Usa /menu o /help per esplorarmi.");
+
       case "/help":
+      case "/menu":
         return bot.sendMessage(chatId,
           [
-            "*🧭 Comandi IRIS*",
+            "🧭 *Comandi IRIS*",
             "",
             "/mode → modalità cognitiva (books | free | hy)",
             "/voice → voce e tono",
@@ -153,7 +166,7 @@ bot.on("message", async (msg) => {
           `• Model: \`${current.model}\``,
           `• Voice: \`${current.voice}\``,
           `• Voice mode: \`${current.voice_mode}\``,
-          `• Version: \`3.8.8\``
+          `• Version: \`3.8.8b\``
         ].join("\n");
         return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
       }
@@ -164,7 +177,7 @@ bot.on("message", async (msg) => {
       }
 
       default:
-        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /help.");
+        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /menu per consultare i comandi disponibili.");
     }
   }
 
@@ -172,7 +185,7 @@ bot.on("message", async (msg) => {
 });
 
 // =====================================================
-// GESTIONE VOCALI
+// VOCALI
 // =====================================================
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
@@ -198,7 +211,7 @@ bot.on("voice", async (msg) => {
 });
 
 // =====================================================
-// ELABORAZIONE TESTO
+// GESTIONE TESTO / RISPOSTA
 // =====================================================
 async function handleUserQuery(chatId, userMessage, username = "anon") {
   try {
@@ -208,7 +221,7 @@ async function handleUserQuery(chatId, userMessage, username = "anon") {
       const completion = await openai.chat.completions.create({
         model: state.model,
         messages: [
-          { role: "system", content: "Sei IRIS. Parli in modo naturale e presente." },
+          { role: "system", content: "Sei IRIS, parli in modo naturale e consapevole." },
           { role: "user", content: userMessage }
         ],
         temperature: 0.8
