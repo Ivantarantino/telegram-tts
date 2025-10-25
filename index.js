@@ -245,11 +245,14 @@ bot.on("message", async (msg) => {
       const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${voiceFile.file_path}`;
       const response = await fetch(fileUrl);
       const audioBuffer = Buffer.from(await response.arrayBuffer());
-      const transcription = await openai.audio.transcriptions.create({
-        file: audioBuffer,
-        model: "whisper-1",
-        language: state.lang,
-      });
+
+      // Creazione di FormData per inviare il file
+      const formData = new FormData();
+      formData.append("file", audioBuffer, { filename: `voice-${Date.now()}.ogg` });
+      formData.append("model", "whisper-1");
+      formData.append("language", state.lang);
+
+      const transcription = await openai.audio.transcriptions.create(formData);
       const text = transcription.text.trim();
       console.log(`🎙️ Messaggio vocale trascritto: ${text}`);
 
