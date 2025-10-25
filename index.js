@@ -1,8 +1,8 @@
 // =====================================================
-// IRIS 3.8.8d – Daje Guard + Coerenza Restaurata
+// IRIS 3.8.8e – Memoria e Pesi Restaurati
 // Telegram + Whisper + GPT-4o-mini + TTS + Qdrant
-// - Comandi affidabili
 // - Daje solo su invocazione intenzionale (ingresso + uscita)
+// - Comandi memoria ed essenza restaurati
 // =====================================================
 
 import fs from "fs";
@@ -16,10 +16,9 @@ import { fileURLToPath } from "url";
 
 import { initConfig, getConfig, updateConfig, printConfig } from "./configManager.js";
 import { processMemory } from "./memoryManager.js";
-import { getEssence } from "./essence.js";
+import { getEssence, getWeights, setWeights, saveWeights } from "./essence.js";
 import { ragSearch } from "./ragSearch.js";
 
-// ---------- ENV ----------
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
@@ -30,21 +29,24 @@ if (!BOT_TOKEN || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
-// ---------- PATHS ----------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_DIR = path.join(__dirname, "temp");
+const DATA_DIR = path.join(__dirname, "data");
+const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
 fs.mkdirSync(TEMP_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// ---------- OPENAI ----------
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// ---------- CONFIG ----------
+// =====================================================
+// CONFIGURAZIONE BASE
+// =====================================================
 initConfig();
 const cfg = getConfig();
 
 const state = {
-  mode: cfg.mode || "hy",           // hy | free | books
+  mode: cfg.mode || "hy",
   lang: cfg.language || "it",
   model: cfg.model || "gpt-4o-mini",
   voice: {
@@ -53,7 +55,6 @@ const state = {
   }
 };
 
-// Persiste lo stato attuale in config
 updateConfig({
   mode: state.mode,
   language: state.lang,
@@ -63,11 +64,12 @@ updateConfig({
 });
 printConfig();
 
-// ---------- TELEGRAM ----------
+// =====================================================
+// TELEGRAM & SERVER
+// =====================================================
 const USE_WEBHOOK = !!PUBLIC_BASE_URL;
 const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
 
-// Web server (webhook o keepalive)
 let app = express();
 if (USE_WEBHOOK) {
   app.use(bodyParser.json());
@@ -85,10 +87,12 @@ if (USE_WEBHOOK) {
     }
   })();
 }
-app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8d – Daje Guard attiva 💎"));
+app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8e – Memoria e Pesi Restaurati attiva 💎"));
 app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 
-// ---------- UTILS ----------
+// =====================================================
+// UTILS
+// =====================================================
 function downloadToFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destPath);
@@ -125,60 +129,47 @@ async function respondTextAndVoice(chatId, text) {
   }
 }
 
-// ---------- DAJE GUARD ----------
-// 1) Intent detector (ingresso): come in "Chat 3"
+// =====================================================
+// DAJE GUARD
+// =====================================================
 function checkDajeIntent(text) {
   if (!text) return false;
-
-  // parola isolata o con punteggiatura
   const dajeIsolato = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
-
-  // frasi affettive che includono "daje"
   const invocazioneAffettiva =
     /(brava|bravissima|forte|mitica|grand(e|iosa)|grazie|sei fantastica|sei forte)\s*[,!\s]*iris[,!\s]*.*daje+[!.\s]*$/i;
-
-  // "iris, daje!" o "daje, iris!"
   const invocazioneDiretta = /(iris[,!\s]*)?\s*daje+[!.\s]*$/i;
-
   return dajeIsolato.test(text) || invocazioneAffettiva.test(text) || invocazioneDiretta.test(text);
 }
 
-// 2) Sanitizer (uscita): se non c'è intenzione, rimuove il sigillo da qualsiasi risposta
 function sanitizeAnswer(answer, userTextHadDajeIntent) {
   if (userTextHadDajeIntent) return answer;
-
-  // rimuove ogni variante del sigillo, anche con emoji o spazi extra
-  const sigillo =
-    /(che\s+il\s+)?daje\s*(sia)?\s*(con)?\s*(noi)[!.\s]*[💎✨💫⭐️⚡️]*$/i;
-
-  // anche se messo a inizio o metà frase
   const sigilloAnywhere =
     /(che\s+il\s+)?daje\s*(sia)?\s*(con)?\s*(noi)[!.\s]*[💎✨💫⭐️⚡️]*/gi;
-
   let cleaned = answer.replace(sigilloAnywhere, "").trim();
-
-  // Se svuotato da sola frase finale, pulisci doppie spaziature e punteggiatura lasciata
   cleaned = cleaned.replace(/\s{2,}/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
-
-  // Se dopo il taglio è rimasto vuoto, dai una chiusura neutra
   if (!cleaned) cleaned = "Ricevuto.";
-
   return cleaned;
 }
 
-// ---------- COMANDI & MESSAGGI ----------
+// =====================================================
+// COMANDI
+// =====================================================
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  // --- Comandi prima di tutto ---
+  // --- DAJE TRIGGER ---
+  if (!text.startsWith("/") && checkDajeIntent(text)) {
+    return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
+  }
+
+  // --- COMANDI ---
   if (text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId,
-          "Ciao 🌸 Sono IRIS 3.8.8d – Cuore Vibrazionale. Usa /menu per i comandi.");
+        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.8.8e – Memoria e Pesi Restaurati. Usa /menu per i comandi.");
 
       case "/help":
       case "/menu":
@@ -190,10 +181,17 @@ bot.on("message", async (msg) => {
             "/voice → voce e tono",
             "/lang → lingua (it | en | ru)",
             "/model → modello GPT (gpt-4o-mini | gpt-4o)",
-            "/essence → firma vibrazionale (Cuore, Anima, Visione)",
+            "/essence → mostra firma vibrazionale (Cuore, Anima, Visione)",
+            "/weights → mostra o imposta pesi per l'Essenza",
+            "/saveweights → salva i pesi attuali",
+            "/memory → mostra stato della memoria",
+            "/clear → cancella memoria locale (richiede conferma)",
             "/config → mostra configurazione corrente"
           ].join("\n"), { parse_mode: "Markdown" });
 
+      // =====================================================
+      // BLOCCO CONFIG
+      // =====================================================
       case "/config": {
         const current = getConfig();
         const voiceModel = current.voice?.model || current.voice || "gpt_openai";
@@ -205,50 +203,36 @@ bot.on("message", async (msg) => {
           `• Model: \`${current.model}\``,
           `• Voice: \`${voiceModel}\``,
           `• Voice mode: \`${current.voice_mode}\``,
-          `• Version: \`3.8.8d\``
+          `• Version: \`3.8.8e\``
         ].join("\n");
         return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
       }
 
-      case "/lang": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🌐 Lingua attuale: *${state.lang}*\nCambia con: /lang it | en | ru`,
-            { parse_mode: "Markdown" });
-        }
+      // =====================================================
+      // BLOCCO LINGUA / MODE / MODEL / VOICE
+      // =====================================================
+      case "/lang":
+        if (!arg1) return bot.sendMessage(chatId, `🌐 Lingua attuale: *${state.lang}*`, { parse_mode: "Markdown" });
         if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.lang = arg1;
         updateConfig({ language: arg1 });
         return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
-      }
 
-      case "/mode": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🧭 Modalità attuale: *${state.mode}*\nCambia con: /mode books | free | hy`,
-            { parse_mode: "Markdown" });
-        }
-        const newMode = arg1.toLowerCase();
-        if (!["books", "free", "hy", "hybrid"].includes(newMode))
-          return bot.sendMessage(chatId, "Valore non valido.");
-        state.mode = (newMode === "hybrid") ? "hy" : newMode;
-        updateConfig({ mode: state.mode });
-        return bot.sendMessage(chatId, `Modalità impostata su *${state.mode}*`, { parse_mode: "Markdown" });
-      }
+      case "/mode":
+        if (!arg1) return bot.sendMessage(chatId, `🧭 Modalità attuale: *${state.mode}*`, { parse_mode: "Markdown" });
+        if (!["books", "free", "hy"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
+        state.mode = arg1;
+        updateConfig({ mode: arg1 });
+        return bot.sendMessage(chatId, `Modalità impostata su *${arg1}*`, { parse_mode: "Markdown" });
 
-      case "/model": {
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🧠 Modello attuale: *${state.model}*\nCambia con: /model gpt-4o-mini | gpt-4o`,
-            { parse_mode: "Markdown" });
-        }
+      case "/model":
+        if (!arg1) return bot.sendMessage(chatId, `🧠 Modello attuale: *${state.model}*`, { parse_mode: "Markdown" });
         if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.model = arg1;
         updateConfig({ model: arg1 });
         return bot.sendMessage(chatId, `Modello impostato su *${arg1}*`, { parse_mode: "Markdown" });
-      }
 
-      case "/voice": {
+      case "/voice":
         if (!arg1) {
           return bot.sendMessage(chatId,
             `🎙️ Voce: *${state.voice.model}* | Timbro: *${state.voice.tone}*\n` +
@@ -256,7 +240,6 @@ bot.on("message", async (msg) => {
             { parse_mode: "Markdown" });
         }
         if (arg1 === "model" && arg2) {
-          if (!["gpt_openai", "google_tts", "bark"].includes(arg2)) return bot.sendMessage(chatId, "Modello non valido.");
           state.voice.model = arg2;
           updateConfig({ voice: arg2 });
           return bot.sendMessage(chatId, `🎧 Voice model impostato su *${arg2}*`, { parse_mode: "Markdown" });
@@ -266,26 +249,65 @@ bot.on("message", async (msg) => {
           updateConfig({ voice_mode: arg2 });
           return bot.sendMessage(chatId, `💫 Timbro impostato su *${arg2}*`, { parse_mode: "Markdown" });
         }
-        return bot.sendMessage(chatId, "Usa /voice model […] o /voice tone […].", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "Usa /voice model […] o /voice tone […].");
+
+      // =====================================================
+      // BLOCCO ESSENZA & MEMORIA
+      // =====================================================
+      case "/essence":
+        return bot.sendMessage(chatId, await getEssence(), { parse_mode: "Markdown" });
+
+      case "/weights": {
+        const w = getWeights();
+        if (!arg1 || !arg2)
+          return bot.sendMessage(chatId,
+            `⚖️ *Pesi attuali*\nCuore: ${w.cuore}\nAnima: ${w.anima}\nVisione: ${w.visione}\n\n` +
+            `Per cambiare: /weights cuore 0.7 (o anima / visione)`, { parse_mode: "Markdown" });
+
+        const n = parseFloat(arg2);
+        if (isNaN(n) || n < 0 || n > 1) return bot.sendMessage(chatId, "Valore non valido. Inserisci numero tra 0 e 1.");
+        setWeights({ [arg1.toLowerCase()]: n });
+        return bot.sendMessage(chatId, `🔹 Peso ${arg1} impostato su ${n}`);
       }
 
-      case "/essence": {
-        const ess = await getEssence();
-        return bot.sendMessage(chatId, ess, { parse_mode: "Markdown" });
+      case "/saveweights":
+        saveWeights();
+        return bot.sendMessage(chatId, "💾 Pesi vibrazionali salvati.");
+
+      case "/memory": {
+        let localCount = 0;
+        if (fs.existsSync(MEMORY_FILE)) {
+          const d = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
+          localCount = Array.isArray(d) ? d.length : 0;
+        }
+        return bot.sendMessage(chatId, `🧠 Stato memoria\nLocale: ${localCount} record salvati.`);
       }
+
+      case "/clear":
+        bot.sendMessage(chatId, "⚠️ Sei sicuro di voler cancellare la memoria locale? (Y/N)");
+        bot.once("message", (reply) => {
+          const response = reply.text?.trim().toLowerCase();
+          if (response === "y") {
+            if (fs.existsSync(MEMORY_FILE)) fs.writeFileSync(MEMORY_FILE, "[]");
+            bot.sendMessage(chatId, "🧹 Memoria locale cancellata.");
+          } else {
+            bot.sendMessage(chatId, "❎ Annullato. La memoria rimane intatta.");
+          }
+        });
+        return;
 
       default:
-        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /menu per i comandi disponibili.");
+        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /menu per consultare i comandi disponibili.");
     }
   }
 
-  // --- Messaggi normali ---
-  if (text && !text.startsWith("/")) {
-    await handleUserQuery(chatId, text, msg.from?.username || "anon");
-  }
+  // --- MESSAGGI NORMALI ---
+  if (text && !text.startsWith("/")) await handleUserQuery(chatId, text, msg.from?.username || "anon");
 });
 
-// ---------- VOCALI ----------
+// =====================================================
+// GESTIONE VOCALI
+// =====================================================
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   const fileId = msg.voice.file_id;
@@ -311,7 +333,9 @@ bot.on("voice", async (msg) => {
   }
 });
 
-// ---------- CORE ----------
+// =====================================================
+// GESTIONE TESTO / RISPOSTA
+// =====================================================
 async function handleUserQuery(chatId, userMessage, username = "anon") {
   try {
     const userHasDajeIntent = checkDajeIntent(userMessage);
@@ -330,17 +354,11 @@ async function handleUserQuery(chatId, userMessage, username = "anon") {
       });
       answer = completion.choices[0].message.content?.trim() || "Dimmi pure.";
     } else {
-      // HYBRID → usa RAG su Qdrant
       answer = await ragSearch(userMessage);
     }
 
-    // Applica la guardia d'uscita: se non c'è intenzione, rimuovi qualsiasi sigillo “Daje…”
     const safeAnswer = sanitizeAnswer(answer, userHasDajeIntent);
-
-    // Se invece l’hai evocata, rispondi SOLO con il sigillo (come rituale)
-    if (userHasDajeIntent) {
-      return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
-    }
+    if (userHasDajeIntent) return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
 
     await respondTextAndVoice(chatId, safeAnswer);
     await processMemory(userMessage, safeAnswer);
