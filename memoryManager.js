@@ -23,7 +23,7 @@ export async function processMemory(message, response) {
     const newEntry = {
       date: new Date().toISOString(),
       text: message,
-      reply: response,
+      reply: response
     };
 
     data.push(newEntry);

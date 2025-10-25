@@ -34,7 +34,7 @@ ${query}
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: "Rispondi con tono naturale e sintetico." },
                  { role: "user", content: prompt }],
-      temperature: 0.7,
+      temperature: 0.7
     });
 
     const answer = completion.choices[0].message.content.trim();
