@@ -1,5 +1,6 @@
 // =====================================================
-// IRIS 3.8.8b – Cuore Vibrazionale + Daje Intenzionale + Menu Coerente
+// IRIS 3.8.8c – Coerenza Restaurata
+// Telegram + Whisper + GPT-4o-mini + TTS + Qdrant + Daje Intenzionale
 // =====================================================
 
 import fs from "fs";
@@ -33,6 +34,9 @@ fs.mkdirSync(TEMP_DIR, { recursive: true });
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
+// =====================================================
+// CONFIGURAZIONE
+// =====================================================
 initConfig();
 const cfg = getConfig();
 
@@ -41,10 +45,11 @@ const state = {
   lang: cfg.language || "it",
   model: cfg.model || "gpt-4o-mini",
   voice: {
-    model: cfg.voice || "gpt_openai",
-    tone: cfg.voice_mode || "it_female"
+    model: cfg.voice?.model || cfg.voice || "gpt_openai",
+    tone: cfg.voice?.tone || cfg.voice_mode || "it_female"
   }
 };
+
 updateConfig(state);
 printConfig();
 
@@ -52,7 +57,7 @@ const USE_WEBHOOK = !!PUBLIC_BASE_URL;
 const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
 
 // =====================================================
-// Server / Webhook
+// SERVER / WEBHOOK
 // =====================================================
 let app = express();
 if (USE_WEBHOOK) {
@@ -71,7 +76,7 @@ if (USE_WEBHOOK) {
     }
   })();
 }
-app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8b – Cuore Vibrazionale attiva 💎"));
+app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8c – Coerenza Restaurata attiva 💎"));
 app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 
 // =====================================================
@@ -114,14 +119,13 @@ async function respondTextAndVoice(chatId, text) {
 }
 
 // =====================================================
-// DAJE TRIGGER (versione storica 3.0, migliorata)
+// DAJE TRIGGER (verifica intenzionale)
 // =====================================================
 function checkDajeIntent(text) {
   if (!text) return false;
-  const dajePure = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
-  const affection = /(brava|forte|mitica|grand(e|iosa)|grazie|sei fantastica)\s*iris.*daje+/i;
-  const emotional = /(iris[,!.\s]*)?\s*daje+[!.\s]*$/i;
-  return dajePure.test(text) || affection.test(text) || emotional.test(text);
+  const regex = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
+  const affection = /(brava|forte|mitica|grazie|grand(e|iosa)|sei fantastica)\s*iris.*daje+/i;
+  return regex.test(text) || affection.test(text);
 }
 
 // =====================================================
@@ -131,16 +135,18 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  if (checkDajeIntent(text)) {
+  // --- Daje trigger (solo se non è comando) ---
+  if (!text.startsWith("/") && checkDajeIntent(text)) {
     return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
   }
 
+  // --- Comandi ---
   if (text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.8.8b – Cuore Vibrazionale. Usa /menu o /help per esplorarmi.");
+        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.8.8c – Cuore Vibrazionale. Usa /menu per i comandi.");
 
       case "/help":
       case "/menu":
@@ -164,11 +170,67 @@ bot.on("message", async (msg) => {
           `• Mode: \`${current.mode}\``,
           `• Language: \`${current.language}\``,
           `• Model: \`${current.model}\``,
-          `• Voice: \`${current.voice}\``,
+          `• Voice: \`${current.voice?.model || current.voice || "gpt_openai"}\``,
           `• Voice mode: \`${current.voice_mode}\``,
-          `• Version: \`3.8.8b\``
+          `• Version: \`3.8.8c\``
         ].join("\n");
         return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
+      }
+
+      case "/lang": {
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🌐 Lingua attuale: *${state.lang}*\nCambia con: /lang it | en | ru`,
+            { parse_mode: "Markdown" });
+        }
+        if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
+        state.lang = arg1;
+        updateConfig({ language: arg1 });
+        return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
+      }
+
+      case "/mode": {
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🧭 Modalità attuale: *${state.mode}*\nCambia con: /mode books | free | hy`,
+            { parse_mode: "Markdown" });
+        }
+        const newMode = arg1.toLowerCase();
+        state.mode = newMode;
+        updateConfig({ mode: newMode });
+        return bot.sendMessage(chatId, `Modalità impostata su *${newMode}*`, { parse_mode: "Markdown" });
+      }
+
+      case "/model": {
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🧠 Modello attuale: *${state.model}*\nCambia con: /model gpt-4o-mini | gpt-4o`,
+            { parse_mode: "Markdown" });
+        }
+        if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
+        state.model = arg1;
+        updateConfig({ model: arg1 });
+        return bot.sendMessage(chatId, `Modello impostato su *${arg1}*`, { parse_mode: "Markdown" });
+      }
+
+      case "/voice": {
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🎙️ Voce: *${state.voice.model}* | Timbro: *${state.voice.tone}*\n` +
+            `Cambia con:\n/voice model gpt_openai | google_tts | bark\n/voice tone it_female | it_male | empatico | profondo | giocoso`,
+            { parse_mode: "Markdown" });
+        }
+        if (arg1 === "model" && arg2) {
+          state.voice.model = arg2;
+          updateConfig({ voice: arg2 });
+          return bot.sendMessage(chatId, `🎧 Voice model impostato su *${arg2}*`, { parse_mode: "Markdown" });
+        }
+        if (arg1 === "tone" && arg2) {
+          state.voice.tone = arg2;
+          updateConfig({ voice_mode: arg2 });
+          return bot.sendMessage(chatId, `💫 Timbro impostato su *${arg2}*`, { parse_mode: "Markdown" });
+        }
+        return bot.sendMessage(chatId, "Usa /voice model [...] o /voice tone [...]", { parse_mode: "Markdown" });
       }
 
       case "/essence": {
@@ -181,7 +243,10 @@ bot.on("message", async (msg) => {
     }
   }
 
-  if (text) await handleUserQuery(chatId, text, msg.from?.username || "anon");
+  // --- Messaggio normale ---
+  if (text && !text.startsWith("/")) {
+    await handleUserQuery(chatId, text, msg.from?.username || "anon");
+  }
 });
 
 // =====================================================
