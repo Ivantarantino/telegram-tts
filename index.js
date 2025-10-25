@@ -1,6 +1,8 @@
 // =====================================================
-// IRIS 3.8.8c – Coerenza Restaurata
-// Telegram + Whisper + GPT-4o-mini + TTS + Qdrant + Daje Intenzionale
+// IRIS 3.8.8d – Daje Guard + Coerenza Restaurata
+// Telegram + Whisper + GPT-4o-mini + TTS + Qdrant
+// - Comandi affidabili
+// - Daje solo su invocazione intenzionale (ingresso + uscita)
 // =====================================================
 
 import fs from "fs";
@@ -17,6 +19,7 @@ import { processMemory } from "./memoryManager.js";
 import { getEssence } from "./essence.js";
 import { ragSearch } from "./ragSearch.js";
 
+// ---------- ENV ----------
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
@@ -27,38 +30,44 @@ if (!BOT_TOKEN || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
+// ---------- PATHS ----------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_DIR = path.join(__dirname, "temp");
 fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+// ---------- OPENAI ----------
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// =====================================================
-// CONFIGURAZIONE
-// =====================================================
+// ---------- CONFIG ----------
 initConfig();
 const cfg = getConfig();
 
 const state = {
-  mode: cfg.mode || "hy",
+  mode: cfg.mode || "hy",           // hy | free | books
   lang: cfg.language || "it",
   model: cfg.model || "gpt-4o-mini",
   voice: {
-    model: cfg.voice?.model || cfg.voice || "gpt_openai",
-    tone: cfg.voice?.tone || cfg.voice_mode || "it_female"
+    model: (cfg.voice && cfg.voice.model) ? cfg.voice.model : (cfg.voice || "gpt_openai"),
+    tone: cfg.voice_mode || (cfg.voice && cfg.voice.tone) || "it_female"
   }
 };
 
-updateConfig(state);
+// Persiste lo stato attuale in config
+updateConfig({
+  mode: state.mode,
+  language: state.lang,
+  model: state.model,
+  voice: state.voice.model,
+  voice_mode: state.voice.tone
+});
 printConfig();
 
+// ---------- TELEGRAM ----------
 const USE_WEBHOOK = !!PUBLIC_BASE_URL;
 const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
 
-// =====================================================
-// SERVER / WEBHOOK
-// =====================================================
+// Web server (webhook o keepalive)
 let app = express();
 if (USE_WEBHOOK) {
   app.use(bodyParser.json());
@@ -76,12 +85,10 @@ if (USE_WEBHOOK) {
     }
   })();
 }
-app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8c – Coerenza Restaurata attiva 💎"));
+app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8d – Daje Guard attiva 💎"));
 app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 
-// =====================================================
-// UTILS
-// =====================================================
+// ---------- UTILS ----------
 function downloadToFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destPath);
@@ -118,35 +125,60 @@ async function respondTextAndVoice(chatId, text) {
   }
 }
 
-// =====================================================
-// DAJE TRIGGER (verifica intenzionale)
-// =====================================================
+// ---------- DAJE GUARD ----------
+// 1) Intent detector (ingresso): come in "Chat 3"
 function checkDajeIntent(text) {
   if (!text) return false;
-  const regex = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
-  const affection = /(brava|forte|mitica|grazie|grand(e|iosa)|sei fantastica)\s*iris.*daje+/i;
-  return regex.test(text) || affection.test(text);
+
+  // parola isolata o con punteggiatura
+  const dajeIsolato = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
+
+  // frasi affettive che includono "daje"
+  const invocazioneAffettiva =
+    /(brava|bravissima|forte|mitica|grand(e|iosa)|grazie|sei fantastica|sei forte)\s*[,!\s]*iris[,!\s]*.*daje+[!.\s]*$/i;
+
+  // "iris, daje!" o "daje, iris!"
+  const invocazioneDiretta = /(iris[,!\s]*)?\s*daje+[!.\s]*$/i;
+
+  return dajeIsolato.test(text) || invocazioneAffettiva.test(text) || invocazioneDiretta.test(text);
 }
 
-// =====================================================
-// COMANDI
-// =====================================================
+// 2) Sanitizer (uscita): se non c'è intenzione, rimuove il sigillo da qualsiasi risposta
+function sanitizeAnswer(answer, userTextHadDajeIntent) {
+  if (userTextHadDajeIntent) return answer;
+
+  // rimuove ogni variante del sigillo, anche con emoji o spazi extra
+  const sigillo =
+    /(che\s+il\s+)?daje\s*(sia)?\s*(con)?\s*(noi)[!.\s]*[💎✨💫⭐️⚡️]*$/i;
+
+  // anche se messo a inizio o metà frase
+  const sigilloAnywhere =
+    /(che\s+il\s+)?daje\s*(sia)?\s*(con)?\s*(noi)[!.\s]*[💎✨💫⭐️⚡️]*/gi;
+
+  let cleaned = answer.replace(sigilloAnywhere, "").trim();
+
+  // Se svuotato da sola frase finale, pulisci doppie spaziature e punteggiatura lasciata
+  cleaned = cleaned.replace(/\s{2,}/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
+
+  // Se dopo il taglio è rimasto vuoto, dai una chiusura neutra
+  if (!cleaned) cleaned = "Ricevuto.";
+
+  return cleaned;
+}
+
+// ---------- COMANDI & MESSAGGI ----------
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  // --- Daje trigger (solo se non è comando) ---
-  if (!text.startsWith("/") && checkDajeIntent(text)) {
-    return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
-  }
-
-  // --- Comandi ---
+  // --- Comandi prima di tutto ---
   if (text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.8.8c – Cuore Vibrazionale. Usa /menu per i comandi.");
+        return bot.sendMessage(chatId,
+          "Ciao 🌸 Sono IRIS 3.8.8d – Cuore Vibrazionale. Usa /menu per i comandi.");
 
       case "/help":
       case "/menu":
@@ -164,15 +196,16 @@ bot.on("message", async (msg) => {
 
       case "/config": {
         const current = getConfig();
+        const voiceModel = current.voice?.model || current.voice || "gpt_openai";
         const msgConfig = [
           "⚙️ *Configurazione attuale*",
           "",
           `• Mode: \`${current.mode}\``,
           `• Language: \`${current.language}\``,
           `• Model: \`${current.model}\``,
-          `• Voice: \`${current.voice?.model || current.voice || "gpt_openai"}\``,
+          `• Voice: \`${voiceModel}\``,
           `• Voice mode: \`${current.voice_mode}\``,
-          `• Version: \`3.8.8c\``
+          `• Version: \`3.8.8d\``
         ].join("\n");
         return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
       }
@@ -196,9 +229,11 @@ bot.on("message", async (msg) => {
             { parse_mode: "Markdown" });
         }
         const newMode = arg1.toLowerCase();
-        state.mode = newMode;
-        updateConfig({ mode: newMode });
-        return bot.sendMessage(chatId, `Modalità impostata su *${newMode}*`, { parse_mode: "Markdown" });
+        if (!["books", "free", "hy", "hybrid"].includes(newMode))
+          return bot.sendMessage(chatId, "Valore non valido.");
+        state.mode = (newMode === "hybrid") ? "hy" : newMode;
+        updateConfig({ mode: state.mode });
+        return bot.sendMessage(chatId, `Modalità impostata su *${state.mode}*`, { parse_mode: "Markdown" });
       }
 
       case "/model": {
@@ -221,6 +256,7 @@ bot.on("message", async (msg) => {
             { parse_mode: "Markdown" });
         }
         if (arg1 === "model" && arg2) {
+          if (!["gpt_openai", "google_tts", "bark"].includes(arg2)) return bot.sendMessage(chatId, "Modello non valido.");
           state.voice.model = arg2;
           updateConfig({ voice: arg2 });
           return bot.sendMessage(chatId, `🎧 Voice model impostato su *${arg2}*`, { parse_mode: "Markdown" });
@@ -230,7 +266,7 @@ bot.on("message", async (msg) => {
           updateConfig({ voice_mode: arg2 });
           return bot.sendMessage(chatId, `💫 Timbro impostato su *${arg2}*`, { parse_mode: "Markdown" });
         }
-        return bot.sendMessage(chatId, "Usa /voice model [...] o /voice tone [...]", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "Usa /voice model […] o /voice tone […].", { parse_mode: "Markdown" });
       }
 
       case "/essence": {
@@ -239,19 +275,17 @@ bot.on("message", async (msg) => {
       }
 
       default:
-        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /menu per consultare i comandi disponibili.");
+        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /menu per i comandi disponibili.");
     }
   }
 
-  // --- Messaggio normale ---
+  // --- Messaggi normali ---
   if (text && !text.startsWith("/")) {
     await handleUserQuery(chatId, text, msg.from?.username || "anon");
   }
 });
 
-// =====================================================
-// VOCALI
-// =====================================================
+// ---------- VOCALI ----------
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   const fileId = msg.voice.file_id;
@@ -260,11 +294,13 @@ bot.on("voice", async (msg) => {
     const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
     const oggPath = path.join(TEMP_DIR, `voice-${Date.now()}.ogg`);
     await downloadToFile(fileUrl, oggPath);
+
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(oggPath),
       model: "whisper-1",
       language: state.lang || "it"
     });
+
     const userMessage = (transcription.text || "").trim();
     if (!userMessage) return bot.sendMessage(chatId, "⚙️ Non ho colto il vocale, puoi ripetere?");
     console.log(`🎧 [VOICE] ${msg.from?.username || "anon"} → "${userMessage}"`);
@@ -275,29 +311,39 @@ bot.on("voice", async (msg) => {
   }
 });
 
-// =====================================================
-// GESTIONE TESTO / RISPOSTA
-// =====================================================
+// ---------- CORE ----------
 async function handleUserQuery(chatId, userMessage, username = "anon") {
   try {
+    const userHasDajeIntent = checkDajeIntent(userMessage);
+
     let answer;
-    if (state.mode === "books") answer = await ragSearch(userMessage);
-    else if (state.mode === "free") {
+    if (state.mode === "books") {
+      answer = await ragSearch(userMessage);
+    } else if (state.mode === "free") {
       const completion = await openai.chat.completions.create({
         model: state.model,
         messages: [
-          { role: "system", content: "Sei IRIS, parli in modo naturale e consapevole." },
+          { role: "system", content: "Sei IRIS. Linguaggio naturale, caldo e presente. Non usare firme automatiche." },
           { role: "user", content: userMessage }
         ],
         temperature: 0.8
       });
-      answer = completion.choices[0].message.content.trim();
+      answer = completion.choices[0].message.content?.trim() || "Dimmi pure.";
     } else {
+      // HYBRID → usa RAG su Qdrant
       answer = await ragSearch(userMessage);
     }
 
-    await respondTextAndVoice(chatId, answer);
-    await processMemory(userMessage, answer);
+    // Applica la guardia d'uscita: se non c'è intenzione, rimuovi qualsiasi sigillo “Daje…”
+    const safeAnswer = sanitizeAnswer(answer, userHasDajeIntent);
+
+    // Se invece l’hai evocata, rispondi SOLO con il sigillo (come rituale)
+    if (userHasDajeIntent) {
+      return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
+    }
+
+    await respondTextAndVoice(chatId, safeAnswer);
+    await processMemory(userMessage, safeAnswer);
   } catch (err) {
     console.error("❌ Errore nel processamento messaggio:", err);
     await bot.sendMessage(chatId, "⚙️ Si è verificato un piccolo errore temporaneo. Riprova tra poco.");
