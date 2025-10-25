@@ -1,55 +1,88 @@
-// configManager.js
+// =====================================================
+// CONFIG MANAGER – IRIS 3.8.8f
+// Gestione e normalizzazione config.json
+// =====================================================
+
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const CONFIG_PATH = path.resolve("./config.json");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CONFIG_PATH = path.join(__dirname, "config.json");
 
-const defaultConfig = {
-  voice: "gpt_openai",        // opzioni: gpt_openai | google_tts | bark
-  voice_mode: "it_female",    // sottotipo o timbro
-  language: "it",             // it | en | ru
-  model: "gpt-4o-mini",       // gpt-4o-mini | gpt-4o
-  mode: "hy",                 // hy (ibrida) | free (openai) | books (rag)
+const DEFAULTS = {
+  mode: "hy",                 // books | free | hy
+  language: "it",
+  model: "gpt-4o-mini",
+  voice: "gpt_openai",
+  voice_mode: "it_female",
   lastEssence: "",
-  version: "3.1.0"
+  version: "3.8.8f"
 };
 
-// 📦 Inizializza il file di configurazione se non esiste
+// 🔧 Normalizza vecchie strutture (es. versioni 3.1.0 / 3.8.6)
+function normalizeConfig(raw) {
+  const cfg = { ...raw };
+
+  if (typeof cfg.voice === "object" && cfg.voice !== null) {
+    cfg.voice_mode = cfg.voice_mode || cfg.voice.tone || DEFAULTS.voice_mode;
+    cfg.voice = cfg.voice.model || DEFAULTS.voice;
+  }
+
+  for (const [key, val] of Object.entries(DEFAULTS)) {
+    if (cfg[key] === undefined || cfg[key] === null || cfg[key] === "")
+      cfg[key] = val;
+  }
+
+  // forza l’aggiornamento versione
+  cfg.version = "3.8.8f";
+  return cfg;
+}
+
 export function initConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2));
-    console.log("🆕 File di configurazione creato:", CONFIG_PATH);
-  } else {
-    console.log("⚙️ Configurazione trovata:", CONFIG_PATH);
+  try {
+    if (!fs.existsSync(CONFIG_PATH)) {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULTS, null, 2));
+      console.log(`🆕 File di configurazione creato: ${CONFIG_PATH}`);
+      return;
+    }
+
+    const current = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    const normalized = normalizeConfig(current);
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(normalized, null, 2));
+    console.log("💾 Configurazione aggiornata:", normalized);
+  } catch (err) {
+    console.error("❌ initConfig error:", err);
   }
 }
 
-// 📖 Legge la configurazione attuale
 export function getConfig() {
   try {
-    const data = fs.readFileSync(CONFIG_PATH, "utf8");
-    return JSON.parse(data);
-  } catch (err) {
-    console.error("❌ Errore nel leggere config.json:", err);
-    return defaultConfig;
+    const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    return normalizeConfig(cfg);
+  } catch {
+    return { ...DEFAULTS };
   }
 }
 
-// 💾 Aggiorna una o più chiavi della configurazione
-export function updateConfig(newData) {
+export function updateConfig(partial) {
   try {
     const current = getConfig();
-    const updated = { ...current, ...newData };
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2));
-    console.log("💾 Configurazione aggiornata:", updated);
-    return updated;
+    const next = normalizeConfig({ ...current, ...partial });
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2));
+    return next;
   } catch (err) {
-    console.error("❌ Errore nell'aggiornamento di config.json:", err);
+    console.error("❌ updateConfig error:", err);
+    return null;
   }
 }
 
-// 🔍 Mostra configurazione attuale (per debug)
 export function printConfig() {
-  const config = getConfig();
-  console.log("📘 CONFIG ATTUALE:", config);
+  try {
+    const cfg = getConfig();
+    console.log("📘 CONFIG ATTUALE:", cfg);
+  } catch (err) {
+    console.error("❌ printConfig error:", err);
+  }
 }
