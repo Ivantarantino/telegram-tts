@@ -10,6 +10,8 @@ import { getEssence } from "./essence.js";
 import configManager from "./configManager.js";
 import { processMemory } from "./memoryManager.js";
 import { readFileSync } from "fs";
+import fetch from "node-fetch";
+import FormData from "form-data";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -110,7 +112,7 @@ async function ttsToOgg(text) {
     format: "opus",
   });
   const buffer = Buffer.from(await speech.arrayBuffer());
-  fs.writeFileSync(filePath, buffer); // Salva il file per debug o usi futuri
+  fs.writeFileSync(filePath, buffer);
   console.log(`🔊 File audio TTS creato: ${filePath}`);
   return { filePath, buffer };
 }
@@ -119,7 +121,6 @@ async function replyTextAndVoice(chatId, text) {
   await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   try {
     const { buffer } = await ttsToOgg(text);
-    console.log("🎙️ Sending voice with contentType: audio/ogg");
     await bot.sendVoice(chatId, buffer, {}, { filename: `tts-${Date.now()}.ogg`, contentType: "audio/ogg" });
   } catch (err) {
     console.error("⚠️ TTS error:", err.message);
@@ -207,29 +208,11 @@ async function gptAnswer(text, systemPrompt = "Sei IRIS 3.0, rispondi in modo na
 }
 
 function helpText() {
-  return `📜 *Comandi disponibili*:\n\n` +
-         `/start – Avvia il bot\n` +
-         `/help – Mostra questo messaggio\n` +
-         `/config – Visualizza configurazione\n` +
-         `/mode – Modalità attiva (book | free | hy)\n` +
-         `/lang – Lingua (it | en | ru)\n` +
-         `/model – Modello GPT (gpt-4o-mini | gpt-4o)\n` +
-         `/voice – Voce e tono\n` +
-         `/essence – Mostra l'essenza attuale\n` +
-         `/weights – Imposta pesi per l'essenza\n` +
-         `/saveweights – Salva i pesi\n` +
-         `/memory – Stato della memoria\n` +
-         `/clear – Ripristina la memoria`;
+  return `📜 *Comandi disponibili*:\n\n/start – Avvia il bot\n/help – Mostra questo messaggio\n/config – Visualizza configurazione\n/mode – Modalità attiva (book | free | hy)\n/lang – Lingua (it | en | ru)\n/model – Modello GPT (gpt-4o-mini | gpt-4o)\n/voice – Voce e tono\n/essence – Mostra l'essenza attuale\n/weights – Imposta pesi per l'essenza\n/saveweights – Salva i pesi\n/memory – Stato della memoria\n/clear – Ripristina la memoria`;
 }
 
 function configText() {
-  return `⚙️ *Configurazione attuale*:\n\n` +
-         `• Modalità: \`${state.mode}\`\n` +
-         `• Lingua: \`${state.lang}\`\n` +
-         `• Modello: \`${state.model}\`\n` +
-         `• Voce: \`${state.voice.model}\`\n` +
-         `• Tono: \`${state.voice.tone}\`\n` +
-         `• Pesi: sim=${state.weights.sim.toFixed(2)}, imp=${state.weights.imp.toFixed(2)}, rec=${state.weights.rec.toFixed(2)}`;
+  return `⚙️ *Configurazione attuale*:\n\n• Modalità: \`${state.mode}\`\n• Lingua: \`${state.lang}\`\n• Modello: \`${state.model}\`\n• Voce: \`${state.voice.model}\`\n• Tono: \`${state.voice.tone}\`\n• Pesi: sim=${state.weights.sim.toFixed(2)}, imp=${state.weights.imp.toFixed(2)}, rec=${state.weights.rec.toFixed(2)}`;
 }
 
 // 📩 MESSAGGI TELEGRAM
@@ -246,13 +229,14 @@ bot.on("message", async (msg) => {
       const response = await fetch(fileUrl);
       const audioBuffer = Buffer.from(await response.arrayBuffer());
 
-      // Creazione di FormData per inviare il file
-      const formData = new FormData();
-      formData.append("file", audioBuffer, { filename: `voice-${Date.now()}.ogg` });
-      formData.append("model", "whisper-1");
-      formData.append("language", state.lang);
+      // Converti Buffer in Blob
+      const blob = new Blob([audioBuffer], { type: "audio/ogg" });
 
-      const transcription = await openai.audio.transcriptions.create(formData);
+      const transcription = await openai.audio.transcriptions.create({
+        file: blob,
+        model: "whisper-1",
+        language: state.lang,
+      });
       const text = transcription.text.trim();
       console.log(`🎙️ Messaggio vocale trascritto: ${text}`);
 
@@ -279,7 +263,7 @@ bot.on("message", async (msg) => {
       console.error("❌ Errore nella trascrizione del messaggio vocale:", err.message);
       bot.sendMessage(chatId, "⚠️ Errore nella trascrizione del messaggio vocale.");
     }
-    return; // Esce dopo aver gestito il messaggio vocale
+    return;
   }
 
   // Gestione messaggi di testo
