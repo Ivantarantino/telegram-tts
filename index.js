@@ -17,7 +17,6 @@ import { readFileSync } from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CONFIG / ENV
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
@@ -28,7 +27,6 @@ if (!BOT_TOKEN || !OPENAI_API_KEY || !PUBLIC_BASE_URL) {
   process.exit(1);
 }
 
-// PATHS
 const TEMP_DIR = path.join(__dirname, "temp");
 const DATA_DIR = path.join(__dirname, "data");
 const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
@@ -36,10 +34,8 @@ const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
 fs.mkdirSync(TEMP_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// CLIENTS
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// STATO & CONFIG
 let state = configManager.loadConfig() || {
   lang: "it",
   model: "gpt-4o-mini",
@@ -54,7 +50,6 @@ function persistConfig(update = {}) {
   configManager.saveConfig(state);
 }
 
-// SERVER + TELEGRAM
 const app = express();
 app.use(express.json());
 
@@ -86,10 +81,8 @@ app.listen(PORT, () => {
   console.log("💠 IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
 });
 
-// UTILS
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
-// TTS
 async function ttsToOgg(text) {
   const filename = `tts-${Date.now()}.ogg`;
   const filePath = path.join(TEMP_DIR, filename);
@@ -117,7 +110,7 @@ async function replyTextAndVoice(chatId, text) {
   }
 }
 
-// TRASCRIZIONE VOCALE
+// 🧠 Gestione vocale corretta per Render (file temporaneo .ogg)
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
 
@@ -128,11 +121,18 @@ bot.on("message", async (msg) => {
       const response = await fetch(fileUrl);
       const audioBuffer = Buffer.from(await response.arrayBuffer());
 
+      // 🔹 Salvataggio temporaneo del file audio
+      const tmpFile = path.join(TEMP_DIR, `voice-${Date.now()}.ogg`);
+      fs.writeFileSync(tmpFile, audioBuffer);
+
+      // 🔹 Trascrizione stabile per Node/Render
       const transcription = await openai.audio.transcriptions.create({
-        file: audioBuffer,
+        file: fs.createReadStream(tmpFile),
         model: "whisper-1",
         language: state.lang,
       });
+
+      fs.unlinkSync(tmpFile);
 
       const text = transcription.text.trim();
       if (!text) return bot.sendMessage(chatId, "⚠️ Impossibile trascrivere il messaggio vocale.");
