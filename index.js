@@ -1,8 +1,8 @@
 // =====================================================
-// IRIS 3.8.8e – Memoria e Pesi Restaurati
+// IRIS 3.8.8f – Coerenza Dialogica Restaurata
 // Telegram + Whisper + GPT-4o-mini + TTS + Qdrant
-// - Daje solo su invocazione intenzionale (ingresso + uscita)
-// - Comandi memoria ed essenza restaurati
+// - Daje Guard Intenzionale
+// - Pesi, Memoria e Menù Restaurati
 // =====================================================
 
 import fs from "fs";
@@ -87,7 +87,7 @@ if (USE_WEBHOOK) {
     }
   })();
 }
-app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8e – Memoria e Pesi Restaurati attiva 💎"));
+app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8f – Coerenza Dialogica Restaurata 💎"));
 app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 
 // =====================================================
@@ -169,7 +169,7 @@ bot.on("message", async (msg) => {
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.8.8e – Memoria e Pesi Restaurati. Usa /menu per i comandi.");
+        return bot.sendMessage(chatId, "🌸 Benvenuto in *IRIS 3.8.8f – Coerenza Dialogica Restaurata*.\nUsa /menu per scoprire i comandi.", { parse_mode: "Markdown" });
 
       case "/help":
       case "/menu":
@@ -182,7 +182,7 @@ bot.on("message", async (msg) => {
             "/lang → lingua (it | en | ru)",
             "/model → modello GPT (gpt-4o-mini | gpt-4o)",
             "/essence → mostra firma vibrazionale (Cuore, Anima, Visione)",
-            "/weights → mostra o imposta pesi per l'Essenza",
+            "/weights → mostra o imposta pesi dell'Essenza",
             "/saveweights → salva i pesi attuali",
             "/memory → mostra stato della memoria",
             "/clear → cancella memoria locale (richiede conferma)",
@@ -190,7 +190,7 @@ bot.on("message", async (msg) => {
           ].join("\n"), { parse_mode: "Markdown" });
 
       // =====================================================
-      // BLOCCO CONFIG
+      // CONFIGURAZIONE BASE
       // =====================================================
       case "/config": {
         const current = getConfig();
@@ -203,30 +203,42 @@ bot.on("message", async (msg) => {
           `• Model: \`${current.model}\``,
           `• Voice: \`${voiceModel}\``,
           `• Voice mode: \`${current.voice_mode}\``,
-          `• Version: \`3.8.8e\``
+          `• Version: \`3.8.8f\``
         ].join("\n");
         return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
       }
 
       // =====================================================
-      // BLOCCO LINGUA / MODE / MODEL / VOICE
+      // MODALITÀ, LINGUA, MODELLO, VOCE
       // =====================================================
       case "/lang":
-        if (!arg1) return bot.sendMessage(chatId, `🌐 Lingua attuale: *${state.lang}*`, { parse_mode: "Markdown" });
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🌐 Lingua attuale: *${state.lang}*\nCambia con: /lang it | en | ru`,
+            { parse_mode: "Markdown" });
+        }
         if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.lang = arg1;
         updateConfig({ language: arg1 });
         return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
 
       case "/mode":
-        if (!arg1) return bot.sendMessage(chatId, `🧭 Modalità attuale: *${state.mode}*`, { parse_mode: "Markdown" });
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🧭 Modalità attuale: *${state.mode}*\nCambia con: /mode books | free | hy`,
+            { parse_mode: "Markdown" });
+        }
         if (!["books", "free", "hy"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.mode = arg1;
         updateConfig({ mode: arg1 });
         return bot.sendMessage(chatId, `Modalità impostata su *${arg1}*`, { parse_mode: "Markdown" });
 
       case "/model":
-        if (!arg1) return bot.sendMessage(chatId, `🧠 Modello attuale: *${state.model}*`, { parse_mode: "Markdown" });
+        if (!arg1) {
+          return bot.sendMessage(chatId,
+            `🧠 Modello attuale: *${state.model}*\nCambia con: /model gpt-4o-mini | gpt-4o`,
+            { parse_mode: "Markdown" });
+        }
         if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
         state.model = arg1;
         updateConfig({ model: arg1 });
@@ -252,7 +264,7 @@ bot.on("message", async (msg) => {
         return bot.sendMessage(chatId, "Usa /voice model […] o /voice tone […].");
 
       // =====================================================
-      // BLOCCO ESSENZA & MEMORIA
+      // ESSENZA & MEMORIA
       // =====================================================
       case "/essence":
         return bot.sendMessage(chatId, await getEssence(), { parse_mode: "Markdown" });
