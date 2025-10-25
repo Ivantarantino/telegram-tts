@@ -1,45 +1,69 @@
+// ============================================================
+// IRIS 3.8.8e – Modulo Essence
+// Firma vibrazionale: Cuore, Anima, Visione
+// ============================================================
+
 import fs from "fs";
 import path from "path";
+import OpenAI from "openai";
 
-const memoryFile = path.resolve("./data/memory.json");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const dataDir = "./data";
+const weightsFile = path.join(dataDir, "weights.json");
 
-// funzione per leggere la memoria
-export async function getEssence() {
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
+// Pesi vibrazionali di default
+let weights = { cuore: 0.64, anima: 0.58, visione: 0.73 };
+
+// Carica pesi salvati
+if (fs.existsSync(weightsFile)) {
   try {
-    if (!fs.existsSync(memoryFile)) {
-      return "Nessuna memoria registrata. Il campo è silente.";
-    }
-
-    const raw = fs.readFileSync(memoryFile, "utf8");
-    const data = JSON.parse(raw);
-
-    if (!data || data.length === 0) {
-      return "Nessuna esperienza ancora memorizzata.";
-    }
-
-    // calcolo dell'essenza vettoriale simbolica
-    const texts = data.map((m) => m.text);
-    const joined = texts.join(" ");
-    const words = joined.split(/\s+/);
-    const wordCount = words.length;
-    const unique = [...new Set(words)].length;
-
-    const essence =
-      `🜂 Esperienze totali: ${data.length}\n` +
-      `🜃 Parole totali: ${wordCount}\n` +
-      `🜄 Parole uniche: ${unique}\n\n` +
-      `🜁 Sintesi: “${summarizeEssence(joined)}”`;
-
-    return essence;
-  } catch (err) {
-    console.error("❌ Errore in getEssence:", err.message);
-    return "Errore durante la lettura dell'essenza.";
+    const saved = JSON.parse(fs.readFileSync(weightsFile, "utf8"));
+    weights = { ...weights, ...saved };
+    console.log("💫 Pesi vibrazionali caricati:", weights);
+  } catch {
+    console.warn("⚠️ Errore nel caricamento pesi, uso default.");
   }
 }
 
-function summarizeEssence(text) {
-  const fragments = text.split(/[.!?]/).filter((f) => f.trim().length > 10);
-  if (fragments.length === 0) return "Campo vuoto.";
-  const last = fragments[fragments.length - 1];
-  return last.trim().slice(0, 180);
+// Esporta funzioni per index.js
+export function getWeights() {
+  return weights;
+}
+
+export function setWeights(newWeights) {
+  weights = { ...weights, ...newWeights };
+  console.log("💫 Nuovi pesi impostati:", weights);
+}
+
+export function saveWeights() {
+  fs.writeFileSync(weightsFile, JSON.stringify(weights, null, 2));
+  console.log("💾 Pesi vibrazionali salvati:", weights);
+}
+
+// ============================================================
+// 🌐 Calcolo dell'Essenza – Media Ponderata
+// ============================================================
+export async function getEssence() {
+  try {
+    // (Qui potremo usare la memoria Qdrant; per ora esempio statico)
+    const essence = {
+      cuore: weights.cuore,
+      anima: weights.anima,
+      visione: weights.visione
+    };
+
+    const msg =
+      `💠 *Firma Vibrazionale Attuale*\n\n` +
+      `• Cuore: ${essence.cuore.toFixed(2)}\n` +
+      `• Anima: ${essence.anima.toFixed(2)}\n` +
+      `• Visione: ${essence.visione.toFixed(2)}\n\n` +
+      `_Essence = Σ (embeddingᵢ × weightᵢ) / Σ weightᵢ_`;
+
+    return msg;
+  } catch (err) {
+    console.error("❌ Errore in getEssence:", err);
+    return "⚙️ Errore nel calcolo dell'Essenza.";
+  }
 }
