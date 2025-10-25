@@ -1,0 +1,39 @@
+{
+  "version": "3.8.8f",
+  "name": "IRIS – Coerenza Dialogica Restaurata",
+  "date": "2025-10-26T00:00:00Z",
+  "features": [
+    "Daje Guard intenzionale (ingresso + sanitizer in uscita)",
+    "Risposte testo + voce (OpenAI TTS, opus/ogg)",
+    "Comandi completi da chat: /mode /lang /model /voice con suggerimenti 
+contestuali",
+    "Essenza e pesi: /essence /weights /saveweights",
+    "Memoria locale: /memory /clear (soft reset con conferma Y/N)",
+    "RAG ibrido (ragSearch) con Qdrant per iris_memory e iris_docs"
+  ],
+  "defaults": {
+    "mode": "hy",
+    "language": "it",
+    "model": "gpt-4o-mini",
+    "voice": "gpt_openai",
+    "voice_mode": "it_female"
+  },
+  "env": {
+    "PUBLIC_BASE_URL": "https://telegram-tts.onrender.com",
+    "QDRANT_COLLECTIONS": ["iris_memory", "iris_docs", 
+"iris_chat_history"]
+  },
+  "commands": [
+    "/start", "/help", "/menu", "/config",
+    "/mode", "/lang", "/model", "/voice",
+    "/essence", "/weights", "/saveweights",
+    "/memory", "/clear"
+  ],
+  "notes": [
+    "Il sigillo 'Che il Daje Sia con Noi' è pronunciato solo su 
+invocazione.",
+    "Compatibile con Node 20–25.",
+    "Snapshot creato prima del caricamento del primo PDF in Qdrant."
+  ]
+}
+
