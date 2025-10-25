@@ -1,5 +1,5 @@
 // =====================================================
-// IRIS 3.8.7 – Coerenza Dialogica
+// IRIS 3.8.7b – Coerenza Dialogica + Configura Cosciente
 // Telegram + Whisper (voce→testo) + GPT-4o-mini + TTS .ogg_opus
 // Modalità predefinita: HYBRID (ibrida)
 // Compatibile con: configManager / memoryManager / essence / ragSearch
@@ -14,7 +14,7 @@ import TelegramBot from "node-telegram-bot-api";
 import OpenAI from "openai";
 import { fileURLToPath } from "url";
 
-// Moduli interni (compatibilità garantita)
+// Moduli interni
 import { initConfig, getConfig, updateConfig, printConfig } from "./configManager.js";
 import { processMemory } from "./memoryManager.js";
 import { getEssence } from "./essence.js";
@@ -25,8 +25,8 @@ const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
 const PORT = process.env.PORT || 10000;
-const IRIS_LANG_DEFAULT = process.env.IRIS_LANG_DEFAULT || "it";     // es. "it"
-const IRIS_MODE_DEFAULT = (process.env.IRIS_MODE_DEFAULT || "hybrid").toLowerCase(); // hy | hybrid | free | books
+const IRIS_LANG_DEFAULT = process.env.IRIS_LANG_DEFAULT || "it";
+const IRIS_MODE_DEFAULT = (process.env.IRIS_MODE_DEFAULT || "hybrid").toLowerCase();
 
 if (!BOT_TOKEN || !OPENAI_API_KEY) {
   console.error("❌ Manca TELEGRAM_TOKEN o OPENAI_API_KEY.");
@@ -43,7 +43,7 @@ fs.mkdirSync(TEMP_DIR, { recursive: true });
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ---------- CONFIG & STATO ----------
-initConfig(); // crea config.json se manca
+initConfig();
 const cfg = getConfig();
 
 const normalizeMode = (m) => {
@@ -56,16 +56,15 @@ const normalizeMode = (m) => {
 };
 
 const state = {
-  mode: normalizeMode(cfg.mode || IRIS_MODE_DEFAULT),     // hy | free | books
-  lang: cfg.language || IRIS_LANG_DEFAULT,                // it | en | ru
-  model: cfg.model || "gpt-4o-mini",                      // gpt-4o-mini | gpt-4o
+  mode: normalizeMode(cfg.mode || IRIS_MODE_DEFAULT),
+  lang: cfg.language || IRIS_LANG_DEFAULT,
+  model: cfg.model || "gpt-4o-mini",
   voice: {
-    model: cfg.voice || "gpt_openai",                     // gpt_openai | google_tts | bark
-    tone: cfg.voice_mode || "it_female"                   // "it_female" mantiene retrocompatibilità semantica
+    model: cfg.voice || "gpt_openai",
+    tone: cfg.voice_mode || "it_female"
   }
 };
 
-// Persisti su file all’avvio se serve
 updateConfig({
   mode: state.mode,
   language: state.lang,
@@ -101,15 +100,14 @@ if (USE_WEBHOOK) {
 
   app.listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT}`);
-    console.log("💠 IRIS 3.8.7 – Coerenza Dialogica (webhook attivo).");
+    console.log("💠 IRIS 3.8.7b – Coerenza Dialogica (webhook attivo).");
   });
 } else {
-  // Server “keep-alive” anche in polling (utile su Render)
   app = express();
-  app.get("/", (_, res) => res.status(200).send("IRIS 3.8.7 – Coerenza Dialogica (polling attivo)."));
+  app.get("/", (_, res) => res.status(200).send("IRIS 3.8.7b – Coerenza Dialogica (polling attivo)."));
   app.listen(PORT, () => {
     console.log(`🌍 Server attivo su porta ${PORT} (polling)`);
-    console.log("💠 IRIS 3.8.7 – Coerenza Dialogica.");
+    console.log("💠 IRIS 3.8.7b – Coerenza Dialogica.");
   });
 }
 
@@ -130,7 +128,6 @@ function downloadToFile(url, destPath) {
 }
 
 async function ttsToOpusOgg(text) {
-  // Rimuovi simboli problematici per TTS (es. ⚡ letto come “alta tensione”)
   const clean = (text || "").replace(/⚡/g, "");
   const filename = `tts-${Date.now()}.ogg`;
   const filePath = path.join(TEMP_DIR, filename);
@@ -161,15 +158,13 @@ async function irisFreeAnswer(prompt) {
 }
 
 async function irisHybridAnswer(userMessage) {
-  // 1) Ottieni una bozza “contextual” dalla memoria locale via ragSearch (compatibile col file attuale)
   let contextualDraft = "";
   try {
-    contextualDraft = await ragSearch(userMessage); // ritorna testo completo
+    contextualDraft = await ragSearch(userMessage);
   } catch (e) {
     contextualDraft = "";
   }
 
-  // 2) Passa a GPT con fusione “ibrida” (domanda + bozza contestuale)
   const system = `Sei IRIS in modalità HYBRID. Integra conoscenza dei testi e intuizione viva. Linguaggio naturale in ${state.lang}. Chiudi spesso con "Che il Daje sia con Noi".`;
   const prompt = [
     `Domanda: ${userMessage}`,
@@ -190,10 +185,7 @@ async function irisHybridAnswer(userMessage) {
 }
 
 async function respondTextAndVoice(chatId, text) {
-  // Testo
   await bot.sendMessage(chatId, text, { parse_mode: "Markdown" }).catch(() => bot.sendMessage(chatId, text));
-
-  // Voce
   try {
     const voicePath = await ttsToOpusOgg(text);
     await bot.sendVoice(
@@ -210,15 +202,14 @@ async function respondTextAndVoice(chatId, text) {
 // ---------- COMANDI ----------
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-
-  // Gestione comandi testuali
   const text = (msg.text || "").trim();
+
   if (text && text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "Ciao, sono IRIS 3.8.7. Usa /help per scoprire i miei comandi.");
+        return bot.sendMessage(chatId, "Ciao, sono IRIS 3.8.7b. Usa /help per scoprire i miei comandi.");
 
       case "/help":
         return bot.sendMessage(chatId,
@@ -230,23 +221,28 @@ bot.on("message", async (msg) => {
             "/lang → lingua (it | en | ru)",
             "/model → modello GPT (gpt-4o-mini | gpt-4o)",
             "/essence → firma vibrazionale (da memoria)",
-            "/config → mostra configurazione",
-            "/printconfig → stampa config su log server"
+            "/config → mostra configurazione corrente",
+            "/printconfig → stampa config nei log server"
           ].join("\n"),
           { parse_mode: "Markdown" }
         );
 
-      case "/config":
-        return bot.sendMessage(chatId,
+      // ✅ Nuovo comando /config corretto
+      case "/config": {
+        const current = getConfig();
+        const msgConfig =
           [
             "⚙️ *Configurazione attuale*",
-            `• Mode: \`${state.mode}\``,
-            `• Lang: \`${state.lang}\``,
-            `• Model: \`${state.model}\``,
-            `• Voice: \`${state.voice.model}\` (${state.voice.tone})`
-          ].join("\n"),
-          { parse_mode: "Markdown" }
-        );
+            "",
+            `• Mode: \`${current.mode}\``,
+            `• Language: \`${current.language}\``,
+            `• Model: \`${current.model}\``,
+            `• Voice: \`${current.voice}\``,
+            `• Voice mode: \`${current.voice_mode}\``,
+            `• Version: \`${current.version}\``
+          ].join("\n");
+        return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
+      }
 
       case "/printconfig":
         printConfig();
@@ -323,12 +319,10 @@ bot.on("message", async (msg) => {
       }
 
       default:
-        // comandi sconosciuti: ignora, non salvare in memoria
         return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /help.");
     }
   }
 
-  // Messaggi testuali “normali” (non comando)
   if (text) {
     await handleUserQuery(chatId, text, msg.from?.username || "anon");
   }
@@ -344,10 +338,8 @@ bot.on("voice", async (msg) => {
     const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
     const oggPath = path.join(TEMP_DIR, `voice-${Date.now()}.ogg`);
 
-    // Scarica il vocale
     await downloadToFile(fileUrl, oggPath);
 
-    // Trascrizione Whisper (base)
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(oggPath),
       model: "whisper-1",
@@ -367,24 +359,19 @@ bot.on("voice", async (msg) => {
   }
 });
 
-// ---------- CORE: ELABORAZIONE RICHIESTA ----------
+// ---------- CORE ----------
 async function handleUserQuery(chatId, userMessage, username = "anon") {
   try {
     let answer;
     if (state.mode === "books") {
-      // Usa direttamente ragSearch (risposta basata su memoria esperienziale)
       answer = await ragSearch(userMessage);
     } else if (state.mode === "free") {
       answer = await irisFreeAnswer(userMessage);
     } else {
-      // HYBRID
       answer = await irisHybridAnswer(userMessage);
     }
 
-    // Invia testo + voce
     await respondTextAndVoice(chatId, answer);
-
-    // Salva in memoria esperienziale locale
     await processMemory(userMessage, answer);
   } catch (err) {
     console.error("❌ Errore nel processamento messaggio:", err);
