@@ -7,8 +7,7 @@
 import fs from "fs";
 import path from "path";
 import OpenAI from "openai";
-import QdrantClient from "@qdrant/js-client-rest";
-
+import { QdrantClient } from "@qdrant/js-client-rest";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const QDRANT_URL = process.env.QDRANT_URL || "https://xxxxxxxx.qdrant.tech"; // inserisci la tua
 const QDRANT_API_KEY = process.env.QDRANT_API_KEY || "";
