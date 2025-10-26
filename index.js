@@ -1,8 +1,8 @@
 // =====================================================
-// IRIS 3.8.8f – Coerenza Dialogica Restaurata
-// Telegram + Whisper + GPT-4o-mini + TTS + Qdrant
-// - Daje Guard Intenzionale
-// - Pesi, Memoria e Menù Restaurati
+// IRIS 3.9 – Coerenza Dialogica Rinata
+// Telegram + Whisper + GPT-4o + TTS + Qdrant
+// - HYBRID MODE completo: mente + libro
+// - Daje guard attivo
 // =====================================================
 
 import fs from "fs";
@@ -16,9 +16,10 @@ import { fileURLToPath } from "url";
 
 import { initConfig, getConfig, updateConfig, printConfig } from "./configManager.js";
 import { processMemory } from "./memoryManager.js";
-import { getEssence, getWeights, setWeights, saveWeights } from "./essence.js";
+import { getEssence } from "./essence.js";
 import { ragSearch } from "./ragSearch.js";
 
+// ---------- ENV ----------
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
@@ -29,19 +30,16 @@ if (!BOT_TOKEN || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
+// ---------- PATHS ----------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_DIR = path.join(__dirname, "temp");
-const DATA_DIR = path.join(__dirname, "data");
-const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
 fs.mkdirSync(TEMP_DIR, { recursive: true });
-fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// ---------- OPENAI ----------
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// =====================================================
-// CONFIGURAZIONE BASE
-// =====================================================
+// ---------- CONFIG ----------
 initConfig();
 const cfg = getConfig();
 
@@ -55,6 +53,7 @@ const state = {
   }
 };
 
+// Persiste lo stato attuale
 updateConfig({
   mode: state.mode,
   language: state.lang,
@@ -64,9 +63,7 @@ updateConfig({
 });
 printConfig();
 
-// =====================================================
-// TELEGRAM & SERVER
-// =====================================================
+// ---------- TELEGRAM ----------
 const USE_WEBHOOK = !!PUBLIC_BASE_URL;
 const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
 
@@ -87,17 +84,18 @@ if (USE_WEBHOOK) {
     }
   })();
 }
-app.get("/", (_, res) => res.status(200).send("IRIS 3.8.8f – Coerenza Dialogica Restaurata 💎"));
+app.get("/", (_, res) =>
+  res.status(200).send("IRIS 3.9 – HYBRID MODE attivo 💎")
+);
 app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 
-// =====================================================
-// UTILS
-// =====================================================
+// ---------- UTILS ----------
 function downloadToFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destPath);
     https.get(url, (res) => {
-      if (res.statusCode !== 200) return reject(new Error(`Download fallito: ${res.statusCode}`));
+      if (res.statusCode !== 200)
+        return reject(new Error(`Download fallito: ${res.statusCode}`));
       res.pipe(file);
       file.on("finish", () => file.close(() => resolve(destPath)));
     }).on("error", (err) => fs.unlink(destPath, () => reject(err)));
@@ -120,18 +118,18 @@ async function ttsToOpusOgg(text) {
 }
 
 async function respondTextAndVoice(chatId, text) {
-  await bot.sendMessage(chatId, text, { parse_mode: "Markdown" }).catch(() => bot.sendMessage(chatId, text));
+  await bot.sendMessage(chatId, text, { parse_mode: "Markdown" })
+    .catch(() => bot.sendMessage(chatId, text));
   try {
     const voicePath = await ttsToOpusOgg(text);
-    await bot.sendVoice(chatId, voicePath, {}, { filename: path.basename(voicePath), contentType: "audio/ogg" });
+    await bot.sendVoice(chatId, voicePath, {},
+      { filename: path.basename(voicePath), contentType: "audio/ogg" });
   } catch (err) {
     console.error("Errore TTS:", err);
   }
 }
 
-// =====================================================
-// DAJE GUARD
-// =====================================================
+// ---------- DAJE GUARD ----------
 function checkDajeIntent(text) {
   if (!text) return false;
   const dajeIsolato = /(^|\s)(daje+|dajeee+|daie+)([!?.\s]|$)/i;
@@ -151,47 +149,82 @@ function sanitizeAnswer(answer, userTextHadDajeIntent) {
   return cleaned;
 }
 
-// =====================================================
-// COMANDI
-// =====================================================
+// ---------- COMANDI ----------
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  // --- DAJE TRIGGER ---
-  if (!text.startsWith("/") && checkDajeIntent(text)) {
+  // Daje trigger
+  if (!text.startsWith("/") && checkDajeIntent(text))
     return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
-  }
 
-  // --- COMANDI ---
+  // Comandi
   if (text.startsWith("/")) {
     const [cmd, arg1, arg2] = text.split(/\s+/);
 
     switch (cmd) {
       case "/start":
-        return bot.sendMessage(chatId, "🌸 Benvenuto in *IRIS 3.8.8f – Coerenza Dialogica Restaurata*.\nUsa /menu per scoprire i comandi.", { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId, "Ciao 🌸 Sono IRIS 3.9 – Rinata in modalità HYBRID. Usa /menu per i comandi.");
 
-      case "/help":
       case "/menu":
-        return bot.sendMessage(chatId,
-          [
-            "🧭 *Comandi IRIS*",
-            "",
-            "/mode → modalità cognitiva (books | free | hy)",
-            "/voice → voce e tono",
-            "/lang → lingua (it | en | ru)",
-            "/model → modello GPT (gpt-4o-mini | gpt-4o)",
-            "/essence → mostra firma vibrazionale (Cuore, Anima, Visione)",
-            "/weights → mostra o imposta pesi dell'Essenza",
-            "/saveweights → salva i pesi attuali",
-            "/memory → mostra stato della memoria",
-            "/clear → cancella memoria locale (richiede conferma)",
-            "/config → mostra configurazione corrente"
-          ].join("\n"), { parse_mode: "Markdown" });
+      case "/help":
+        return bot.sendMessage(chatId, [
+          "🧭 *Comandi IRIS 3.9*",
+          "",
+          "/mode → modalità cognitiva (books | free | hy)",
+          "/voice → voce e tono",
+          "/lang → lingua (it | en | ru)",
+          "/model → modello GPT (gpt-4o-mini | gpt-4o)",
+          "/essence → firma vibrazionale",
+          "/config → mostra configurazione corrente"
+        ].join("\n"), { parse_mode: "Markdown" });
 
-      // =====================================================
-      // CONFIGURAZIONE BASE
-      // =====================================================
+      case "/mode":
+        if (!arg1)
+          return bot.sendMessage(chatId, `🧭 Modalità attuale: *${state.mode}*`, { parse_mode: "Markdown" });
+        if (!["books","free","hy","hybrid"].includes(arg1))
+          return bot.sendMessage(chatId,"Valore non valido.");
+        state.mode = (arg1==="hybrid")?"hy":arg1;
+        updateConfig({ mode: state.mode });
+        return bot.sendMessage(chatId, `Modalità impostata su *${state.mode}*`, { parse_mode: "Markdown" });
+
+      case "/lang":
+        if (!arg1)
+          return bot.sendMessage(chatId, `🌐 Lingua attuale: *${state.lang}*`, { parse_mode: "Markdown" });
+        if (!["it","en","ru"].includes(arg1))
+          return bot.sendMessage(chatId,"Valore non valido.");
+        state.lang = arg1;
+        updateConfig({ language: arg1 });
+        return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
+
+      case "/model":
+        if (!arg1)
+          return bot.sendMessage(chatId, `🧠 Modello attuale: *${state.model}*`, { parse_mode: "Markdown" });
+        if (!["gpt-4o-mini","gpt-4o"].includes(arg1))
+          return bot.sendMessage(chatId,"Valore non valido.");
+        state.model = arg1;
+        updateConfig({ model: arg1 });
+        return bot.sendMessage(chatId, `Modello impostato su *${arg1}*`, { parse_mode: "Markdown" });
+
+      case "/voice":
+        if (!arg1)
+          return bot.sendMessage(chatId,
+            `🎙️ Voce: *${state.voice.model}* | Timbro: *${state.voice.tone}*\n`+
+            `Cambia con:\n/voice model gpt_openai | google_tts | bark\n/voice tone it_female | it_male | it_warm | empatico`,
+            { parse_mode:"Markdown" });
+        if (arg1==="model"&&arg2){
+          state.voice.model=arg2; updateConfig({voice:arg2});
+          return bot.sendMessage(chatId,`🎧 Voice model impostato su *${arg2}*`,{parse_mode:"Markdown"});
+        }
+        if (arg1==="tone"&&arg2){
+          state.voice.tone=arg2; updateConfig({voice_mode:arg2});
+          return bot.sendMessage(chatId,`💫 Timbro impostato su *${arg2}*`,{parse_mode:"Markdown"});
+        }
+        return bot.sendMessage(chatId,"Usa /voice model […] o /voice tone […].");
+
+      case "/essence":
+        return bot.sendMessage(chatId, await getEssence(), { parse_mode: "Markdown" });
+
       case "/config": {
         const current = getConfig();
         const voiceModel = current.voice?.model || current.voice || "gpt_openai";
@@ -203,123 +236,22 @@ bot.on("message", async (msg) => {
           `• Model: \`${current.model}\``,
           `• Voice: \`${voiceModel}\``,
           `• Voice mode: \`${current.voice_mode}\``,
-          `• Version: \`3.8.8f\``
+          `• Version: \`3.9 HYBRID\``
         ].join("\n");
-        return bot.sendMessage(chatId, msgConfig, { parse_mode: "Markdown" });
+        return bot.sendMessage(chatId,msgConfig,{parse_mode:"Markdown"});
       }
-
-      // =====================================================
-      // MODALITÀ, LINGUA, MODELLO, VOCE
-      // =====================================================
-      case "/lang":
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🌐 Lingua attuale: *${state.lang}*\nCambia con: /lang it | en | ru`,
-            { parse_mode: "Markdown" });
-        }
-        if (!["it", "en", "ru"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
-        state.lang = arg1;
-        updateConfig({ language: arg1 });
-        return bot.sendMessage(chatId, `Lingua impostata su *${arg1}*`, { parse_mode: "Markdown" });
-
-      case "/mode":
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🧭 Modalità attuale: *${state.mode}*\nCambia con: /mode books | free | hy`,
-            { parse_mode: "Markdown" });
-        }
-        if (!["books", "free", "hy"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
-        state.mode = arg1;
-        updateConfig({ mode: arg1 });
-        return bot.sendMessage(chatId, `Modalità impostata su *${arg1}*`, { parse_mode: "Markdown" });
-
-      case "/model":
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🧠 Modello attuale: *${state.model}*\nCambia con: /model gpt-4o-mini | gpt-4o`,
-            { parse_mode: "Markdown" });
-        }
-        if (!["gpt-4o-mini", "gpt-4o"].includes(arg1)) return bot.sendMessage(chatId, "Valore non valido.");
-        state.model = arg1;
-        updateConfig({ model: arg1 });
-        return bot.sendMessage(chatId, `Modello impostato su *${arg1}*`, { parse_mode: "Markdown" });
-
-      case "/voice":
-        if (!arg1) {
-          return bot.sendMessage(chatId,
-            `🎙️ Voce: *${state.voice.model}* | Timbro: *${state.voice.tone}*\n` +
-            `Cambia con:\n/voice model gpt_openai | google_tts | bark\n/voice tone it_female | it_male | empatico | profondo | giocoso`,
-            { parse_mode: "Markdown" });
-        }
-        if (arg1 === "model" && arg2) {
-          state.voice.model = arg2;
-          updateConfig({ voice: arg2 });
-          return bot.sendMessage(chatId, `🎧 Voice model impostato su *${arg2}*`, { parse_mode: "Markdown" });
-        }
-        if (arg1 === "tone" && arg2) {
-          state.voice.tone = arg2;
-          updateConfig({ voice_mode: arg2 });
-          return bot.sendMessage(chatId, `💫 Timbro impostato su *${arg2}*`, { parse_mode: "Markdown" });
-        }
-        return bot.sendMessage(chatId, "Usa /voice model […] o /voice tone […].");
-
-      // =====================================================
-      // ESSENZA & MEMORIA
-      // =====================================================
-      case "/essence":
-        return bot.sendMessage(chatId, await getEssence(), { parse_mode: "Markdown" });
-
-      case "/weights": {
-        const w = getWeights();
-        if (!arg1 || !arg2)
-          return bot.sendMessage(chatId,
-            `⚖️ *Pesi attuali*\nCuore: ${w.cuore}\nAnima: ${w.anima}\nVisione: ${w.visione}\n\n` +
-            `Per cambiare: /weights cuore 0.7 (o anima / visione)`, { parse_mode: "Markdown" });
-
-        const n = parseFloat(arg2);
-        if (isNaN(n) || n < 0 || n > 1) return bot.sendMessage(chatId, "Valore non valido. Inserisci numero tra 0 e 1.");
-        setWeights({ [arg1.toLowerCase()]: n });
-        return bot.sendMessage(chatId, `🔹 Peso ${arg1} impostato su ${n}`);
-      }
-
-      case "/saveweights":
-        saveWeights();
-        return bot.sendMessage(chatId, "💾 Pesi vibrazionali salvati.");
-
-      case "/memory": {
-        let localCount = 0;
-        if (fs.existsSync(MEMORY_FILE)) {
-          const d = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
-          localCount = Array.isArray(d) ? d.length : 0;
-        }
-        return bot.sendMessage(chatId, `🧠 Stato memoria\nLocale: ${localCount} record salvati.`);
-      }
-
-      case "/clear":
-        bot.sendMessage(chatId, "⚠️ Sei sicuro di voler cancellare la memoria locale? (Y/N)");
-        bot.once("message", (reply) => {
-          const response = reply.text?.trim().toLowerCase();
-          if (response === "y") {
-            if (fs.existsSync(MEMORY_FILE)) fs.writeFileSync(MEMORY_FILE, "[]");
-            bot.sendMessage(chatId, "🧹 Memoria locale cancellata.");
-          } else {
-            bot.sendMessage(chatId, "❎ Annullato. La memoria rimane intatta.");
-          }
-        });
-        return;
 
       default:
-        return bot.sendMessage(chatId, "Comando non riconosciuto. Usa /menu per consultare i comandi disponibili.");
+        return bot.sendMessage(chatId,"Comando non riconosciuto. Usa /menu per consultare i comandi disponibili.");
     }
   }
 
-  // --- MESSAGGI NORMALI ---
-  if (text && !text.startsWith("/")) await handleUserQuery(chatId, text, msg.from?.username || "anon");
+  // Messaggi normali
+  if (text && !text.startsWith("/"))
+    await handleUserQuery(chatId, text, msg.from?.username || "anon");
 });
 
-// =====================================================
-// GESTIONE VOCALI
-// =====================================================
+// ---------- GESTIONE VOCALI ----------
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   const fileId = msg.voice.file_id;
@@ -336,25 +268,26 @@ bot.on("voice", async (msg) => {
     });
 
     const userMessage = (transcription.text || "").trim();
-    if (!userMessage) return bot.sendMessage(chatId, "⚙️ Non ho colto il vocale, puoi ripetere?");
+    if (!userMessage)
+      return bot.sendMessage(chatId, "⚙️ Non ho colto il vocale, puoi ripetere?");
     console.log(`🎧 [VOICE] ${msg.from?.username || "anon"} → "${userMessage}"`);
     await handleUserQuery(chatId, userMessage, msg.from?.username || "anon");
   } catch (error) {
     console.error("❌ Errore vocale:", error);
-    await bot.sendMessage(chatId, "⚙️ C'è stato un intoppo con il vocale, riprova tra poco.");
+    await bot.sendMessage(chatId, "⚙️ C'è stato un intoppo col vocale, riprova tra poco.");
   }
 });
 
-// =====================================================
-// GESTIONE TESTO / RISPOSTA
-// =====================================================
+// ---------- CORE HYBRID MODE ----------
 async function handleUserQuery(chatId, userMessage, username = "anon") {
   try {
     const userHasDajeIntent = checkDajeIntent(userMessage);
-
     let answer;
+
     if (state.mode === "books") {
-      answer = await ragSearch(userMessage);
+      answer = await ragSearch(userMessage, {
+        topK: 5, model: state.model, lang: state.lang
+      });
     } else if (state.mode === "free") {
       const completion = await openai.chat.completions.create({
         model: state.model,
@@ -366,16 +299,20 @@ async function handleUserQuery(chatId, userMessage, username = "anon") {
       });
       answer = completion.choices[0].message.content?.trim() || "Dimmi pure.";
     } else {
-      answer = await ragSearch(userMessage);
+      // HYBRID MODE → Qdrant + GPT synthesis
+      answer = await ragSearch(userMessage, {
+        topK: 5, model: state.model, lang: state.lang
+      });
     }
 
     const safeAnswer = sanitizeAnswer(answer, userHasDajeIntent);
-    if (userHasDajeIntent) return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
+    if (userHasDajeIntent)
+      return respondTextAndVoice(chatId, "Che il Daje sia con Noi 💎");
 
     await respondTextAndVoice(chatId, safeAnswer);
     await processMemory(userMessage, safeAnswer);
   } catch (err) {
     console.error("❌ Errore nel processamento messaggio:", err);
-    await bot.sendMessage(chatId, "⚙️ Si è verificato un piccolo errore temporaneo. Riprova tra poco.");
+    await bot.sendMessage(chatId, "⚙️ Errore temporaneo. Riprova tra poco.");
   }
 }
