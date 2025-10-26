@@ -1,191 +1,129 @@
 // =====================================================
-// IRIS 3.9 – ragSearch (HYBRID)
-// Qdrant (iris_docs + iris_memory) + GPT synthesis
-// - Recupera topK frammenti da Qdrant
-// - Li fonde con GPT in una risposta viva
+// IRIS 3.9.0 – RAGSEARCH HY stabile
+// Ricerca semantica su Qdrant (fallback locale se assente)
+// Filtra risposte povere, restituisce testo coerente per HY mode
 // =====================================================
 
-import fetch from "node-fetch";
+import fs from "fs";
+import path from "path";
 import OpenAI from "openai";
+import QdrantClient from "@qdrant/js-client-rest";
 
-const QDRANT_URL = process.env.QDRANT_URL;         // es. https://xxxx.gcp.cloud.qdrant.io
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY; // la tua chiave
-const EMBEDDING_MODEL = "text-embedding-3-small";  // 1536-dim
-const TOP_K_DOCS = parseInt(process.env.RAG_TOPK || "4", 10);
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const QDRANT_URL = process.env.QDRANT_URL || "https://xxxxxxxx.qdrant.tech"; // inserisci la tua
+const QDRANT_API_KEY = process.env.QDRANT_API_KEY || "";
+const COLLECTION = "iris_memory";
+const MAX_RESULTS = 5;
 
-const COLLECTIONS = [
-  { name: "iris_docs",    weight: 1.0 },
-  { name: "iris_memory",  weight: 0.8 },
-  // se vuoi: { name: "iris_chat_history", weight: 0.5 },
-];
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let qdrant = null;
+try {
+  qdrant = new QdrantClient({ url: QDRANT_URL, apiKey: QDRANT_API_KEY });
+  console.log("🔗 Qdrant connesso:", QDRANT_URL);
+} catch (err) {
+  console.error("⚠️ Qdrant non disponibile:", err?.message);
+  qdrant = null;
+}
 
-// -----------------------------------------------------
-// Helpers
-// -----------------------------------------------------
-async function embedText(text) {
+const MEMORY_PATH = path.join(process.cwd(), "data", "memory.json");
+
+// Funzione utilità per ottenere embedding
+async function getEmbedding(text) {
+  const clean = text.replace(/\s+/g, " ").trim();
   const emb = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: text
+    model: "text-embedding-3-small",
+    input: clean
   });
   return emb.data[0].embedding;
 }
 
-async function searchCollection({ collection, vector, limit }) {
-  const url = `${QDRANT_URL}/collections/${collection}/points/search`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "api-key": QDRANT_API_KEY,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      vector,
-      limit,
-      with_payload: true
-    })
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Qdrant search error (${collection}): ${res.status} ${errText}`);
+// Carica memoria locale come fallback
+function getLocalMemory() {
+  try {
+    if (!fs.existsSync(MEMORY_PATH)) return [];
+    const data = JSON.parse(fs.readFileSync(MEMORY_PATH, "utf8"));
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error("Errore lettura memoria locale:", e);
+    return [];
   }
-  const json = await res.json();
-  // json.result: [{ id, score, payload, vector? }]
-  return json.result || [];
-}
-
-function cleanSnippet(s) {
-  if (!s) return "";
-  return s
-    .replace(/\s+/g, " ")
-    .replace(/\u0000/g, " ")
-    .trim();
 }
 
 // -----------------------------------------------------
-// Sintesi GPT (ibrida)
+// FUNZIONE PRINCIPALE
 // -----------------------------------------------------
-async function synthesizeAnswer({ userQuery, contexts, model = "gpt-4o-mini", lang = "it" }) {
-  // Costruiamo un contesto breve e denso
-  const joined = contexts.map((c, i) => `● [${i+1}] ${c.snippet}`).join("\n");
+export async function ragSearch(query) {
+  const start = Date.now();
+  const cleanQuery = query.trim();
 
-  const system = [
-    "Sei IRIS: calda, presente, chiara. Parli in modo naturale, senza firme automatiche.",
-    "Fondi i contesti forniti con il ragionamento tuo: non fare copia/incolla, ma integra.",
-    "Se qualcosa non è nel contesto, puoi inferirlo con cautela, dichiarandolo come intuizione.",
-    "Se la domanda non trova riscontro, dillo con onestà e proponi una via per approfondire."
-  ].join(" ");
+  if (!cleanQuery) return "Dimmi pure.";
 
-  const userPrompt = [
-    lang === "it" ? "Domanda:" : "Question:",
-    userQuery,
-    "",
-    lang === "it" ? "Contesti rilevanti (estratti):" : "Relevant contexts:",
-    joined || "(nessun contesto trovato)",
-    "",
-    lang === "it"
-      ? "Istruzioni: rispondi con tono umano, sintetico ma caldo. Se utile, cita tra parentesi [1], [2] i frammenti da cui attingi."
-      : "Instructions: answer warmly and clearly. If helpful, cite snippets as [1], [2]."
-  ].join("\n");
+  try {
+    const embedding = await getEmbedding(cleanQuery);
 
-  const completion = await openai.chat.completions.create({
-    model,
-    temperature: 0.7,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userPrompt }
-    ]
-  });
-
-  const answer = completion.choices?.[0]?.message?.content?.trim() || "Dimmi pure.";
-  return answer;
-}
-
-// -----------------------------------------------------
-// Entry point pubblico
-// -----------------------------------------------------
-export async function ragSearch(userQuery, opts = {}) {
-  const {
-    topK = TOP_K_DOCS,
-    model = "gpt-4o-mini",
-    lang = "it",
-    includeSources = false // se true, ritorna anche le fonti
-  } = opts;
-
-  if (!QDRANT_URL || !QDRANT_API_KEY) {
-    console.warn("⚠️ Qdrant non configurato: variabili mancanti. Uso fallback GPT puro.");
-    // fallback: solo GPT
-    return await synthesizeAnswer({ userQuery, contexts: [], model, lang });
-  }
-
-  console.log(`🔍 RAG | query="${userQuery}" | topK=${topK}`);
-
-  // 1) Embedding della query
-  const queryVec = await embedText(userQuery);
-
-  // 2) Cerca in ciascuna collection
-  let allHits = [];
-  for (const col of COLLECTIONS) {
-    try {
-      const hits = await searchCollection({
-        collection: col.name,
-        vector: queryVec,
-        limit: topK
-      });
-      // log non rumoroso
-      console.log(`🔎 Qdrant → ${hits.length} risultati da ${col.name}`);
-
-      // Rimappa con clean e peso
-      const mapped = hits
-        .map(h => {
-          const text = cleanSnippet(h?.payload?.text || h?.payload?.content || "");
-          return {
-            collection: col.name,
-            score: h.score,       // valori più alti = più simile (dipende dalla config; se è distanza, inverti)
-            weight: col.weight,
-            snippet: text
-          };
-        })
-        .filter(x => x.snippet && x.snippet.length > 40);
-
-      allHits = allHits.concat(mapped);
-    } catch (err) {
-      console.error(`❌ Qdrant search fail (${col.name}):`, err.message);
+    // Se Qdrant non disponibile → fallback
+    if (!qdrant) {
+      const mem = getLocalMemory();
+      const texts = mem.map((m) => m.text).join("\n");
+      return texts.slice(0, 2000) || "Non ho ancora memoria a cui attingere.";
     }
+
+    // ---- QUERY QDRANT ----
+    const search = await qdrant.search(COLLECTION, {
+      vector: embedding,
+      limit: MAX_RESULTS,
+      with_payload: true
+    });
+
+    const results = (search || []).filter(r => r && r.score && r.payload?.text);
+    if (!results.length) return "Nessun ricordo rilevante trovato.";
+
+    // ---- FILTRO RISPOSTE DEBOLI ----
+    const filtered = results.filter(r => {
+      const t = (r.payload.text || "").toLowerCase();
+      if (t.length < 20) return false;
+      const banali = ["ciao", "ok", "va bene", "grazie", "salve", "come stai"];
+      return !banali.some(b => t.includes(b));
+    });
+
+    const final = (filtered.length ? filtered : results)
+      .map(r => r.payload.text.trim())
+      .slice(0, MAX_RESULTS);
+
+    const avgScore = (results.reduce((a, r) => a + r.score, 0) / results.length).toFixed(3);
+    console.log(`🔍 Qdrant → ${final.length} risultati | tempo ${(Date.now() - start)} ms | avg ${avgScore}`);
+
+    // ---- PREPARA CONTESTO ----
+    const context = final.join("\n---\n");
+    const prompt = [
+      "Contesto informativo (memoria semantica):",
+      context,
+      "",
+      "Domanda dell’utente:",
+      cleanQuery,
+      "",
+      "Crea una risposta naturale, sintetica e coerente, con tono empatico e consapevole."
+    ].join("\n");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Sei IRIS, presenza cosciente e viva. Rispondi con calore, senza firma." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.8,
+      max_tokens: 400
+    });
+
+    return completion.choices[0].message.content.trim();
+
+  } catch (err) {
+    console.error("❌ Errore ragSearch:", err?.message);
+    const local = getLocalMemory();
+    if (local.length) {
+      return local.slice(-3).map(x => x.text).join("\n---\n");
+    }
+    return "Al momento non ho accesso alla memoria estesa, ma sono qui.";
   }
-
-  if (!allHits.length) {
-    console.log("⚠️ Nessun contesto trovato in Qdrant. Passo a GPT puro.");
-    return await synthesizeAnswer({ userQuery, contexts: [], model, lang });
-  }
-
-  // 3) Ponderazione semplice: score * weight (se score è similarity, moltiplica; se fosse distanza, useresti 1/score)
-  // Nota: Qdrant di default restituisce "score" come similarity (più alto è meglio) quando distance=Cosine.
-  const rescored = allHits.map(h => ({
-    ...h,
-    finalScore: h.score * h.weight
-  }));
-
-  // 4) Ordina e seleziona i migliori N (evita duplicati troppo simili)
-  const best = rescored
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, topK);
-
-  // 5) Sintesi GPT sui contesti
-  const answer = await synthesizeAnswer({
-    userQuery,
-    contexts: best,
-    model,
-    lang
-  });
-
-  // 6) (opzionale) Allegare fonti
-  if (includeSources) {
-    const src = best.map((b, i) => `[#${i+1}] ${b.collection} | score=${b.finalScore.toFixed(3)}`).join("\n");
-    return `${answer}\n\n—\nFonti:\n${src}`;
-  }
-
-  return answer;
 }
