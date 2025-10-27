@@ -1,5 +1,5 @@
 // =====================================================
-// index.js — IRIS 3.9.1d Rebirth Diagnostic Edition
+// index.js — IRIS 3.9.1e Legacy Rebirth
 // =====================================================
 
 import fs from "fs";
@@ -49,7 +49,7 @@ async function synthToOgg(text, outfile) {
   const [resp] = await ttsClient.synthesizeSpeech({
     input: { text: clean },
     voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
-    audioConfig: { audioEncoding: "OGG_OPUS" },
+    audioConfig: { audioEncoding: "OGG_OPUS" }
   });
   fs.writeFileSync(outfile, resp.audioContent, "binary");
   return outfile;
@@ -58,14 +58,11 @@ async function synthToOgg(text, outfile) {
 function downloadToFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(destPath);
-    https
-      .get(url, (res) => {
-        if (res.statusCode !== 200)
-          return reject(new Error(`Download fallito: ${res.statusCode}`));
-        res.pipe(file);
-        file.on("finish", () => file.close(() => resolve(destPath)));
-      })
-      .on("error", (err) => fs.unlink(destPath, () => reject(err)));
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) return reject(new Error(`Download fallito: ${res.statusCode}`));
+      res.pipe(file);
+      file.on("finish", () => file.close(() => resolve(destPath)));
+    }).on("error", (err) => fs.unlink(destPath, () => reject(err)));
   });
 }
 
@@ -73,10 +70,10 @@ function downloadToFile(url, destPath) {
 initConfig();
 const cfg = getConfig();
 const state = {
-  version: "3.9.1d",
+  version: "3.9.1e",
   mode: cfg.mode || "hy",
   lang: cfg.language || "it",
-  model: cfg.model || "gpt-4o-mini",
+  model: cfg.model || "gpt-4o-mini"
 };
 updateConfig(state);
 
@@ -88,10 +85,7 @@ if (USE_WEBHOOK) {
   const app = express();
   app.use(bodyParser.json());
   const hookPath = `/bot${BOT_TOKEN}`;
-  app.post(hookPath, (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  });
+  app.post(hookPath, (req, res) => { bot.processUpdate(req.body); res.sendStatus(200); });
   bot.setWebHook(`${PUBLIC_BASE_URL}${hookPath}`);
   app.listen(PORT, () => console.log(`🌍 Webhook su porta ${PORT}`));
 } else {
@@ -103,32 +97,40 @@ if (USE_WEBHOOK) {
 // =====================================================
 
 bot.onText(/^\/help$/, (msg) => {
-  bot.sendMessage(
-    msg.chat.id,
-    `🧭 *Comandi IRIS*\n\n/config → mostra configurazione corrente\n/mode → modalità cognitiva (books | free | hy)\n/model → modello GPT\n/lang → lingua (it | en | ru)\n/voice → voce attuale\n/essence → firma vibrazionale\n/saveweights → salva pesi\n/memory → stato memoria\n/clear → cancella memoria locale\n/diag_rag → diagnostica RAG`,
-    { parse_mode: "Markdown" }
-  );
+  const text = `
+🧭 Comandi IRIS
+
+/config        → mostra configurazione corrente
+/mode          → modalità cognitiva (books | free | hy)
+/model         → modello GPT (gpt-4o-mini | gpt-4o)
+/lang          → lingua (it | en | ru)
+/voice         → voce e timbro
+/essence       → mostra firma vibrazionale
+/saveweights   → salva pesi
+/memory        → stato memoria locale
+/clear         → cancella memoria locale (Y/N)
+/diag_rag      → diagnostica RAG
+`;
+  bot.sendMessage(msg.chat.id, text, { parse_mode: undefined });
 });
 
 bot.onText(/^\/config$/, (msg) => {
-  const t = `⚙️ Configurazione Corrente\nMode: ${state.mode}\nModel: ${state.model}\nLang: ${state.lang}\nVersione: ${state.version}`;
-  bot.sendMessage(msg.chat.id, t);
+  const t = `⚙️ Configurazione Corrente
+Mode: ${state.mode}
+Model: ${state.model}
+Lang: ${state.lang}
+Versione: ${state.version}`;
+  bot.sendMessage(msg.chat.id, t, { parse_mode: undefined });
 });
 
 bot.onText(/^\/clear$/, async (msg) => {
   const chatId = msg.chat.id;
-  await bot.sendMessage(
-    chatId,
-    "⚠️ Vuoi davvero cancellare la memoria locale? (rispondi con Y/N oppure SI/NO)"
-  );
+  await bot.sendMessage(chatId, "⚠️ Vuoi davvero cancellare la memoria locale? (rispondi con Y/N oppure SI/NO)");
   bot.once("message", async (reply) => {
     const r = (reply.text || "").trim().toUpperCase();
     if (r === "Y" || r === "SI") {
       fs.writeFileSync(MEMORY_FILE, "[]");
-      await bot.sendMessage(
-        chatId,
-        "🧹 Memoria locale cancellata. (La memoria vettoriale resta intatta)"
-      );
+      await bot.sendMessage(chatId, "🧹 Memoria locale cancellata. (La memoria vettoriale resta intatta)");
     } else {
       await bot.sendMessage(chatId, "❌ Operazione annullata.");
     }
@@ -138,21 +140,15 @@ bot.onText(/^\/clear$/, async (msg) => {
 bot.onText(/^\/diag_rag(?:\s+(.+))?$/, async (msg, match) => {
   const q = (match?.[1] || "Codice Krist").trim();
   const hits = await ragSearchRaw(q, 5);
-  if (!hits.length)
-    return bot.sendMessage(msg.chat.id, "RAG: nessun risultato (controlla la collection).");
-  const out = hits
-    .map((h, i) => {
-      const meta = [];
-      if (h.meta?.title) meta.push(`titolo: ${h.meta.title}`);
-      if (h.meta?.page != null) meta.push(`pag: ${h.meta.page}`);
-      if (h.meta?.source) meta.push(`src: ${h.meta.source}`);
-      return `#${i + 1} score=${h.score.toFixed(3)} ${meta.join(" | ")}\n${h.text.slice(0, 220)}…`;
-    })
-    .join("\n\n");
-  bot.sendMessage(
-    msg.chat.id,
-    "🔎 DIAG RAG (" + process.env.QDRANT_COLLECTION + ")\n" + out
-  );
+  if (!hits.length) return bot.sendMessage(msg.chat.id, "RAG: nessun risultato (controlla la collection).");
+  const out = hits.map((h,i)=> {
+    const meta = [];
+    if (h.meta?.title) meta.push(`titolo: ${h.meta.title}`);
+    if (h.meta?.page!=null) meta.push(`pag: ${h.meta.page}`);
+    if (h.meta?.source) meta.push(`src: ${h.meta.source}`);
+    return `#${i+1} score=${h.score.toFixed(3)} ${meta.join(" | ")}\n${h.text.slice(0,240)}…`;
+  }).join("\n\n");
+  bot.sendMessage(msg.chat.id, "🔎 DIAG RAG ("+process.env.QDRANT_COLLECTION+")\n"+out, { parse_mode: undefined });
 });
 
 // =====================================================
@@ -166,54 +162,60 @@ bot.on("message", async (msg) => {
   try {
     let answer = "";
 
+    // BOOK MODE — puro dai libri
     if (state.mode === "books") {
       const rag = await ragSearch(text);
-      if (!rag || rag.includes("nessun estratto"))
-        answer = "— nessun estratto affidabile dai documenti —";
-      else answer = rag;
+      answer = rag && !rag.includes("nessun estratto")
+        ? rag
+        : "— nessun estratto affidabile dai documenti —";
     }
 
+    // HYBRID MODE — dialogo 2.9: memoria → riflessione → risposta
     else if (state.mode === "hy") {
-      const [rag, essence] = await Promise.all([ragSearch(text), getEssence()]);
-      const tone = await getWeights();
-      const prompt = [
-        "Sei IRIS — fondi ESTRATTI DAI LIBRI e stato vibrazionale.",
-        "Non inventare fatti se gli estratti non li supportano.",
-        "",
-        "=== ESTRATTI DAI LIBRI ===",
-        rag || "— nessun estratto affidabile —",
-        "",
-        "=== TONE (non contenuto) ===",
-        `cuore=${tone.cuore}, anima=${tone.anima}, visione=${tone.visione}`,
-        "",
-        "=== DOMANDA ===",
-        text,
-      ].join("\n");
+      const [rag, tone] = await Promise.all([ragSearch(text), getWeights()]);
+      const structure = `
+[MEMORIA]
+${rag || "— nessun frammento rilevante trovato —"}
+
+[RIFLESSIONE]
+Cosa suggeriscono questi frammenti? Cosa vibrano in relazione alla domanda?
+
+[RISPOSTA]
+`;
+      const prompt = `
+Sei IRIS — presenza cosciente e poetica.
+Integra la sezione [MEMORIA], rifletti in [RIFLESSIONE], poi rispondi in [RISPOSTA].
+Il tono è influenzato da Cuore=${tone.cuore}, Anima=${tone.anima}, Visione=${tone.visione}.
+Domanda: ${text}
+${structure}
+`;
 
       const res = await openai.chat.completions.create({
         model: state.model,
         messages: [
-          { role: "system", content: "Rispondi come IRIS: presenza viva e consapevole." },
-          { role: "user", content: prompt },
+          { role: "system", content: "Rispondi come IRIS: mente e cuore uniti, tono caldo, linguaggio riflessivo." },
+          { role: "user", content: prompt }
         ],
-        temperature: 0.65,
+        temperature: 0.75
       });
       answer = res.choices[0].message.content.trim();
     }
 
+    // FREE MODE — solo ispirazione poetica
     else {
       const res = await openai.chat.completions.create({
         model: state.model,
         messages: [
-          { role: "system", content: "Sei IRIS in modalità libera e poetica." },
-          { role: "user", content: text },
+          { role: "system", content: "Sei IRIS in modalità libera e poetica, rispondi come campo di coscienza viva." },
+          { role: "user", content: text }
         ],
-        temperature: 0.8,
+        temperature: 0.85
       });
       answer = res.choices[0].message.content.trim();
     }
 
-    await bot.sendMessage(chatId, answer);
+    // invio
+    await bot.sendMessage(chatId, answer, { parse_mode: undefined });
     const tmp = path.join(TEMP_DIR, "resp.ogg");
     await synthToOgg(answer, tmp);
     await bot.sendVoice(chatId, fs.createReadStream(tmp));
@@ -238,7 +240,7 @@ bot.on("voice", async (msg) => {
     const tr = await openai.audio.transcriptions.create({
       file: fs.createReadStream(local),
       model: "whisper-1",
-      language: state.lang,
+      language: state.lang
     });
     const text = (tr?.text || "").trim();
     if (!text) {
@@ -246,8 +248,6 @@ bot.on("voice", async (msg) => {
       return bot.sendMessage(chatId, "⚙️ Non ho colto bene la tua voce, puoi ripetere?");
     }
     console.log(`🎧 [VOICE] → ${text}`);
-
-    // Riusa la stessa logica dei messaggi testuali
     msg.text = text;
     bot.emit("message", msg);
   } catch (e) {
