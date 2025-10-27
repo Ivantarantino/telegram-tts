@@ -1,6 +1,6 @@
 // ===============================
-// IRIS 2.6d - index.js
-// HYBRID MODE di default + TTS (ogg) + STT (vocali Telegram)
+// IRIS 2.6.5b - index.js
+// HYBRID default + OpenAI TTS (gpt-4o-mini-tts) + STT Whisper + Qdrant + Webhook (PUBLIC_BASE_URL)
 // ===============================
 
 import "./qdrantInit.js";
@@ -8,18 +8,19 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import dotenv from "dotenv";
+import express from "express";
 import TelegramBot from "node-telegram-bot-api";
-import textToSpeech from "@google-cloud/text-to-speech";
-import http from "http";
 import { fileURLToPath } from "url";
 import { openai, ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant } from "./ragSearch.js";
 
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const PORT = process.env.PORT || 10000;
+const PORT = Number(process.env.PORT) || 10000;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // URL pubblico Render
+const TG_SECRET_TOKEN = process.env.TG_SECRET_TOKEN || ""; // opzionale
 
-// === Gestione credenziali Google TTS (Render-friendly) ===
+// === Gestione credenziali Google TTS (fallback futuro) ===
 function ensureGoogleCreds() {
   const b64 = process.env.GOOGLE_TTS_CREDENTIALS_BASE64;
   if (b64) {
@@ -27,30 +28,28 @@ function ensureGoogleCreds() {
     const tmpPath = path.join(os.tmpdir(), "google-tts.json");
     fs.writeFileSync(tmpPath, json, { mode: 0o600 });
     process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
-    console.log("🔐 Google TTS credenziali caricate in /tmp");
-  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    console.log("🔐 Google TTS via GOOGLE_APPLICATION_CREDENTIALS");
-  } else {
-    console.warn("⚠️ Nessuna credenziale Google TTS rilevata. Imposta GOOGLE_TTS_CREDENTIALS_BASE64 o GOOGLE_APPLICATION_CREDENTIALS.");
   }
 }
 ensureGoogleCreds();
 
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-const ttsClient = new textToSpeech.TextToSpeechClient();
+const app = express();
+app.use(express.json());
 
-// === Modalità persistente su file ===
+// === Bot senza polling (webhook) ===
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+
+// === Modalità persistente ===
 const MODE_FILE = "./iris_mode.txt";
 function loadMode() {
   if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf-8").trim();
-  fs.writeFileSync(MODE_FILE, "hybrid"); // default
+  fs.writeFileSync(MODE_FILE, "hybrid");
   return "hybrid";
 }
 function saveMode(m) { fs.writeFileSync(MODE_FILE, m); }
 let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
-// === Memoria conversazionale breve (11 interazioni) ===
+// === Memoria breve ===
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
 function addToMemory(role, content) {
@@ -60,25 +59,22 @@ function addToMemory(role, content) {
   }
 }
 
-// === Utility TTS: filtra simboli poco pronunziabili ===
-function sanitizeForTTS(text) {
-  return text
-    .replace(/⚡️|⚡/g, "")
-    .replace(/[💥🔥✨💫⭐️🌟]/g, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
+// === OpenAI TTS helper ===
 async function speakAndSend(chatId, text) {
-  const cleanText = sanitizeForTTS(text);
-  const [audio] = await ttsClient.synthesizeSpeech({
-    input: { text: cleanText },
-    voice: { languageCode: "it-IT", ssmlGender: "FEMALE" },
-    audioConfig: { audioEncoding: "OGG_OPUS", speakingRate: 1.0, pitch: 0.0 },
-  });
-  const ogg = "response.ogg";
-  fs.writeFileSync(ogg, audio.audioContent, "binary");
-  await bot.sendVoice(chatId, fs.createReadStream(ogg));
+  try {
+    const clean = text.replace(/[⚡💥🔥✨💫⭐🌟]/g, "").trim();
+    const speech = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: "alloy",        // voce calda e naturale (stile IRIS 2.x)
+      input: clean,
+      format: "ogg",
+    });
+    const buffer = Buffer.from(await speech.arrayBuffer());
+    fs.writeFileSync("iris_reply.ogg", buffer);
+    await bot.sendVoice(chatId, fs.createReadStream("iris_reply.ogg"));
+  } catch (err) {
+    console.error("Errore TTS:", err);
+  }
 }
 
 // === Comandi Telegram ===
@@ -86,52 +82,45 @@ bot.onText(/\/book/, (msg) => {
   irisMode = "book"; saveMode("book");
   bot.sendMessage(msg.chat.id, "📚 IRIS ora è in *BOOK MODE* – solo dai testi caricati.", { parse_mode: "Markdown" });
 });
-
 bot.onText(/\/free/, (msg) => {
   irisMode = "free"; saveMode("free");
-  bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – GPT-4o-mini libero con memoria.", { parse_mode: "Markdown" });
+  bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – GPT-4o-mini libero.", { parse_mode: "Markdown" });
 });
-
 bot.onText(/\/hy/, (msg) => {
   irisMode = "hybrid"; saveMode("hybrid");
   bot.sendMessage(msg.chat.id, "⚗️ IRIS ora è in *HYBRID MODE* – fonde testi e intelligenza libera.", { parse_mode: "Markdown" });
 });
-
 bot.onText(/\/mode/, (msg) => {
-  const status = irisMode === "book" ? "📚 *BOOK MODE*" : irisMode === "hybrid" ? "⚗️ *HYBRID MODE*" : "🌀 *FREE MODE*";
+  const status = irisMode === "book" ? "📚 *BOOK MODE*" :
+                 irisMode === "hybrid" ? "⚗️ *HYBRID MODE*" : "🌀 *FREE MODE*";
   bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, { parse_mode: "Markdown" });
 });
 
 // === Messaggi testuali ===
 bot.on("message", async (msg) => {
+  const text = msg.text?.trim();
+  if (!text || text.startsWith("/")) return;
   const chatId = msg.chat.id;
-  const userText = msg.text?.trim();
-
-  // Evita doppio handling su comandi
-  if (!userText || userText.startsWith("/")) return;
-
   try {
     let reply;
-
     if (irisMode === "book") {
-      const r = await ragSearch(userText);
+      const r = await ragSearch(text);
       reply = r.text;
     } else if (irisMode === "hybrid") {
-      const r = await hybridSearch(userText, conversationMemory);
+      const r = await hybridSearch(text, conversationMemory);
       reply = r.text;
-      await saveConversationToQdrant(userText, reply);
+      await saveConversationToQdrant(text, reply);
     } else {
-      addToMemory("user", userText);
-      reply = await gptFreeResponse(userText, conversationMemory);
+      addToMemory("user", text);
+      reply = await gptFreeResponse(text, conversationMemory);
       addToMemory("assistant", reply);
-      await saveConversationToQdrant(userText, reply);
+      await saveConversationToQdrant(text, reply);
     }
-
     await bot.sendMessage(chatId, reply);
     await speakAndSend(chatId, reply);
-  } catch (err) {
-    console.error("Errore (text):", err);
-    await bot.sendMessage(chatId, "⚙️ Si è verificato un piccolo errore. Riprova tra poco.");
+  } catch (e) {
+    console.error("Errore messaggio:", e);
+    bot.sendMessage(chatId, "⚙️ Piccolo problema, riprova tra poco.");
   }
 });
 
@@ -139,26 +128,13 @@ bot.on("message", async (msg) => {
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   try {
-    // 1) Recupera link file .ogg di Telegram
-    const fileId = msg.voice.file_id;
-    const file = await bot.getFile(fileId);
+    const file = await bot.getFile(msg.voice.file_id);
     const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-
-    // 2) Scarica audio in RAM
     const res = await fetch(url);
     const oggBuffer = Buffer.from(await res.arrayBuffer());
-
-    // 3) Trascrizione con Whisper
-    // openai.audio.transcriptions.create richiede File-like
     const fileObj = new File([oggBuffer], "audio.ogg", { type: "audio/ogg" });
-    const tr = await openai.audio.transcriptions.create({
-      file: fileObj,
-      model: "whisper-1",
-      // language: "it", // opzionale
-    });
-
+    const tr = await openai.audio.transcriptions.create({ file: fileObj, model: "whisper-1" });
     const userText = tr.text?.trim() || "(voce non chiara)";
-    // 4) Riusa la pipeline testuale
     let reply;
     if (irisMode === "book") {
       const r = await ragSearch(userText);
@@ -173,18 +149,50 @@ bot.on("voice", async (msg) => {
       addToMemory("assistant", reply);
       await saveConversationToQdrant(userText, reply);
     }
-
     await bot.sendMessage(chatId, `🗣️ Hai detto: _${userText}_`, { parse_mode: "Markdown" });
     await bot.sendMessage(chatId, reply);
     await speakAndSend(chatId, reply);
   } catch (err) {
     console.error("Errore (voice):", err);
-    await bot.sendMessage(chatId, "⚙️ Non sono riuscita a trascrivere il vocale. Riprova con audio più vicino al microfono.");
+    bot.sendMessage(chatId, "⚙️ Non sono riuscita a trascrivere il vocale.");
   }
 });
 
-// === Server HTTP (keep-alive) ===
-http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end(`IRIS 2.6d attiva – Modalità: ${irisMode.toUpperCase()} MODE`);
-}).listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
+// === Webhook routes ===
+app.get("/", (_req, res) => res.status(200).send(`IRIS 2.6.5b attiva – Mode: ${irisMode.toUpperCase()}`));
+
+app.post(`/webhook/${TELEGRAM_TOKEN}`, (req, res) => {
+  if (TG_SECRET_TOKEN && req.get("x-telegram-bot-api-secret-token") !== TG_SECRET_TOKEN)
+    return res.sendStatus(401);
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// === Setup webhook ===
+async function setupWebhook() {
+  if (!PUBLIC_BASE_URL) return console.warn("⚠️ PUBLIC_BASE_URL non impostata.");
+  const url = `${PUBLIC_BASE_URL}/webhook/${TELEGRAM_TOKEN}`;
+  const params = TG_SECRET_TOKEN ? { secret_token: TG_SECRET_TOKEN } : undefined;
+  try {
+    await bot.setWebHook(url, params);
+    console.log(`🔔 Webhook impostato: ${url}${TG_SECRET_TOKEN ? " (secret_token ON)" : ""}`);
+  } catch (e) {
+    console.error("Errore setWebHook:", e);
+  }
+}
+
+// === CLI helper ===
+(async () => {
+  const arg = process.argv[2];
+  if (arg === "--set-webhook") {
+    await setupWebhook(); process.exit(0);
+  } else if (arg === "--delete-webhook") {
+    await bot.deleteWebHook(); console.log("🗑️ Webhook cancellato."); process.exit(0);
+  }
+})();
+
+// === Avvio server ===
+app.listen(PORT, async () => {
+  console.log(`🌍 Server Express attivo su porta ${PORT}`);
+  await setupWebhook();
+});
