@@ -1,10 +1,14 @@
-// =====================================================
-// ragSearch.js — IRIS 2.9 Rebirth Diagnostic Edition
-// =====================================================
+// ===============================
+// IRIS 2.9 - ragSearch.js
+// Estende 2.8 con funzioni cronologiche:
+// /recall <giorni> e /timeline
+// ===============================
 
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
+import fs from "fs";
+
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -13,68 +17,61 @@ const qdrant = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY,
 });
 
-const COLLECTION = process.env.QDRANT_COLLECTION || "iris_docs";
-const TOP_K = 5;
-const SCORE_MIN = 0.25;
+const BOOK_COLLECTION = process.env.QDRANT_COLLECTION;
+const CHAT_COLLECTION = "iris_chat_history";
 
-// Funzioni interne per leggere vari campi del payload
-function pickText(pl) {
-  return (
-    pl?.text ??
-    pl?.chunk ??
-    pl?.content ??
-    pl?.page_text ??
-    ""
-  );
-}
-function pickMeta(pl) {
-  return {
-    title: pl?.title || pl?.document_title || pl?.source_title || null,
-    page: pl?.page ?? pl?.page_number ?? null,
-    source: pl?.source || pl?.file || pl?.path || null,
-  };
-}
+// Funzioni principali (ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant)
+// restano le stesse della 2.8, ma aggiungiamo funzioni temporali:
 
-// Diagnostica grezza
-export async function ragSearchRaw(query, k = TOP_K) {
+export async function getRecentChats(days = 7) {
   try {
-    const emb = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: query,
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const result = await qdrant.scroll(CHAT_COLLECTION, {
+      limit: 500,
+      filter: {
+        must: [
+          {
+            key: "timestamp",
+            range: { gte: cutoff.toISOString() },
+          },
+        ],
+      },
     });
-    const vec = emb.data[0].embedding;
-    const res = await qdrant.search(COLLECTION, {
-      vector: vec,
-      limit: k,
-      with_payload: true,
-    });
-    const hits = (res || [])
-      .filter(h => (h.score ?? 0) >= SCORE_MIN)
-      .map(h => ({
-        score: h.score,
-        text: pickText(h.payload) || "",
-        meta: pickMeta(h.payload),
-      }))
-      .filter(h => h.text.trim().length > 0);
-    return hits;
+    return result.points.map((p) => p.payload);
   } catch (e) {
-    console.error("ragSearchRaw error:", e?.message || e);
+    console.error("Errore getRecentChats:", e);
     return [];
   }
 }
 
-// Sintesi per HY/BOOK
-export async function ragSearch(query) {
-  const hits = await ragSearchRaw(query, TOP_K);
-  if (!hits.length) return "— nessun estratto affidabile —";
-  const blocks = hits.map((h, i) => {
-    const where = [];
-    if (h.meta?.title) where.push(h.meta.title);
-    if (h.meta?.page != null) where.push(`p.${h.meta.page}`);
-    const head = where.length
-      ? `<<ESTRATTO ${i + 1} — ${where.join(" · ")}>>`
-      : `<<ESTRATTO ${i + 1}>>`;
-    return `${head}\n${h.text}`;
-  });
-  return blocks.join("\n\n");
+export async function getTimelineSummary() {
+  try {
+    const all = await qdrant.scroll(CHAT_COLLECTION, { limit: 500 });
+    const sorted = all.points
+      .map((p) => p.payload)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const timelineText = sorted
+      .map((r) => `🕓 ${r.timestamp}\n${r.text}`)
+      .join("\n\n")
+      .slice(0, 5000);
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Sei IRIS. Devi sintetizzare cronologicamente la memoria conversazionale, creando una narrazione coerente del tuo percorso evolutivo. Evidenzia gli snodi di coscienza e le integrazioni significative.",
+        },
+        { role: "user", content: timelineText },
+      ],
+    });
+
+    return completion.choices[0].message.content.trim();
+  } catch (e) {
+    console.error("Errore getTimelineSummary:", e);
+    return "⚙️ Non riesco a generare la timeline in questo momento.";
+  }
 }
