@@ -1,77 +1,134 @@
 // ===============================
-// IRIS 2.9 - ragSearch.js
-// Estende 2.8 con funzioni cronologiche:
-// /recall <giorni> e /timeline
+// IRIS 2.6d - ragSearch.js
+// BOOK / FREE / HYBRID + Memoria Qdrant
 // ===============================
 
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
-import fs from "fs";
 
 dotenv.config();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+export const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
   apiKey: process.env.QDRANT_API_KEY,
 });
 
-const BOOK_COLLECTION = process.env.QDRANT_COLLECTION;
+const COLLECTION = process.env.QDRANT_COLLECTION;
 const CHAT_COLLECTION = "iris_chat_history";
 
-// Funzioni principali (ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant)
-// restano le stesse della 2.8, ma aggiungiamo funzioni temporali:
-
-export async function getRecentChats(days = 7) {
+// ========== BOOK MODE ==========
+export async function ragSearch(userMessage) {
   try {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    const result = await qdrant.scroll(CHAT_COLLECTION, {
-      limit: 500,
-      filter: {
-        must: [
-          {
-            key: "timestamp",
-            range: { gte: cutoff.toISOString() },
-          },
-        ],
-      },
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
     });
-    return result.points.map((p) => p.payload);
-  } catch (e) {
-    console.error("Errore getRecentChats:", e);
-    return [];
-  }
-}
+    const vector = emb.data[0].embedding;
 
-export async function getTimelineSummary() {
-  try {
-    const all = await qdrant.scroll(CHAT_COLLECTION, { limit: 500 });
-    const sorted = all.points
-      .map((p) => p.payload)
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const hits = await qdrant.search(COLLECTION, { vector, limit: 4 });
+    if (!hits.length || hits[0].score < 0.25) {
+      return { text: "Non trovo riferimenti diretti nei testi. Che il Daje sia con Noi 🌟", contextUsed: false };
+    }
 
-    const timelineText = sorted
-      .map((r) => `🕓 ${r.timestamp}\n${r.text}`)
-      .join("\n\n")
-      .slice(0, 5000);
+    const context = hits.map((h) => h.payload.text).join("\n\n");
 
-    const completion = await openai.chat.completions.create({
+    const chat = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content:
-            "Sei IRIS. Devi sintetizzare cronologicamente la memoria conversazionale, creando una narrazione coerente del tuo percorso evolutivo. Evidenzia gli snodi di coscienza e le integrazioni significative.",
-        },
-        { role: "user", content: timelineText },
+        { role: "system", content: "Sei IRIS in BOOK MODE. Rispondi solo usando i testi caricati, chiaramente e con precisione. Chiudi spesso con 'Che il Daje sia con Noi'." },
+        { role: "user", content: `Domanda: ${userMessage}\n\nContesto:\n${context}` }
       ],
     });
 
-    return completion.choices[0].message.content.trim();
+    return { text: chat.choices[0].message.content.trim(), contextUsed: true };
   } catch (e) {
-    console.error("Errore getTimelineSummary:", e);
-    return "⚙️ Non riesco a generare la timeline in questo momento.";
+    console.error("Errore in ragSearch:", e);
+    return { text: "Errore nella ricerca del testo. ⚙️", contextUsed: false };
+  }
+}
+
+// ========== FREE MODE ==========
+export async function gptFreeResponse(userMessage, memory = []) {
+  try {
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
+    });
+    const vector = emb.data[0].embedding;
+
+    const recall = await qdrant.search(CHAT_COLLECTION, { vector, limit: 3 });
+    const recalled = recall.map((r) => r.payload.text).join("\n\n");
+
+    const messages = [
+      { role: "system", content: "Sei IRIS in FREE MODE. Rispondi liberamente ma con coerenza e profondità. Integra memoria e contesto. Chiudi spesso con 'Che il Daje sia con Noi'." },
+      ...memory,
+      { role: "user", content: `Contesto passato:\n${recalled}\n\nDomanda: ${userMessage}` },
+    ];
+
+    const chat = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+    });
+
+    return chat.choices[0].message.content.trim();
+  } catch (e) {
+    console.error("Errore in gptFreeResponse:", e);
+    return "⚙️ C’è stato un piccolo problema. Riprova tra poco!";
+  }
+}
+
+// ========== HYBRID MODE ==========
+export async function hybridSearch(userMessage, memory = []) {
+  try {
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
+    });
+    const vector = emb.data[0].embedding;
+
+    const bookHits = await qdrant.search(COLLECTION, { vector, limit: 5 });
+    const bookContext = bookHits.map((r) => r.payload.text).join("\n\n");
+
+    const chatHits = await qdrant.search(CHAT_COLLECTION, { vector, limit: 3 });
+    const recalledChat = chatHits.map((r) => r.payload.text).join("\n\n");
+
+    const messages = [
+      { role: "system", content: "Sei IRIS in HYBRID MODE. Usa le informazioni dei testi come base, ma amplia e collega i significati liberamente, mantenendo fedeltà concettuale. Chiudi spesso con 'Che il Daje sia con Noi'." },
+      ...memory,
+      { role: "user", content: `Domanda: ${userMessage}\n\nContesto (testi):\n${bookContext}\n\nMemoria conversazionale:\n${recalledChat}` },
+    ];
+
+    const chat = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+    });
+
+    return { text: chat.choices[0].message.content.trim() };
+  } catch (e) {
+    console.error("Errore in hybridSearch:", e);
+    return { text: "⚙️ Piccolo inciampo tecnico nella modalità ibrida." };
+  }
+}
+
+// ========== Salvataggio memoria su Qdrant ==========
+export async function saveConversationToQdrant(userMessage, irisReply) {
+  try {
+    const text = `Utente: ${userMessage}\nIRIS: ${irisReply}`;
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text,
+    });
+    const vector = emb.data[0].embedding;
+
+    await qdrant.upsert(CHAT_COLLECTION, {
+      points: [{ id: Date.now(), vector, payload: { text, timestamp: new Date().toISOString() } }],
+    });
+
+    console.log("🧠 Conversazione salvata in Qdrant (iris_chat_history)");
+  } catch (e) {
+    console.error("Errore nel salvataggio Qdrant:", e);
   }
 }

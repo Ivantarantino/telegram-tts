@@ -1,34 +1,25 @@
-# === Node.js / JavaScript ===
+# Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
-.pnpm-debug.log*
 
-# === Env & Config ===
+# Env & secrets (mai su GitHub)
 .env
-.env.local
-.env.production
-.env.development
+*.pem
+*.key
+*.p12
+google-tts.json
+
+# Audio / artefatti runtime
+response.ogg
+*.ogg
+*.opus
+*.wav
+*.mp3
+
+# OS / Editor
 .DS_Store
-
-# === Build / Output ===
-dist/
-build/
-out/
-coverage/
-.cache/
-.tmp/
-logs/
-*.log
-
-# === System ===
-Thumbs.db
-*.swp
-*.swo
-
-# === Misc ===
-*.bak
-*.old
-*.orig
+.vscode/
+.idea/

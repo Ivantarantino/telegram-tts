@@ -16,9 +16,6 @@ const qdrant = new QdrantClient({
 const BOOK_COLLECTION = process.env.QDRANT_COLLECTION;
 const CHAT_COLLECTION = "iris_chat_history";
 
-// ===============================
-// 🔧 Funzione di creazione automatica
-// ===============================
 async function ensureCollections() {
   try {
     console.log("🔍 Controllo delle collection in Qdrant...");
@@ -26,27 +23,19 @@ async function ensureCollections() {
     const existing = await qdrant.getCollections();
     const names = existing.collections.map((c) => c.name);
 
-    // BOOK COLLECTION (per i testi PDF)
     if (!names.includes(BOOK_COLLECTION)) {
       console.log(`📚 Creazione della collection: ${BOOK_COLLECTION}`);
       await qdrant.createCollection(BOOK_COLLECTION, {
-        vectors: {
-          size: 1536,
-          distance: "Cosine",
-        },
+        vectors: { size: 1536, distance: "Cosine" },
       });
     } else {
       console.log(`📚 Collection '${BOOK_COLLECTION}' già esistente`);
     }
 
-    // CHAT COLLECTION (per memoria conversazionale)
     if (!names.includes(CHAT_COLLECTION)) {
       console.log(`💬 Creazione della collection: ${CHAT_COLLECTION}`);
       await qdrant.createCollection(CHAT_COLLECTION, {
-        vectors: {
-          size: 1536,
-          distance: "Cosine",
-        },
+        vectors: { size: 1536, distance: "Cosine" },
       });
     } else {
       console.log(`💬 Collection '${CHAT_COLLECTION}' già esistente`);
@@ -58,5 +47,4 @@ async function ensureCollections() {
   }
 }
 
-// Esegui la funzione
 ensureCollections();
