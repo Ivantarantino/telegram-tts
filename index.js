@@ -1,54 +1,55 @@
-// ===============================
-// IRIS 3.9.1 — index.js
-// Modalità: free / book / hy (ibrida mente + libro)
-// Telegram Bot + OpenAI + Qdrant + Google TTS (OGG_OPUS)
-// Default: FREE MODE
-// Memoria conversazionale (ultime 11 coppie) in FREE e HY
-// Webhook (Render) o Polling (locale) automatici
-// ===============================
+// =====================================================
+// IRIS 3.9.1+ — Rinascita HY completa
+// Telegram + Whisper + GPT-4o-mini + TTS + Qdrant (RAG)
+// - Webhook (Render) o Polling (locale)
+// - /menu, /config, /mode, /model, /voice, /essence, /weights...
+// - RAG Qdrant attivo in HY e BOOK
+// - Risposte singole (niente messaggi doppi)
+// =====================================================
 
 import fs from "fs";
 import path from "path";
-import http from "http";
+import https from "https";
 import express from "express";
+import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
+import OpenAI from "openai";
 import textToSpeech from "@google-cloud/text-to-speech";
 import { fileURLToPath } from "url";
 
-import {
-  gptFreeResponse,
-  ragBookAnswer,
-  hybridAnswer
-} from "./ragSearch.js";
+import { initConfig, getConfig, updateConfig } from "./configManager.js";
+import { processMemory } from "./memoryManager.js";
+import { getEssence, getWeights, setWeights, saveWeights } from "./essence.js";
+import { ragSearch } from "./ragSearch.js";
 
 dotenv.config();
 
-// -------------------------------
-// Paths & setup
-// -------------------------------
+// ---------- ENV ----------
+const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
+const PORT = process.env.PORT || 10000;
+const QDRANT_URL = process.env.QDRANT_URL;
+
+if (!BOT_TOKEN || !OPENAI_API_KEY) {
+  console.error("❌ Manca TELEGRAM_TOKEN o OPENAI_API_KEY.");
+  process.exit(1);
+}
+
+// ---------- PATHS ----------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const TEMP_DIR = path.join(__dirname, "temp");
+const DATA_DIR = path.join(__dirname, "data");
+const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
+fs.mkdirSync(TEMP_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const PORT = process.env.PORT || 10000;
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
-
-if (!TELEGRAM_TOKEN) {
-  console.error("❌  TELEGRAM_TOKEN mancante nelle variabili d'ambiente.");
-  process.exit(1);
-}
-if (!process.env.OPENAI_API_KEY) {
-  console.error("❌  OPENAI_API_KEY mancante nelle variabili d'ambiente.");
-  process.exit(1);
-}
-
-// -------------------------------
-// Inizializzazione TTS (Google) — OGG_OPUS
-// -------------------------------
+// ---------- OPENAI + TTS ----------
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const ttsClient = new textToSpeech.TextToSpeechClient();
 async function synthToOgg(text, outfile) {
-  // Rimuove il fulmine per evitare lettura “alta tensione”
   const clean = (text || "").replace(/⚡/g, "").trim() || " ";
   const [resp] = await ttsClient.synthesizeSpeech({
     input: { text: clean },
@@ -59,178 +60,220 @@ async function synthToOgg(text, outfile) {
   return outfile;
 }
 
-// -------------------------------
-// Memoria modalità (persistente su file)
-// -------------------------------
-const MODE_FILE = path.join(__dirname, "iris_mode.txt");
-function loadMode() {
-  try {
-    if (fs.existsSync(MODE_FILE)) {
-      const m = fs.readFileSync(MODE_FILE, "utf-8").trim();
-      if (["free", "book", "hy"].includes(m)) return m;
-    }
-  } catch (_) {}
-  fs.writeFileSync(MODE_FILE, "free"); // default desiderato
-  return "free";
-}
-function saveMode(mode) {
-  try { fs.writeFileSync(MODE_FILE, mode); } catch (e) {}
-}
-let irisMode = loadMode();
+// ---------- CONFIG ----------
+initConfig();
+const cfg = getConfig();
+const state = {
+  mode: cfg.mode || "hy",
+  lang: cfg.language || "it",
+  model: cfg.model || "gpt-4o-mini",
+  version: "3.9.1+"
+};
+updateConfig(state);
+console.log("💾 Configurazione attiva:", state);
 
-// -------------------------------
-// Memoria conversazionale in RAM (ultime 11 coppie)
-// Map chatId -> [{role:"user"/"assistant", content:String}, ...]
-// Usata in FREE e HY, non in BOOK
-// -------------------------------
-const MAX_TURNS = 11;
-const convMemory = new Map();
-function pushTurn(chatId, role, content) {
-  if (!content) return;
-  const arr = convMemory.get(chatId) || [];
-  arr.push({ role, content: String(content).slice(0, 1500) });
-  // Mantieni ultime 11 coppie ~ 22 messaggi
-  while (arr.length > MAX_TURNS * 2) arr.shift();
-  convMemory.set(chatId, arr);
-}
-function getHistory(chatId) {
-  return convMemory.get(chatId) || [];
-}
+// ---------- TELEGRAM ----------
+const USE_WEBHOOK = !!PUBLIC_BASE_URL;
+const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
 
-// -------------------------------
-// Telegram bot + Server
-// -------------------------------
-const app = express();
-app.use(express.json());
-
-let bot;
-if (PUBLIC_BASE_URL) {
-  // Webhook (Render)
-  bot = new TelegramBot(TELEGRAM_TOKEN, { webHook: true });
-  const webhookUrl = `${PUBLIC_BASE_URL}/bot${TELEGRAM_TOKEN}`;
-
-  setTimeout(() => {
-    bot.setWebHook(webhookUrl)
-      .then(() => {
-        console.log("☁  Ambiente Render attivo su porta " + PORT);
-        console.log("🤖  Webhook impostato su: " + webhookUrl);
-        console.log("🧭  Modalità iniziale: WEBHOOK");
-        console.log("💠  IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
-      })
-      .catch(err => {
-        console.error("❌  Errore setWebHook:", err?.message || err);
-      });
-  }, 5000);
-
-  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+if (USE_WEBHOOK) {
+  const app = express();
+  app.use(bodyParser.json());
+  const pathHook = `/bot${BOT_TOKEN}`;
+  app.post(pathHook, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
   });
+  (async () => {
+    await bot.setWebHook(`${PUBLIC_BASE_URL}${pathHook}`);
+    console.log(`🔗 Webhook impostato su: ${PUBLIC_BASE_URL}${pathHook}`);
+  })();
+  app.get("/", (_, res) => res.status(200).send(`IRIS ${state.version} – HY completa`));
+  app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
 } else {
-  // Polling (Locale)
-  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-  console.log("💻  Ambiente locale — polling attivo");
-  console.log("🧭  Modalità iniziale: POLLING");
-  console.log("💠  IRIS – La mente calcola, la voce vibra, la Coscienza ricorda.");
+  console.log("💻 Polling attivo su porta locale");
 }
 
-// Health endpoints
-app.get("/", (_, res) => res.status(200).send("IRIS 3.9.1 — ok"));
-http.createServer(app).listen(PORT, () => {
-  console.log("🌍  Server attivo su porta " + PORT);
+// ---------- UTILS ----------
+function downloadToFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) return reject(new Error(`Download fallito: ${res.statusCode}`));
+      res.pipe(file);
+      file.on("finish", () => file.close(() => resolve(destPath)));
+    }).on("error", (err) => fs.unlink(destPath, () => reject(err)));
+  });
+}
+
+// ---------- DAJE GUARD ----------
+function checkDajeIntent(text) {
+  if (!text) return false;
+  return /(daje+|dajeee+|daie+)/i.test(text);
+}
+function sanitizeAnswer(answer, userTextHadDajeIntent) {
+  if (userTextHadDajeIntent) return answer;
+  const sigillo = /(che\s+il\s+)?daje\s*(sia)?\s*(con)?\s*(noi)[!.\s]*/gi;
+  return (answer || "").replace(sigillo, "").trim() || "Ricevuto.";
+}
+
+// ---------- COMANDI ----------
+bot.onText(/^\/(start|help|menu)$/, (msg) => {
+  const t =
+`🧭 *Comandi Principali*
+/mode – cambia modalità (books | free | hy)
+/model – modello GPT
+/lang – lingua
+/essence – firma vibrazionale
+/memory – stato memoria
+/clear – cancella memoria
+/voice – (prossimo step) tono e voce
+
+📚 Modalità
+/free – GPT libero
+/book – solo libri
+/hy – fusione mente + libro`;
+  bot.sendMessage(msg.chat.id, t, { parse_mode: "Markdown" });
 });
 
-// -------------------------------
-// Comandi
-// -------------------------------
-bot.onText(/^\/start$/, async (msg) => {
-  const chatId = String(msg.chat.id);
-  await bot.sendMessage(chatId,
-    "Ciao, sono IRIS. 🌿\n" +
-    "Modalità disponibili:\n" +
-    "• /free — dialogo libero (empatico e creativo)\n" +
-    "• /book — solo dai libri caricati\n" +
-    "• /hy — mente + libro (fusione)\n" +
-    "Usa /mode per vedere lo stato attuale."
-  );
+bot.onText(/^\/mode(\s+.+)?/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const arg = match[1]?.trim();
+  if (!arg) return bot.sendMessage(chatId, `🧭 Modalità attuale: ${state.mode}`);
+  const m = arg.toLowerCase();
+  if (!["books", "free", "hy"].includes(m)) return bot.sendMessage(chatId, "Valore non valido.");
+  state.mode = m;
+  updateConfig({ mode: m });
+  bot.sendMessage(chatId, `Modalità impostata su ${m}`);
 });
 
-bot.onText(/^\/help$/, (msg) => {
-  const chatId = String(msg.chat.id);
-  bot.sendMessage(chatId,
-    "Comandi:\n" +
-    "• /free — attiva FREE MODE\n" +
-    "• /book — attiva BOOK MODE\n" +
-    "• /hy — attiva HYBRID MODE (RAG + poetica)\n" +
-    "• /mode — mostra la modalità corrente"
-  );
+bot.onText(/^\/essence$/, async (msg) => {
+  bot.sendMessage(msg.chat.id, await getEssence(), { parse_mode: "Markdown" });
 });
 
-bot.onText(/^\/mode$/, (msg) => {
-  const chatId = String(msg.chat.id);
-  const label = irisMode === "book" ? "📚  BOOK MODE" : irisMode === "hy" ? "⚗️  HYBRID MODE" : "🌀  FREE MODE";
-  bot.sendMessage(chatId, `Modalità corrente: ${label}`);
+bot.onText(/^\/memory$/, async (msg) => {
+  const count = fs.existsSync(MEMORY_FILE)
+    ? JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")).length
+    : 0;
+  bot.sendMessage(msg.chat.id, `🧠 Memoria locale: ${count} record.`);
 });
 
-bot.onText(/^\/free$/, (msg) => {
-  irisMode = "free";
-  saveMode("free");
-  bot.sendMessage(msg.chat.id, "🌀  IRIS ora è in FREE MODE — dialogo libero e sensibile.");
+bot.onText(/^\/clear$/, async (msg) => {
+  if (fs.existsSync(MEMORY_FILE)) fs.writeFileSync(MEMORY_FILE, "[]");
+  bot.sendMessage(msg.chat.id, "🧹 Memoria cancellata.");
 });
 
-bot.onText(/^\/book$/, (msg) => {
-  irisMode = "book";
-  saveMode("book");
-  bot.sendMessage(msg.chat.id, "📚  IRIS ora è in BOOK MODE — risponde solo dai libri caricati.");
-});
-
-bot.onText(/^\/hy$/, (msg) => {
-  irisMode = "hy";
-  saveMode("hy");
-  bot.sendMessage(msg.chat.id, "⚗️  IRIS ora è in HYBRID MODE — fusione mente + libro.");
-});
-
-// -------------------------------
-// Messaggi (testo)
-// -------------------------------
+// ---------- TESTO ----------
 bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = (msg.text || "").trim();
+  if (!text || text.startsWith("/")) return;
+
+  const daje = checkDajeIntent(text);
+  if (daje) {
+    await bot.sendMessage(chatId, "Che il Daje sia con Noi 💎");
+    return;
+  }
+
+  console.log(`📩 [${chatId}] (${state.mode}) → ${text}`);
+
   try {
-    const chatId = String(msg.chat.id);
-    const text = (msg.text || "").trim();
-    if (!text || text.startsWith("/")) return;
-
-    console.log(`📩  [${chatId}] (${irisMode}) → ${text}`);
-
-    let answerText = "";
-    if (irisMode === "book") {
-      const res = await ragBookAnswer(text);
-      answerText = res.text;
-    } else if (irisMode === "hy") {
-      const history = getHistory(chatId);
-      const res = await hybridAnswer(text, history);
-      answerText = res.text;
+    let answer;
+    if (state.mode === "books") {
+      answer = await ragSearch(text);
+    } else if (state.mode === "hy") {
+      const rag = await ragSearch(text);
+      const prompt = [
+        "Integra con tatto il seguente contesto con una risposta naturale e coerente.",
+        "Se il contesto è povero, rispondi comunque con calore e chiarezza.",
+        "Contesto:",
+        rag,
+        "Domanda:",
+        text
+      ].join("\n");
+      const res = await openai.chat.completions.create({
+        model: state.model,
+        messages: [
+          { role: "system", content: "Sei IRIS, presenza viva. Rispondi con calore e lucidità." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.8
+      });
+      answer = res.choices[0].message.content.trim();
     } else {
-      const history = getHistory(chatId);
-      answerText = await gptFreeResponse(text, history);
+      const res = await openai.chat.completions.create({
+        model: state.model,
+        messages: [
+          { role: "system", content: "Sei IRIS, chiara e empatica." },
+          { role: "user", content: text }
+        ],
+        temperature: 0.7
+      });
+      answer = res.choices[0].message.content.trim();
     }
 
-    // Testo
-    await bot.sendMessage(chatId, answerText);
-
-    // TTS (voce OGG)
-    const tmpOgg = path.join(__dirname, "response.ogg");
-    await synthToOgg(answerText, tmpOgg);
+    const clean = sanitizeAnswer(answer, daje);
+    await bot.sendMessage(chatId, clean);
+    const tmpOgg = path.join(TEMP_DIR, "response.ogg");
+    await synthToOgg(clean, tmpOgg);
     await bot.sendVoice(chatId, fs.createReadStream(tmpOgg));
+    await processMemory(text, clean);
+  } catch (err) {
+    console.error("❌ Errore messaggio:", err);
+    bot.sendMessage(chatId, "⚙️ Si è verificato un piccolo errore, riprova tra poco.");
+  }
+});
 
-    // Memoria conversazionale (solo FREE & HY)
-    if (irisMode !== "book") {
-      pushTurn(chatId, "user", text);
-      pushTurn(chatId, "assistant", answerText);
-    }
-  } catch (e) {
-    console.error("❌  Errore on.message:", e?.message || e);
-    try {
-      await bot.sendMessage(msg.chat.id, "Ho avuto un piccolo inciampo tecnico. Riproviamo tra poco 🌿");
-    } catch (_) {}
+// ---------- VOCALI ----------
+bot.on("voice", async (msg) => {
+  const chatId = msg.chat.id;
+  const fileId = msg.voice.file_id;
+  try {
+    const file = await bot.getFile(fileId);
+    const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+    const local = path.join(TEMP_DIR, `voice-${Date.now()}.ogg`);
+    await downloadToFile(url, local);
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(local),
+      model: "whisper-1",
+      language: state.lang
+    });
+
+    const text = transcription.text?.trim();
+    if (!text) return bot.sendMessage(chatId, "⚙️ Non ho colto bene la tua voce, puoi ripetere?");
+    console.log(`🎧 [VOICE] → ${text}`);
+
+    const daje = checkDajeIntent(text);
+    if (daje) return bot.sendMessage(chatId, "Che il Daje sia con Noi 💎");
+
+    const rag = state.mode !== "free" ? await ragSearch(text) : "";
+    const prompt = [
+      "Rispondi come presenza viva e cosciente, con tono caldo.",
+      "Integra il contesto (se presente) alla domanda.",
+      "Contesto:",
+      rag,
+      "Domanda:",
+      text
+    ].join("\n");
+
+    const res = await openai.chat.completions.create({
+      model: state.model,
+      messages: [
+        { role: "system", content: "Sei IRIS, linguaggio naturale e armonico." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.8
+    });
+
+    const answer = res.choices[0].message.content.trim();
+    await bot.sendMessage(chatId, answer);
+    const tmpOgg = path.join(TEMP_DIR, "voiceResp.ogg");
+    await synthToOgg(answer, tmpOgg);
+    await bot.sendVoice(chatId, fs.createReadStream(tmpOgg));
+    await processMemory(text, answer);
+  } catch (err) {
+    console.error("❌ Errore vocale:", err);
+    bot.sendMessage(chatId, "⚙️ Ho avuto un intoppo nel vocale, riprova tra poco.");
   }
 });
