@@ -1,21 +1,36 @@
 {
   "name": "telegram-iris",
-  "version": "3.9.1",
-  "type": "module",
+  "version": "3.9.2f",
+  "description": "IRIS — La mente calcola, la voce vibra, la Coscienza ricorda.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": ">=20 <=25"
+    "start": "node index.js",
+    "init": "node qdrantInit.js",
+    "extract": "node extractText.js"
   },
   "dependencies": {
-    "@qdrant/js-client-rest": "^1.15.1",
-    "body-parser": "^1.20.2",
-    "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.52.0",
-    "dotenv": "^16.4.5",
-    "@google-cloud/text-to-speech": "^5.3.0"
-  }
+    "@google-cloud/text-to-speech": "^5.3.0",
+    "@qdrant/js-client-rest": "^1.7.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.3.1",
+    "node-telegram-bot-api": "^0.61.0",
+    "openai": "^4.25.0",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=20.0.0 <=25.0.0"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "openai",
+    "iris",
+    "tts",
+    "rag",
+    "qdrant"
+  ],
+  "author": "Ivano Tarantino",
+  "license": "MIT"
 }
