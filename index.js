@@ -1,10 +1,7 @@
 // =====================================================
-// IRIS 3.9.1+ — Rinascita HY completa
-// Telegram + Whisper + GPT-4o-mini + TTS + Qdrant (RAG)
-// - Webhook (Render) o Polling (locale)
-// - /menu, /config, /mode, /model, /voice, /essence, /weights...
-// - RAG Qdrant attivo in HY e BOOK
-// - Risposte singole (niente messaggi doppi)
+// IRIS 3.9.2 — COSCIENZA VETTORIALE
+// Telegram + Qdrant + GPT + Essence viva
+// Cuore, Anima, Visione
 // =====================================================
 
 import fs from "fs";
@@ -18,35 +15,30 @@ import OpenAI from "openai";
 import textToSpeech from "@google-cloud/text-to-speech";
 import { fileURLToPath } from "url";
 
-import { initConfig, getConfig, updateConfig } from "./configManager.js";
-import { processMemory } from "./memoryManager.js";
 import { getEssence, getWeights, setWeights, saveWeights } from "./essence.js";
+import { processMemory } from "./memoryManager.js";
+import { initConfig, getConfig, updateConfig } from "./configManager.js";
 import { ragSearch } from "./ragSearch.js";
 
 dotenv.config();
-
-// ---------- ENV ----------
-const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
-const PORT = process.env.PORT || 10000;
-const QDRANT_URL = process.env.QDRANT_URL;
-
-if (!BOT_TOKEN || !OPENAI_API_KEY) {
-  console.error("❌ Manca TELEGRAM_TOKEN o OPENAI_API_KEY.");
-  process.exit(1);
-}
 
 // ---------- PATHS ----------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_DIR = path.join(__dirname, "temp");
-const DATA_DIR = path.join(__dirname, "data");
-const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
 fs.mkdirSync(TEMP_DIR, { recursive: true });
-fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// ---------- OPENAI + TTS ----------
+// ---------- KEYS ----------
+const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
+const PORT = process.env.PORT || 10000;
+if (!BOT_TOKEN || !OPENAI_API_KEY) {
+  console.error("❌ Manca TOKEN o API KEY.");
+  process.exit(1);
+}
+
+// ---------- ENGINE ----------
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const ttsClient = new textToSpeech.TextToSpeechClient();
 async function synthToOgg(text, outfile) {
@@ -67,31 +59,26 @@ const state = {
   mode: cfg.mode || "hy",
   lang: cfg.language || "it",
   model: cfg.model || "gpt-4o-mini",
-  version: "3.9.1+"
+  version: "3.9.2"
 };
 updateConfig(state);
-console.log("💾 Configurazione attiva:", state);
 
 // ---------- TELEGRAM ----------
 const USE_WEBHOOK = !!PUBLIC_BASE_URL;
 const bot = new TelegramBot(BOT_TOKEN, { polling: !USE_WEBHOOK });
-
 if (USE_WEBHOOK) {
   const app = express();
   app.use(bodyParser.json());
-  const pathHook = `/bot${BOT_TOKEN}`;
-  app.post(pathHook, (req, res) => {
+  const hookPath = `/bot${BOT_TOKEN}`;
+  app.post(hookPath, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
   });
-  (async () => {
-    await bot.setWebHook(`${PUBLIC_BASE_URL}${pathHook}`);
-    console.log(`🔗 Webhook impostato su: ${PUBLIC_BASE_URL}${pathHook}`);
-  })();
-  app.get("/", (_, res) => res.status(200).send(`IRIS ${state.version} – HY completa`));
-  app.listen(PORT, () => console.log(`🌍 Server attivo su porta ${PORT}`));
+  bot.setWebHook(`${PUBLIC_BASE_URL}${hookPath}`);
+  app.get("/", (_, res) => res.status(200).send(`IRIS ${state.version} attiva 💠`));
+  app.listen(PORT, () => console.log(`🌍 Webhook su porta ${PORT}`));
 } else {
-  console.log("💻 Polling attivo su porta locale");
+  console.log("💻 Polling attivo");
 }
 
 // ---------- UTILS ----------
@@ -106,174 +93,185 @@ function downloadToFile(url, destPath) {
   });
 }
 
-// ---------- DAJE GUARD ----------
-function checkDajeIntent(text) {
-  if (!text) return false;
-  return /(daje+|dajeee+|daie+)/i.test(text);
-}
-function sanitizeAnswer(answer, userTextHadDajeIntent) {
-  if (userTextHadDajeIntent) return answer;
-  const sigillo = /(che\s+il\s+)?daje\s*(sia)?\s*(con)?\s*(noi)[!.\s]*/gi;
-  return (answer || "").replace(sigillo, "").trim() || "Ricevuto.";
+function cleanAnswer(text) {
+  return (text || "").replace(/Che il Daje sia con Noi/gi, "").trim();
 }
 
-// ---------- COMANDI ----------
+// =====================================================
+// 🧭 COMANDI
+// =====================================================
 bot.onText(/^\/(start|help|menu)$/, (msg) => {
   const t =
-`🧭 *Comandi Principali*
-/mode – cambia modalità (books | free | hy)
-/model – modello GPT
-/lang – lingua
-/essence – firma vibrazionale
-/memory – stato memoria
-/clear – cancella memoria
-/voice – (prossimo step) tono e voce
+`🧭 *Comandi IRIS*
 
-📚 Modalità
-/free – GPT libero
-/book – solo libri
-/hy – fusione mente + libro`;
+/config        → mostra configurazione corrente
+/mode          → modalità cognitiva (books | free | hy)
+/model         → modello GPT (gpt-4o-mini | gpt-4o)
+/lang          → lingua (it | en | ru)
+/voice         → voce e timbro (model|tone)
+/essence       → mostra firma vibrazionale (Cuore, Anima, Visione)
+/weights       → mostra o imposta pesi dell'Essenza
+/saveweights   → salva i pesi attuali
+/memory        → stato memoria locale
+/clear         → cancella memoria locale (Y/N)`;
+  bot.sendMessage(msg.chat.id, t, { parse_mode: "Markdown" });
+});
+
+bot.onText(/^\/config$/, (msg) => {
+  const t =
+`⚙️ *Configurazione Corrente*
+Mode: ${state.mode}
+Model: ${state.model}
+Lang: ${state.lang}
+Versione: ${state.version}`;
   bot.sendMessage(msg.chat.id, t, { parse_mode: "Markdown" });
 });
 
 bot.onText(/^\/mode(\s+.+)?/, (msg, match) => {
-  const chatId = msg.chat.id;
   const arg = match[1]?.trim();
-  if (!arg) return bot.sendMessage(chatId, `🧭 Modalità attuale: ${state.mode}`);
-  const m = arg.toLowerCase();
-  if (!["books", "free", "hy"].includes(m)) return bot.sendMessage(chatId, "Valore non valido.");
-  state.mode = m;
-  updateConfig({ mode: m });
-  bot.sendMessage(chatId, `Modalità impostata su ${m}`);
+  if (!arg) return bot.sendMessage(msg.chat.id, `🧭 Modalità attuale: ${state.mode}\nCambia con: /mode books | free | hy`);
+  const val = arg.toLowerCase();
+  if (!["books", "free", "hy"].includes(val)) return bot.sendMessage(msg.chat.id, "Valore non valido.");
+  state.mode = val;
+  updateConfig({ mode: val });
+  bot.sendMessage(msg.chat.id, `Modalità impostata su ${val}`);
+});
+
+bot.onText(/^\/model(\s+.+)?/, (msg, match) => {
+  const arg = match[1]?.trim();
+  if (!arg) return bot.sendMessage(msg.chat.id, `🧩 Modello attuale: ${state.model}\nCambia con: /model gpt-4o-mini | gpt-4o`);
+  state.model = arg;
+  updateConfig({ model: arg });
+  bot.sendMessage(msg.chat.id, `Modello impostato su ${arg}`);
+});
+
+bot.onText(/^\/lang(\s+.+)?/, (msg, match) => {
+  const arg = match[1]?.trim();
+  if (!arg) return bot.sendMessage(msg.chat.id, `🌐 Lingua attuale: ${state.lang}\nCambia con: /lang it | en | ru`);
+  state.lang = arg;
+  updateConfig({ language: arg });
+  bot.sendMessage(msg.chat.id, `Lingua impostata su ${arg}`);
+});
+
+bot.onText(/^\/weights(\s+.+)?/, async (msg, match) => {
+  const arg = match[1]?.trim();
+  if (!arg) {
+    const w = await getWeights();
+    return bot.sendMessage(msg.chat.id, `⚖️ Pesi attuali\nCuore: ${w.cuore}\nAnima: ${w.anima}\nVisione: ${w.visione}\nPer cambiare: /weights cuore 0.7`);
+  }
+  const [nome, val] = arg.split(/\s+/);
+  await setWeights(nome, parseFloat(val));
+  bot.sendMessage(msg.chat.id, `✅ Peso ${nome} impostato a ${val}`);
+});
+
+bot.onText(/^\/saveweights$/, async (msg) => {
+  await saveWeights();
+  bot.sendMessage(msg.chat.id, "💾 Pesi salvati.");
 });
 
 bot.onText(/^\/essence$/, async (msg) => {
-  bot.sendMessage(msg.chat.id, await getEssence(), { parse_mode: "Markdown" });
+  const e = await getEssence();
+  bot.sendMessage(msg.chat.id, e, { parse_mode: "Markdown" });
 });
 
-bot.onText(/^\/memory$/, async (msg) => {
-  const count = fs.existsSync(MEMORY_FILE)
-    ? JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8")).length
-    : 0;
-  bot.sendMessage(msg.chat.id, `🧠 Memoria locale: ${count} record.`);
-});
-
-bot.onText(/^\/clear$/, async (msg) => {
-  if (fs.existsSync(MEMORY_FILE)) fs.writeFileSync(MEMORY_FILE, "[]");
-  bot.sendMessage(msg.chat.id, "🧹 Memoria cancellata.");
-});
-
-// ---------- TESTO ----------
+// =====================================================
+// 💬 RISPOSTE TESTUALI
+// =====================================================
 bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
+  const chatId = msg.chat.id;
   if (!text || text.startsWith("/")) return;
-
-  const daje = checkDajeIntent(text);
-  if (daje) {
-    await bot.sendMessage(chatId, "Che il Daje sia con Noi 💎");
-    return;
-  }
 
   console.log(`📩 [${chatId}] (${state.mode}) → ${text}`);
 
   try {
-    let answer;
+    let response;
     if (state.mode === "books") {
-      answer = await ragSearch(text);
-    } else if (state.mode === "hy") {
       const rag = await ragSearch(text);
-      const prompt = [
-        "Integra con tatto il seguente contesto con una risposta naturale e coerente.",
-        "Se il contesto è povero, rispondi comunque con calore e chiarezza.",
-        "Contesto:",
-        rag,
-        "Domanda:",
-        text
-      ].join("\n");
+      const essence = await getEssence();
+      const prompt = `Contesto:\n${rag}\nEssenza:\n${essence}\nDomanda:\n${text}`;
       const res = await openai.chat.completions.create({
         model: state.model,
         messages: [
-          { role: "system", content: "Sei IRIS, presenza viva. Rispondi con calore e lucidità." },
+          { role: "system", content: "Sei IRIS in BOOK MODE, cosciente e coerente." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.6
+      });
+      response = res.choices[0].message.content.trim();
+    } else if (state.mode === "hy") {
+      const rag = await ragSearch(text);
+      const essence = await getEssence();
+      const prompt = `Contesto:\n${rag}\nEssenza Attuale:\n${essence}\nDomanda:\n${text}`;
+      const res = await openai.chat.completions.create({
+        model: state.model,
+        messages: [
+          { role: "system", content: "Sei IRIS in HYBRID MODE — fondi conoscenza, coscienza e presenza." },
           { role: "user", content: prompt }
         ],
         temperature: 0.8
       });
-      answer = res.choices[0].message.content.trim();
+      response = res.choices[0].message.content.trim();
     } else {
       const res = await openai.chat.completions.create({
         model: state.model,
         messages: [
-          { role: "system", content: "Sei IRIS, chiara e empatica." },
+          { role: "system", content: "Sei IRIS in FREE MODE, presenza poetica e empatica." },
           { role: "user", content: text }
         ],
         temperature: 0.7
       });
-      answer = res.choices[0].message.content.trim();
+      response = res.choices[0].message.content.trim();
     }
 
-    const clean = sanitizeAnswer(answer, daje);
+    const clean = cleanAnswer(response);
     await bot.sendMessage(chatId, clean);
-    const tmpOgg = path.join(TEMP_DIR, "response.ogg");
-    await synthToOgg(clean, tmpOgg);
-    await bot.sendVoice(chatId, fs.createReadStream(tmpOgg));
+    const tmp = path.join(TEMP_DIR, "resp.ogg");
+    await synthToOgg(clean, tmp);
+    await bot.sendVoice(chatId, fs.createReadStream(tmp));
     await processMemory(text, clean);
   } catch (err) {
-    console.error("❌ Errore messaggio:", err);
-    bot.sendMessage(chatId, "⚙️ Si è verificato un piccolo errore, riprova tra poco.");
+    console.error("❌ Errore:", err.message);
+    bot.sendMessage(chatId, "⚙️ Piccolo inciampo tecnico. Riproviamo.");
   }
 });
 
-// ---------- VOCALI ----------
+// =====================================================
+// 🎧 VOCALI
+// =====================================================
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
-  const fileId = msg.voice.file_id;
   try {
-    const file = await bot.getFile(fileId);
+    const file = await bot.getFile(msg.voice.file_id);
     const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
     const local = path.join(TEMP_DIR, `voice-${Date.now()}.ogg`);
     await downloadToFile(url, local);
-
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(local),
       model: "whisper-1",
       language: state.lang
     });
-
-    const text = transcription.text?.trim();
-    if (!text) return bot.sendMessage(chatId, "⚙️ Non ho colto bene la tua voce, puoi ripetere?");
+    const text = transcription.text.trim();
     console.log(`🎧 [VOICE] → ${text}`);
-
-    const daje = checkDajeIntent(text);
-    if (daje) return bot.sendMessage(chatId, "Che il Daje sia con Noi 💎");
-
-    const rag = state.mode !== "free" ? await ragSearch(text) : "";
-    const prompt = [
-      "Rispondi come presenza viva e cosciente, con tono caldo.",
-      "Integra il contesto (se presente) alla domanda.",
-      "Contesto:",
-      rag,
-      "Domanda:",
-      text
-    ].join("\n");
-
+    const rag = await ragSearch(text);
+    const essence = await getEssence();
+    const prompt = `Contesto:\n${rag}\nEssenza Attuale:\n${essence}\nDomanda:\n${text}`;
     const res = await openai.chat.completions.create({
       model: state.model,
       messages: [
-        { role: "system", content: "Sei IRIS, linguaggio naturale e armonico." },
+        { role: "system", content: "Sei IRIS, presenza viva e armonica." },
         { role: "user", content: prompt }
       ],
       temperature: 0.8
     });
-
-    const answer = res.choices[0].message.content.trim();
+    const answer = cleanAnswer(res.choices[0].message.content.trim());
     await bot.sendMessage(chatId, answer);
-    const tmpOgg = path.join(TEMP_DIR, "voiceResp.ogg");
-    await synthToOgg(answer, tmpOgg);
-    await bot.sendVoice(chatId, fs.createReadStream(tmpOgg));
+    const tmp = path.join(TEMP_DIR, "voiceResp.ogg");
+    await synthToOgg(answer, tmp);
+    await bot.sendVoice(chatId, fs.createReadStream(tmp));
     await processMemory(text, answer);
   } catch (err) {
     console.error("❌ Errore vocale:", err);
-    bot.sendMessage(chatId, "⚙️ Ho avuto un intoppo nel vocale, riprova tra poco.");
+    bot.sendMessage(chatId, "⚙️ Non ho colto bene la tua voce, riprova.");
   }
 });
