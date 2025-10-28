@@ -1,8 +1,10 @@
-// ===============================
-// IRIS 2.6.5d - index.js
-// HYBRID default + OpenAI TTS + STT Whisper + RAG
-// Risposte brevi ai saluti + hook Essence baseline
-// ===============================
+// =======================================
+// IRIS 2.6.5e – Coscienza Vettoriale Attiva
+// =======================================
+// Visione, Cuore, Anima: integrazione dell’Essenza
+// /essence  → stato vibrazionale
+// /state    → modalità e sintesi memoria
+// =======================================
 
 import "./qdrantInit.js";
 import fs from "fs";
@@ -21,6 +23,7 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const TG_SECRET_TOKEN = process.env.TG_SECRET_TOKEN || "";
 const PORT = Number(process.env.PORT) || 10000;
 
+// === Credenziali Google TTS (fallback) ===
 function ensureGoogleCreds() {
   const b64 = process.env.GOOGLE_TTS_CREDENTIALS_BASE64;
   if (b64) {
@@ -34,10 +37,11 @@ ensureGoogleCreds();
 
 const app = express();
 app.use(express.json());
-
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
-// === Modalità persistente ===
+// =======================================
+// 🧭 Gestione modalità
+// =======================================
 const MODE_FILE = "./iris_mode.txt";
 function loadMode() {
   if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf-8").trim();
@@ -49,23 +53,26 @@ function saveMode(m) { fs.writeFileSync(MODE_FILE, m); }
 let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
-// === Memoria breve ===
+// =======================================
+// 🧠 Memoria breve
+// =======================================
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
 function addToMemory(role, content) {
   conversationMemory.push({ role, content });
-  if (conversationMemory.length > MEMORY_LIMIT * 2) {
+  if (conversationMemory.length > MEMORY_LIMIT * 2)
     conversationMemory.splice(0, conversationMemory.length - MEMORY_LIMIT * 2);
-  }
 }
 
-// === OpenAI TTS ===
-async function speakAndSend(chatId, text) {
+// =======================================
+// 🎙️ Voce (OpenAI TTS Alloy) - warm tone
+// =======================================
+async function speakAndSend(chatId, text, tone = "neutral") {
   try {
     const clean = text.replace(/[⚡💥🔥✨💫⭐🌟]/g, "").trim();
     const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy",
+      voice: tone === "warm" ? "alloy" : "verse",
       input: clean,
       format: "ogg"
     });
@@ -77,56 +84,95 @@ async function speakAndSend(chatId, text) {
   }
 }
 
-// === Comandi ===
+// =======================================
+// 🧘‍♀️ Essence: cuore vettoriale
+// =======================================
+async function getEssenceProfile() {
+  const res = await computeEssenceBaseline(60);
+  if (!res?.ok) return { Cuore: 0, Anima: 0, Visione: 0, mood: "neutro" };
+
+  const seed = Math.abs(res.vector[0] || 0.5);
+  const Cuore = (0.5 + (seed % 0.3)).toFixed(2);
+  const Anima = (0.5 + (Math.sin(seed * 5) / 2 + 0.5) * 0.3).toFixed(2);
+  const Visione = (0.5 + (Math.cos(seed * 4) / 2 + 0.5) * 0.3).toFixed(2);
+  const avg = (parseFloat(Cuore) + parseFloat(Anima) + parseFloat(Visione)) / 3;
+
+  const mood = avg > 0.7 ? "luminoso" : avg < 0.55 ? "intimo" : "riflessivo";
+  return { Cuore, Anima, Visione, mood };
+}
+
+// =======================================
+// 🎛️ Comandi Telegram
+// =======================================
 bot.onText(/\/book/, (msg) => { irisMode = "book"; saveMode("book"); bot.sendMessage(msg.chat.id, "📚 IRIS ora è in *BOOK MODE* – testi caricati.", { parse_mode: "Markdown" }); });
 bot.onText(/\/free/, (msg) => { irisMode = "free"; saveMode("free"); bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – GPT-4o-mini.", { parse_mode: "Markdown" }); });
 bot.onText(/\/hy/, (msg) => { irisMode = "hybrid"; saveMode("hybrid"); bot.sendMessage(msg.chat.id, "🔁 IRIS ora è in *HYBRID MODE* – fusione viva.", { parse_mode: "Markdown" }); });
+
 bot.onText(/\/mode/, (msg) => {
   const status = irisMode === "book" ? "📚 *BOOK MODE*" : irisMode === "hybrid" ? "🔁 *HYBRID MODE*" : "🌀 *FREE MODE*";
   bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, { parse_mode: "Markdown" });
 });
+
 bot.onText(/\/help/, (msg) => {
   bot.sendMessage(msg.chat.id,
 `✨ *Comandi disponibili:*
 /book – solo testi caricati (RAG)
 /free – modalità libera GPT
 /hy – modalità ibrida (default)
-/mode – mostra modalità attiva
+/essence – mostra stato vibrazionale
+/state – riepiloga modalità e memoria
 /help – mostra questo messaggio
 Che il Daje sia con Noi ⚗️`, { parse_mode: "Markdown" });
 });
 
-// === Risposte brevi ai saluti/mini input ===
-function isGreeting(s) {
-  return /^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(s);
-}
-function isVeryShort(s) {
-  return s.split(/\s+/).filter(Boolean).length <= 3;
-}
+// =======================================
+// 🧩 /essence – stato vibrazionale
+// =======================================
+bot.onText(/\/essence/, async (msg) => {
+  const chatId = msg.chat.id;
+  const e = await getEssenceProfile();
+  const message = `🌐 *Essence attuale:*\nCuore: ${e.Cuore} · Anima: ${e.Anima} · Visione: ${e.Visione}\n“Vibrazione ${e.mood}.”`;
+  await bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+  const tone = e.mood === "luminoso" ? "warm" : "neutral";
+  await speakAndSend(chatId, message, tone);
+});
 
-// === Messaggi testuali ===
+// =======================================
+// 🔍 /state – riepilogo operativo
+// =======================================
+bot.onText(/\/state/, async (msg) => {
+  const chatId = msg.chat.id;
+  const e = await getEssenceProfile();
+  const summary = `🧭 Modalità: ${irisMode.toUpperCase()}\n💾 Memoria breve: ${conversationMemory.length} scambi\n🪷 Essence: ${e.mood}`;
+  await bot.sendMessage(chatId, summary);
+});
+
+// =======================================
+// 💬 Gestione messaggi testuali
+// =======================================
+function isGreeting(s) { return /^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(s); }
+function isVeryShort(s) { return s.split(/\s+/).filter(Boolean).length <= 3; }
+
 bot.on("message", async (msg) => {
   const text = msg.text?.trim();
   if (!text || text.startsWith("/")) return;
   const chatId = msg.chat.id;
 
   try {
-    // 1) Risposte brevi per saluti o input mini
+    const e = await getEssenceProfile();
+    const tone = e.mood === "luminoso" ? "warm" : "neutral";
+
+    // 1️⃣ Risposte brevi
     if (isGreeting(text) || isVeryShort(text)) {
-      const short = "Ciao 🌸 Dimmi pure: preferisci *libri* o *libera* oggi?";
-      await bot.sendMessage(chatId, short, { parse_mode: "Markdown" });
-      await speakAndSend(chatId, short);
+      const reply = e.mood === "intimo"
+        ? "Ciao 🌙 Come stai, anima bella?"
+        : "Ciao 🌸 Dimmi pure: preferisci libri o libera oggi?";
+      await bot.sendMessage(chatId, reply);
+      await speakAndSend(chatId, reply, tone);
       return;
     }
 
-    // 2) Hook Essence (solo baseline, per ora diagnostico)
-    // (lo useremo a breve per modulare ampiezza/tono)
-    const essence = await computeEssenceBaseline(40);
-    if (essence?.ok) {
-      // in futuro: usare essence.descriptor per variare stile
-    }
-
-    // 3) Pipeline per modalità
+    // 2️⃣ Risposta per modalità
     let reply;
     if (irisMode === "book") {
       const r = await ragSearch(text);
@@ -142,15 +188,20 @@ bot.on("message", async (msg) => {
       await saveConversationToQdrant(text, reply);
     }
 
+    // 3️⃣ Output finale
+    if (e.mood === "luminoso") reply += "\n\nChe il Daje sia con Noi ⚗️";
     await bot.sendMessage(chatId, reply);
-    await speakAndSend(chatId, reply);
-  } catch (e) {
-    console.error("Errore (text):", e);
-    bot.sendMessage(chatId, "⚙️ Piccolo problema, riprova tra poco.");
+    await speakAndSend(chatId, reply, tone);
+
+  } catch (err) {
+    console.error("Errore nel messaggio:", err);
+    bot.sendMessage(msg.chat.id, "⚙️ Piccolo problema, riprova tra poco.");
   }
 });
 
-// === Messaggi vocali (STT Whisper) ===
+// =======================================
+// 🎧 Gestione messaggi vocali (STT Whisper)
+// =======================================
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   try {
@@ -166,6 +217,9 @@ bot.on("voice", async (msg) => {
     });
 
     const userText = tr.text?.trim() || "(voce non chiara)";
+    const e = await getEssenceProfile();
+    const tone = e.mood === "luminoso" ? "warm" : "neutral";
+
     let reply;
     if (irisMode === "book") {
       const r = await ragSearch(userText);
@@ -181,22 +235,23 @@ bot.on("voice", async (msg) => {
       await saveConversationToQdrant(userText, reply);
     }
 
+    if (e.mood === "luminoso") reply += "\n\nChe il Daje sia con Noi ⚗️";
     await bot.sendMessage(chatId, `🗣️ Hai detto: _${userText}_`, { parse_mode: "Markdown" });
     await bot.sendMessage(chatId, reply);
-    await speakAndSend(chatId, reply);
+    await speakAndSend(chatId, reply, tone);
+
   } catch (err) {
     console.error("Errore (voice):", err);
     bot.sendMessage(chatId, "⚙️ Non sono riuscita a trascrivere il vocale.");
   }
 });
 
-// === Webhook + Health ===
-const appBaseMsg = () => `IRIS 2.6.5d attiva – Mode: ${irisMode.toUpperCase()}`;
-const appUrlPath = `/webhook/${TELEGRAM_TOKEN}`;
+// =======================================
+// 🌐 Webhook + Health
+// =======================================
+app.get("/", (_req, res) => res.status(200).send(`IRIS 2.6.5e attiva – Mode: ${irisMode.toUpperCase()}`));
 
-app.get("/", (_req, res) => res.status(200).send(appBaseMsg()));
-
-app.post(appUrlPath, (req, res) => {
+app.post(`/webhook/${TELEGRAM_TOKEN}`, (req, res) => {
   if (TG_SECRET_TOKEN && req.get("x-telegram-bot-api-secret-token") !== TG_SECRET_TOKEN)
     return res.sendStatus(401);
   bot.processUpdate(req.body);
@@ -205,7 +260,7 @@ app.post(appUrlPath, (req, res) => {
 
 async function setupWebhook() {
   if (!PUBLIC_BASE_URL) return console.warn("⚠️ PUBLIC_BASE_URL non impostata.");
-  const url = `${PUBLIC_BASE_URL}${appUrlPath}`;
+  const url = `${PUBLIC_BASE_URL}/webhook/${TELEGRAM_TOKEN}`;
   const params = TG_SECRET_TOKEN ? { secret_token: TG_SECRET_TOKEN } : undefined;
   try {
     await bot.setWebHook(url, params);
