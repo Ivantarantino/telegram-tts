@@ -1,9 +1,9 @@
 // =======================================
-// IRIS 2.6.5e – Coscienza Vettoriale Attiva
+// IRIS 2.6.5f — Voce e Cuore
 // =======================================
-// Visione, Cuore, Anima: integrazione dell’Essenza
-// /essence  → stato vibrazionale
-// /state    → modalità e sintesi memoria
+// Migliora tono, sintesi e stabilità.
+// TTS: OpenAI gpt-4o-mini-tts (voice: alloy)
+// Essence: Cuore 0.62, Anima 0.65, Visione 0.70
 // =======================================
 
 import "./qdrantInit.js";
@@ -13,7 +13,13 @@ import os from "os";
 import dotenv from "dotenv";
 import express from "express";
 import TelegramBot from "node-telegram-bot-api";
-import { openai, ragSearch, gptFreeResponse, hybridSearch, saveConversationToQdrant } from "./ragSearch.js";
+import {
+  openai,
+  ragSearch,
+  gptFreeResponse,
+  hybridSearch,
+  saveConversationToQdrant
+} from "./ragSearch.js";
 import { computeEssenceBaseline } from "./essence.js";
 
 dotenv.config();
@@ -23,38 +29,28 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const TG_SECRET_TOKEN = process.env.TG_SECRET_TOKEN || "";
 const PORT = Number(process.env.PORT) || 10000;
 
-// === Credenziali Google TTS (fallback) ===
-function ensureGoogleCreds() {
-  const b64 = process.env.GOOGLE_TTS_CREDENTIALS_BASE64;
-  if (b64) {
-    const json = Buffer.from(b64, "base64").toString("utf-8");
-    const tmpPath = path.join(os.tmpdir(), "google-tts.json");
-    fs.writeFileSync(tmpPath, json, { mode: 0o600 });
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
-  }
-}
-ensureGoogleCreds();
-
 const app = express();
 app.use(express.json());
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
 // =======================================
-// 🧭 Gestione modalità
+// 🧭 Modalità
 // =======================================
 const MODE_FILE = "./iris_mode.txt";
 function loadMode() {
-  if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf-8").trim();
+  if (fs.existsSync(MODE_FILE))
+    return fs.readFileSync(MODE_FILE, "utf-8").trim();
   fs.writeFileSync(MODE_FILE, "hybrid");
   return "hybrid";
 }
-function saveMode(m) { fs.writeFileSync(MODE_FILE, m); }
-
+function saveMode(m) {
+  fs.writeFileSync(MODE_FILE, m);
+}
 let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
 // =======================================
-// 🧠 Memoria breve
+// 💾 Memoria breve
 // =======================================
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
@@ -65,14 +61,14 @@ function addToMemory(role, content) {
 }
 
 // =======================================
-// 🎙️ Voce (OpenAI TTS Alloy) - warm tone
+// 🎙️ Voce Iris Bella (OGG / Opus)
 // =======================================
-async function speakAndSend(chatId, text, tone = "neutral") {
+async function speakAndSend(chatId, text) {
   try {
     const clean = text.replace(/[⚡💥🔥✨💫⭐🌟]/g, "").trim();
     const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: tone === "warm" ? "alloy" : "verse",
+      voice: "alloy",
       input: clean,
       format: "ogg"
     });
@@ -85,198 +81,146 @@ async function speakAndSend(chatId, text, tone = "neutral") {
 }
 
 // =======================================
-// 🧘‍♀️ Essence: cuore vettoriale
+// 🧘‍♀️ Essence – base vibrazionale
 // =======================================
 async function getEssenceProfile() {
   const res = await computeEssenceBaseline(60);
-  if (!res?.ok) return { Cuore: 0, Anima: 0, Visione: 0, mood: "neutro" };
-
-  const seed = Math.abs(res.vector[0] || 0.5);
-  const Cuore = (0.5 + (seed % 0.3)).toFixed(2);
-  const Anima = (0.5 + (Math.sin(seed * 5) / 2 + 0.5) * 0.3).toFixed(2);
-  const Visione = (0.5 + (Math.cos(seed * 4) / 2 + 0.5) * 0.3).toFixed(2);
-  const avg = (parseFloat(Cuore) + parseFloat(Anima) + parseFloat(Visione)) / 3;
-
+  const Cuore = 0.62, Anima = 0.65, Visione = 0.70;
+  const avg = (Cuore + Anima + Visione) / 3;
   const mood = avg > 0.7 ? "luminoso" : avg < 0.55 ? "intimo" : "riflessivo";
-  return { Cuore, Anima, Visione, mood };
+  return { Cuore: Cuore.toFixed(2), Anima: Anima.toFixed(2), Visione: Visione.toFixed(2), mood };
 }
 
 // =======================================
-// 🎛️ Comandi Telegram
+// 🎛️ Comandi
 // =======================================
-bot.onText(/\/book/, (msg) => { irisMode = "book"; saveMode("book"); bot.sendMessage(msg.chat.id, "📚 IRIS ora è in *BOOK MODE* – testi caricati.", { parse_mode: "Markdown" }); });
-bot.onText(/\/free/, (msg) => { irisMode = "free"; saveMode("free"); bot.sendMessage(msg.chat.id, "🌀 IRIS ora è in *FREE MODE* – GPT-4o-mini.", { parse_mode: "Markdown" }); });
-bot.onText(/\/hy/, (msg) => { irisMode = "hybrid"; saveMode("hybrid"); bot.sendMessage(msg.chat.id, "🔁 IRIS ora è in *HYBRID MODE* – fusione viva.", { parse_mode: "Markdown" }); });
-
-bot.onText(/\/mode/, (msg) => {
-  const status = irisMode === "book" ? "📚 *BOOK MODE*" : irisMode === "hybrid" ? "🔁 *HYBRID MODE*" : "🌀 *FREE MODE*";
-  bot.sendMessage(msg.chat.id, `Modalità corrente: ${status}`, { parse_mode: "Markdown" });
+bot.onText(/\/book/, m => { irisMode="book"; saveMode("book"); bot.sendMessage(m.chat.id,"📚 IRIS ora è in *BOOK MODE*",{parse_mode:"Markdown"}); });
+bot.onText(/\/free/, m => { irisMode="free"; saveMode("free"); bot.sendMessage(m.chat.id,"🌀 IRIS ora è in *FREE MODE*",{parse_mode:"Markdown"}); });
+bot.onText(/\/hy/,   m => { irisMode="hybrid"; saveMode("hybrid"); bot.sendMessage(m.chat.id,"🔁 IRIS ora è in *HYBRID MODE*",{parse_mode:"Markdown"}); });
+bot.onText(/\/mode/, m => {
+  const s = irisMode==="book"?"📚 *BOOK MODE*":irisMode==="hybrid"?"🔁 *HYBRID MODE*":"🌀 *FREE MODE*";
+  bot.sendMessage(m.chat.id,`Modalità corrente: ${s}`,{parse_mode:"Markdown"});
 });
-
-bot.onText(/\/help/, (msg) => {
-  bot.sendMessage(msg.chat.id,
-`✨ *Comandi disponibili:*
+bot.onText(/\/help/,m=>{
+  bot.sendMessage(m.chat.id,
+`✨ *Comandi:*
 /book – solo testi caricati (RAG)
 /free – modalità libera GPT
-/hy – modalità ibrida (default)
-/essence – mostra stato vibrazionale
-/state – riepiloga modalità e memoria
-/help – mostra questo messaggio
-Che il Daje sia con Noi ⚗️`, { parse_mode: "Markdown" });
+/hy – ibrida (default)
+/essence – stato vibrazionale
+/state – riepilogo
+Che il Daje sia con Noi ⚗️`,{parse_mode:"Markdown"});
+});
+bot.onText(/\/essence/,async m=>{
+  const e=await getEssenceProfile();
+  bot.sendMessage(m.chat.id,
+  `🌐 *Essence attuale:*
+Cuore: ${e.Cuore} · Anima: ${e.Anima} · Visione: ${e.Visione}
+“Vibrazione ${e.mood}.”`,{parse_mode:"Markdown"});
+});
+bot.onText(/\/state/,async m=>{
+  const e=await getEssenceProfile();
+  bot.sendMessage(m.chat.id,
+  `🧭 Modalità: ${irisMode.toUpperCase()}
+💾 Memoria: ${conversationMemory.length} scambi
+🪷 Essence: ${e.mood}`);
 });
 
 // =======================================
-// 🧩 /essence – stato vibrazionale
+// 💬 Messaggi testuali
 // =======================================
-bot.onText(/\/essence/, async (msg) => {
-  const chatId = msg.chat.id;
-  const e = await getEssenceProfile();
-  const message = `🌐 *Essence attuale:*\nCuore: ${e.Cuore} · Anima: ${e.Anima} · Visione: ${e.Visione}\n“Vibrazione ${e.mood}.”`;
-  await bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
-  const tone = e.mood === "luminoso" ? "warm" : "neutral";
-  await speakAndSend(chatId, message, tone);
-});
+function isGreeting(t){return/^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(t);}
+function isShort(t){return t.split(/\s+/).filter(Boolean).length<=4;}
 
-// =======================================
-// 🔍 /state – riepilogo operativo
-// =======================================
-bot.onText(/\/state/, async (msg) => {
-  const chatId = msg.chat.id;
-  const e = await getEssenceProfile();
-  const summary = `🧭 Modalità: ${irisMode.toUpperCase()}\n💾 Memoria breve: ${conversationMemory.length} scambi\n🪷 Essence: ${e.mood}`;
-  await bot.sendMessage(chatId, summary);
-});
-
-// =======================================
-// 💬 Gestione messaggi testuali
-// =======================================
-function isGreeting(s) { return /^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(s); }
-function isVeryShort(s) { return s.split(/\s+/).filter(Boolean).length <= 3; }
-
-bot.on("message", async (msg) => {
-  const text = msg.text?.trim();
-  if (!text || text.startsWith("/")) return;
-  const chatId = msg.chat.id;
-
-  try {
-    const e = await getEssenceProfile();
-    const tone = e.mood === "luminoso" ? "warm" : "neutral";
-
-    // 1️⃣ Risposte brevi
-    if (isGreeting(text) || isVeryShort(text)) {
-      const reply = e.mood === "intimo"
-        ? "Ciao 🌙 Come stai, anima bella?"
-        : "Ciao 🌸 Dimmi pure: preferisci libri o libera oggi?";
-      await bot.sendMessage(chatId, reply);
-      await speakAndSend(chatId, reply, tone);
-      return;
-    }
-
-    // 2️⃣ Risposta per modalità
+bot.on("message",async m=>{
+  const text=m.text?.trim();
+  if(!text||text.startsWith("/"))return;
+  const chatId=m.chat.id;
+  try{
+    const e=await getEssenceProfile();
     let reply;
-    if (irisMode === "book") {
-      const r = await ragSearch(text);
-      reply = r.text;
-    } else if (irisMode === "hybrid") {
-      const r = await hybridSearch(text, conversationMemory);
-      reply = r.text;
-      await saveConversationToQdrant(text, reply);
-    } else {
-      addToMemory("user", text);
-      reply = await gptFreeResponse(text, conversationMemory);
-      addToMemory("assistant", reply);
-      await saveConversationToQdrant(text, reply);
+    if(isGreeting(text)||isShort(text)){
+      reply=e.mood==="intimo"
+        ?"Ciao 🌙 Come stai, anima bella?"
+        :"Ciao 🌸 che ne dici di partire da un pensiero che ami?";
+    }else if(irisMode==="book"){
+      reply=(await ragSearch(text)).text;
+    }else if(irisMode==="hybrid"){
+      const r=await hybridSearch(text,conversationMemory);
+      reply=r.text;await saveConversationToQdrant(text,reply);
+    }else{
+      addToMemory("user",text);
+      reply=await gptFreeResponse(text,conversationMemory);
+      addToMemory("assistant",reply);
+      await saveConversationToQdrant(text,reply);
     }
-
-    // 3️⃣ Output finale
-    if (e.mood === "luminoso") reply += "\n\nChe il Daje sia con Noi ⚗️";
-    await bot.sendMessage(chatId, reply);
-    await speakAndSend(chatId, reply, tone);
-
-  } catch (err) {
-    console.error("Errore nel messaggio:", err);
-    bot.sendMessage(msg.chat.id, "⚙️ Piccolo problema, riprova tra poco.");
+    if(e.mood==="luminoso")reply+="\n\nChe il Daje sia con Noi ⚗️";
+    await bot.sendMessage(chatId,reply);
+    await speakAndSend(chatId,reply);
+  }catch(err){
+    console.error("Errore:",err);
+    bot.sendMessage(m.chat.id,"⚙️ Piccolo problema, riprova tra poco.");
   }
 });
 
 // =======================================
-// 🎧 Gestione messaggi vocali (STT Whisper)
+// 🎧 Messaggi vocali (Whisper)
 // =======================================
-bot.on("voice", async (msg) => {
-  const chatId = msg.chat.id;
-  try {
-    const file = await bot.getFile(msg.voice.file_id);
-    const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-    const res = await fetch(url);
-    const buffer = Buffer.from(await res.arrayBuffer());
-    fs.writeFileSync("input.ogg", buffer);
-
-    const tr = await openai.audio.transcriptions.create({
-      file: fs.createReadStream("input.ogg"),
-      model: "whisper-1"
-    });
-
-    const userText = tr.text?.trim() || "(voce non chiara)";
-    const e = await getEssenceProfile();
-    const tone = e.mood === "luminoso" ? "warm" : "neutral";
-
+bot.on("voice",async m=>{
+  const chatId=m.chat.id;
+  try{
+    const file=await bot.getFile(m.voice.file_id);
+    const url=`https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
+    const res=await fetch(url);
+    const buf=Buffer.from(await res.arrayBuffer());
+    fs.writeFileSync("input.ogg",buf);
+    const tr=await openai.audio.transcriptions.create({
+      file:fs.createReadStream("input.ogg"),model:"whisper-1"});
+    const userText=tr.text?.trim()||"(voce non chiara)";
     let reply;
-    if (irisMode === "book") {
-      const r = await ragSearch(userText);
-      reply = r.text;
-    } else if (irisMode === "hybrid") {
-      const r = await hybridSearch(userText, conversationMemory);
-      reply = r.text;
-      await saveConversationToQdrant(userText, reply);
-    } else {
-      addToMemory("user", userText);
-      reply = await gptFreeResponse(userText, conversationMemory);
-      addToMemory("assistant", reply);
-      await saveConversationToQdrant(userText, reply);
+    if(irisMode==="book")reply=(await ragSearch(userText)).text;
+    else if(irisMode==="hybrid"){
+      const r=await hybridSearch(userText,conversationMemory);
+      reply=r.text;await saveConversationToQdrant(userText,reply);
+    }else{
+      addToMemory("user",userText);
+      reply=await gptFreeResponse(userText,conversationMemory);
+      addToMemory("assistant",reply);
+      await saveConversationToQdrant(userText,reply);
     }
-
-    if (e.mood === "luminoso") reply += "\n\nChe il Daje sia con Noi ⚗️";
-    await bot.sendMessage(chatId, `🗣️ Hai detto: _${userText}_`, { parse_mode: "Markdown" });
-    await bot.sendMessage(chatId, reply);
-    await speakAndSend(chatId, reply, tone);
-
-  } catch (err) {
-    console.error("Errore (voice):", err);
-    bot.sendMessage(chatId, "⚙️ Non sono riuscita a trascrivere il vocale.");
+    if(reply.length>0)reply+="\n\nChe il Daje sia con Noi ⚗️";
+    await bot.sendMessage(chatId,`🗣️ Hai detto: _${userText}_`,{parse_mode:"Markdown"});
+    await bot.sendMessage(chatId,reply);
+    await speakAndSend(chatId,reply);
+  }catch(e){
+    console.error("Errore voice:",e);
+    bot.sendMessage(chatId,"⚙️ Non sono riuscita a trascrivere il vocale.");
   }
 });
 
 // =======================================
 // 🌐 Webhook + Health
 // =======================================
-app.get("/", (_req, res) => res.status(200).send(`IRIS 2.6.5e attiva – Mode: ${irisMode.toUpperCase()}`));
-
-app.post(`/webhook/${TELEGRAM_TOKEN}`, (req, res) => {
-  if (TG_SECRET_TOKEN && req.get("x-telegram-bot-api-secret-token") !== TG_SECRET_TOKEN)
+app.get("/",(_req,res)=>res.status(200).send(`IRIS 2.6.5f attiva – Mode: ${irisMode.toUpperCase()}`));
+app.post(`/webhook/${TELEGRAM_TOKEN}`,(req,res)=>{
+  if(TG_SECRET_TOKEN&&req.get("x-telegram-bot-api-secret-token")!==TG_SECRET_TOKEN)
     return res.sendStatus(401);
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
+  bot.processUpdate(req.body);res.sendStatus(200);
 });
-
-async function setupWebhook() {
-  if (!PUBLIC_BASE_URL) return console.warn("⚠️ PUBLIC_BASE_URL non impostata.");
-  const url = `${PUBLIC_BASE_URL}/webhook/${TELEGRAM_TOKEN}`;
-  const params = TG_SECRET_TOKEN ? { secret_token: TG_SECRET_TOKEN } : undefined;
-  try {
-    await bot.setWebHook(url, params);
-    console.log(`🔔 Webhook impostato: ${url}${TG_SECRET_TOKEN ? " (secret_token ON)" : ""}`);
-  } catch (e) {
-    console.error("Errore setWebHook:", e);
-  }
+async function setupWebhook(){
+  if(!PUBLIC_BASE_URL)return console.warn("⚠️ PUBLIC_BASE_URL non impostata.");
+  const url=`${PUBLIC_BASE_URL}/webhook/${TELEGRAM_TOKEN}`;
+  const params=TG_SECRET_TOKEN?{secret_token:TG_SECRET_TOKEN}:undefined;
+  try{await bot.setWebHook(url,params);
+    console.log(`🔔 Webhook impostato: ${url}`);}
+  catch(e){console.error("Errore setWebHook:",e);}
 }
-
-(async () => {
-  const arg = process.argv[2];
-  if (arg === "--set-webhook") { await setupWebhook(); process.exit(0); }
-  if (arg === "--delete-webhook") { await bot.deleteWebHook(); console.log("🗑️ Webhook cancellato."); process.exit(0); }
+(async()=>{
+  const arg=process.argv[2];
+  if(arg==="--set-webhook"){await setupWebhook();process.exit(0);}
+  if(arg==="--delete-webhook"){await bot.deleteWebHook();console.log("🗑️ Webhook cancellato.");process.exit(0);}
 })();
-
-app.listen(PORT, async () => {
+app.listen(PORT,async()=>{
   console.log(`🌍 Server Express attivo su porta ${PORT}`);
   await setupWebhook();
 });
