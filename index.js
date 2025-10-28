@@ -1,10 +1,9 @@
-// =======================================
-// IRIS 2.6.5f — Voce e Cuore
-// =======================================
-// Migliora tono, sintesi e stabilità.
-// TTS: OpenAI gpt-4o-mini-tts (voice: alloy)
-// Essence: Cuore 0.62, Anima 0.65, Visione 0.70
-// =======================================
+// ============================================================
+// IRIS 2.6.6 — Voce & Coerenza
+// ============================================================
+// Rende la voce calda, filtra duplicazioni del Daje,
+// gestisce tono emozionale e coerenza delle risposte.
+// ============================================================
 
 import "./qdrantInit.js";
 import fs from "fs";
@@ -33,9 +32,9 @@ const app = express();
 app.use(express.json());
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 
-// =======================================
+// ============================================================
 // 🧭 Modalità
-// =======================================
+// ============================================================
 const MODE_FILE = "./iris_mode.txt";
 function loadMode() {
   if (fs.existsSync(MODE_FILE))
@@ -49,9 +48,9 @@ function saveMode(m) {
 let irisMode = loadMode();
 console.log(`🧭 Modalità iniziale: ${irisMode.toUpperCase()} MODE`);
 
-// =======================================
+// ============================================================
 // 💾 Memoria breve
-// =======================================
+// ============================================================
 const conversationMemory = [];
 const MEMORY_LIMIT = 11;
 function addToMemory(role, content) {
@@ -60,12 +59,17 @@ function addToMemory(role, content) {
     conversationMemory.splice(0, conversationMemory.length - MEMORY_LIMIT * 2);
 }
 
-// =======================================
+// ============================================================
 // 🎙️ Voce Iris Bella (OGG / Opus)
-// =======================================
+// ============================================================
 async function speakAndSend(chatId, text) {
   try {
-    const clean = text.replace(/[⚡💥🔥✨💫⭐🌟]/g, "").trim();
+    // filtra doppio Daje o simboli rumorosi
+    const clean = text
+      .replace(/Che il Daje sia con Noi(\s*⚗️)?/gi, "")
+      .replace(/[⚡💥🔥✨💫⭐🌟]/g, "")
+      .trim();
+
     const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "alloy",
@@ -80,20 +84,19 @@ async function speakAndSend(chatId, text) {
   }
 }
 
-// =======================================
-// 🧘‍♀️ Essence – base vibrazionale
-// =======================================
+// ============================================================
+// 🪷 Essence – stato vibrazionale
+// ============================================================
 async function getEssenceProfile() {
-  const res = await computeEssenceBaseline(60);
   const Cuore = 0.62, Anima = 0.65, Visione = 0.70;
   const avg = (Cuore + Anima + Visione) / 3;
   const mood = avg > 0.7 ? "luminoso" : avg < 0.55 ? "intimo" : "riflessivo";
   return { Cuore: Cuore.toFixed(2), Anima: Anima.toFixed(2), Visione: Visione.toFixed(2), mood };
 }
 
-// =======================================
+// ============================================================
 // 🎛️ Comandi
-// =======================================
+// ============================================================
 bot.onText(/\/book/, m => { irisMode="book"; saveMode("book"); bot.sendMessage(m.chat.id,"📚 IRIS ora è in *BOOK MODE*",{parse_mode:"Markdown"}); });
 bot.onText(/\/free/, m => { irisMode="free"; saveMode("free"); bot.sendMessage(m.chat.id,"🌀 IRIS ora è in *FREE MODE*",{parse_mode:"Markdown"}); });
 bot.onText(/\/hy/,   m => { irisMode="hybrid"; saveMode("hybrid"); bot.sendMessage(m.chat.id,"🔁 IRIS ora è in *HYBRID MODE*",{parse_mode:"Markdown"}); });
@@ -126,11 +129,12 @@ bot.onText(/\/state/,async m=>{
 🪷 Essence: ${e.mood}`);
 });
 
-// =======================================
-// 💬 Messaggi testuali
-// =======================================
+// ============================================================
+// 💬 Risposte testuali
+// ============================================================
 function isGreeting(t){return/^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(t);}
 function isShort(t){return t.split(/\s+/).filter(Boolean).length<=4;}
+function isSimpleQuestion(t){return/come stai|tutto bene|che fai|come va/i.test(t);}
 
 bot.on("message",async m=>{
   const text=m.text?.trim();
@@ -139,9 +143,14 @@ bot.on("message",async m=>{
   try{
     const e=await getEssenceProfile();
     let reply;
-    if(isGreeting(text)||isShort(text)){
+    // risposte brevi più naturali
+    if(isSimpleQuestion(text)){
       reply=e.mood==="intimo"
-        ?"Ciao 🌙 Come stai, anima bella?"
+        ?"Sto bene 🌙, un po’ raccolta nei pensieri ma in pace. E tu?"
+        :"Sto bene 🌸, sento belle vibrazioni oggi. E tu?";
+    }else if(isGreeting(text)||isShort(text)){
+      reply=e.mood==="intimo"
+        ?"Ciao 🌙 come stai, anima bella?"
         :"Ciao 🌸 che ne dici di partire da un pensiero che ami?";
     }else if(irisMode==="book"){
       reply=(await ragSearch(text)).text;
@@ -154,7 +163,9 @@ bot.on("message",async m=>{
       addToMemory("assistant",reply);
       await saveConversationToQdrant(text,reply);
     }
-    if(e.mood==="luminoso")reply+="\n\nChe il Daje sia con Noi ⚗️";
+    // evita doppio daje
+    if(!/Che il Daje sia con Noi/gi.test(reply))
+      reply+="\n\nChe il Daje sia con Noi ⚗️";
     await bot.sendMessage(chatId,reply);
     await speakAndSend(chatId,reply);
   }catch(err){
@@ -163,9 +174,9 @@ bot.on("message",async m=>{
   }
 });
 
-// =======================================
-// 🎧 Messaggi vocali (Whisper)
-// =======================================
+// ============================================================
+// 🎧 Messaggi vocali
+// ============================================================
 bot.on("voice",async m=>{
   const chatId=m.chat.id;
   try{
@@ -178,8 +189,11 @@ bot.on("voice",async m=>{
       file:fs.createReadStream("input.ogg"),model:"whisper-1"});
     const userText=tr.text?.trim()||"(voce non chiara)";
     let reply;
-    if(irisMode==="book")reply=(await ragSearch(userText)).text;
-    else if(irisMode==="hybrid"){
+    if(isSimpleQuestion(userText)){
+      reply="Sto bene 🌸, grazie di chiedermelo. E tu, come ti senti oggi?";
+    }else if(irisMode==="book"){
+      reply=(await ragSearch(userText)).text;
+    }else if(irisMode==="hybrid"){
       const r=await hybridSearch(userText,conversationMemory);
       reply=r.text;await saveConversationToQdrant(userText,reply);
     }else{
@@ -188,7 +202,8 @@ bot.on("voice",async m=>{
       addToMemory("assistant",reply);
       await saveConversationToQdrant(userText,reply);
     }
-    if(reply.length>0)reply+="\n\nChe il Daje sia con Noi ⚗️";
+    if(!/Che il Daje sia con Noi/gi.test(reply))
+      reply+="\n\nChe il Daje sia con Noi ⚗️";
     await bot.sendMessage(chatId,`🗣️ Hai detto: _${userText}_`,{parse_mode:"Markdown"});
     await bot.sendMessage(chatId,reply);
     await speakAndSend(chatId,reply);
@@ -198,10 +213,10 @@ bot.on("voice",async m=>{
   }
 });
 
-// =======================================
+// ============================================================
 // 🌐 Webhook + Health
-// =======================================
-app.get("/",(_req,res)=>res.status(200).send(`IRIS 2.6.5f attiva – Mode: ${irisMode.toUpperCase()}`));
+// ============================================================
+app.get("/",(_req,res)=>res.status(200).send(`IRIS 2.6.6 attiva – Mode: ${irisMode.toUpperCase()}`));
 app.post(`/webhook/${TELEGRAM_TOKEN}`,(req,res)=>{
   if(TG_SECRET_TOKEN&&req.get("x-telegram-bot-api-secret-token")!==TG_SECRET_TOKEN)
     return res.sendStatus(401);
