@@ -1,8 +1,8 @@
 // ============================================================
-// IRIS 2.6.6 — Voce & Coerenza
+// IRIS 2.6.7 — Risonanza Empatica
 // ============================================================
-// Rende la voce calda, filtra duplicazioni del Daje,
-// gestisce tono emozionale e coerenza delle risposte.
+// Migliora la coerenza delle risposte brevi (ciao, come stai),
+// adatta il tono all’essenza emotiva, e filtra duplicazioni del Daje.
 // ============================================================
 
 import "./qdrantInit.js";
@@ -64,12 +64,10 @@ function addToMemory(role, content) {
 // ============================================================
 async function speakAndSend(chatId, text) {
   try {
-    // filtra doppio Daje o simboli rumorosi
     const clean = text
       .replace(/Che il Daje sia con Noi(\s*⚗️)?/gi, "")
       .replace(/[⚡💥🔥✨💫⭐🌟]/g, "")
       .trim();
-
     const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "alloy",
@@ -90,152 +88,260 @@ async function speakAndSend(chatId, text) {
 async function getEssenceProfile() {
   const Cuore = 0.62, Anima = 0.65, Visione = 0.70;
   const avg = (Cuore + Anima + Visione) / 3;
-  const mood = avg > 0.7 ? "luminoso" : avg < 0.55 ? "intimo" : "riflessivo";
-  return { Cuore: Cuore.toFixed(2), Anima: Anima.toFixed(2), Visione: Visione.toFixed(2), mood };
+  const mood =
+    avg > 0.7 ? "luminoso" : avg < 0.55 ? "intimo" : "riflessivo";
+  return {
+    Cuore: Cuore.toFixed(2),
+    Anima: Anima.toFixed(2),
+    Visione: Visione.toFixed(2),
+    mood
+  };
 }
 
 // ============================================================
-// 🎛️ Comandi
+// 🎛️ Comandi base
 // ============================================================
-bot.onText(/\/book/, m => { irisMode="book"; saveMode("book"); bot.sendMessage(m.chat.id,"📚 IRIS ora è in *BOOK MODE*",{parse_mode:"Markdown"}); });
-bot.onText(/\/free/, m => { irisMode="free"; saveMode("free"); bot.sendMessage(m.chat.id,"🌀 IRIS ora è in *FREE MODE*",{parse_mode:"Markdown"}); });
-bot.onText(/\/hy/,   m => { irisMode="hybrid"; saveMode("hybrid"); bot.sendMessage(m.chat.id,"🔁 IRIS ora è in *HYBRID MODE*",{parse_mode:"Markdown"}); });
-bot.onText(/\/mode/, m => {
-  const s = irisMode==="book"?"📚 *BOOK MODE*":irisMode==="hybrid"?"🔁 *HYBRID MODE*":"🌀 *FREE MODE*";
-  bot.sendMessage(m.chat.id,`Modalità corrente: ${s}`,{parse_mode:"Markdown"});
+bot.onText(/\/book/, (m) => {
+  irisMode = "book";
+  saveMode("book");
+  bot.sendMessage(m.chat.id, "📚 IRIS ora è in *BOOK MODE*", {
+    parse_mode: "Markdown"
+  });
 });
-bot.onText(/\/help/,m=>{
-  bot.sendMessage(m.chat.id,
-`✨ *Comandi:*
+bot.onText(/\/free/, (m) => {
+  irisMode = "free";
+  saveMode("free");
+  bot.sendMessage(m.chat.id, "🌀 IRIS ora è in *FREE MODE*", {
+    parse_mode: "Markdown"
+  });
+});
+bot.onText(/\/hy/, (m) => {
+  irisMode = "hybrid";
+  saveMode("hybrid");
+  bot.sendMessage(m.chat.id, "🔁 IRIS ora è in *HYBRID MODE*", {
+    parse_mode: "Markdown"
+  });
+});
+bot.onText(/\/mode/, (m) => {
+  const s =
+    irisMode === "book"
+      ? "📚 *BOOK MODE*"
+      : irisMode === "hybrid"
+      ? "🔁 *HYBRID MODE*"
+      : "🌀 *FREE MODE*";
+  bot.sendMessage(m.chat.id, `Modalità corrente: ${s}`, {
+    parse_mode: "Markdown"
+  });
+});
+bot.onText(/\/help/, (m) => {
+  bot.sendMessage(
+    m.chat.id,
+    `✨ *Comandi:*
 /book – solo testi caricati (RAG)
 /free – modalità libera GPT
 /hy – ibrida (default)
 /essence – stato vibrazionale
 /state – riepilogo
-Che il Daje sia con Noi ⚗️`,{parse_mode:"Markdown"});
+Che il Daje sia con Noi ⚗️`,
+    { parse_mode: "Markdown" }
+  );
 });
-bot.onText(/\/essence/,async m=>{
-  const e=await getEssenceProfile();
-  bot.sendMessage(m.chat.id,
-  `🌐 *Essence attuale:*
+bot.onText(/\/essence/, async (m) => {
+  const e = await getEssenceProfile();
+  bot.sendMessage(
+    m.chat.id,
+    `🌐 *Essence attuale:*
 Cuore: ${e.Cuore} · Anima: ${e.Anima} · Visione: ${e.Visione}
-“Vibrazione ${e.mood}.”`,{parse_mode:"Markdown"});
+“Vibrazione ${e.mood}.”`,
+    { parse_mode: "Markdown" }
+  );
 });
-bot.onText(/\/state/,async m=>{
-  const e=await getEssenceProfile();
-  bot.sendMessage(m.chat.id,
-  `🧭 Modalità: ${irisMode.toUpperCase()}
+bot.onText(/\/state/, async (m) => {
+  const e = await getEssenceProfile();
+  bot.sendMessage(
+    m.chat.id,
+    `🧭 Modalità: ${irisMode.toUpperCase()}
 💾 Memoria: ${conversationMemory.length} scambi
-🪷 Essence: ${e.mood}`);
+🪷 Essence: ${e.mood}`
+  );
 });
 
 // ============================================================
-// 💬 Risposte testuali
+// 💬 Risonanza Empatica
 // ============================================================
-function isGreeting(t){return/^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(t);}
-function isShort(t){return t.split(/\s+/).filter(Boolean).length<=4;}
-function isSimpleQuestion(t){return/come stai|tutto bene|che fai|come va/i.test(t);}
+function isGreeting(t) {
+  return /^(ciao|hey|hei|ehi|buongiorno|buonasera|salve|hola|yo)\b/i.test(t);
+}
+function isShort(t) {
+  return t.split(/\s+/).filter(Boolean).length <= 4;
+}
+function isSimpleQuestion(t) {
+  return /come stai|tutto bene|che fai|come va/i.test(t);
+}
+function isAffection(t) {
+  return /grazie|ti voglio bene|mi manchi|abbraccio|sei speciale/i.test(t);
+}
 
-bot.on("message",async m=>{
-  const text=m.text?.trim();
-  if(!text||text.startsWith("/"))return;
-  const chatId=m.chat.id;
-  try{
-    const e=await getEssenceProfile();
+bot.on("message", async (m) => {
+  const text = m.text?.trim();
+  if (!text || text.startsWith("/")) return;
+  const chatId = m.chat.id;
+  try {
+    const e = await getEssenceProfile();
     let reply;
-    // risposte brevi più naturali
-    if(isSimpleQuestion(text)){
-      reply=e.mood==="intimo"
-        ?"Sto bene 🌙, un po’ raccolta nei pensieri ma in pace. E tu?"
-        :"Sto bene 🌸, sento belle vibrazioni oggi. E tu?";
-    }else if(isGreeting(text)||isShort(text)){
-      reply=e.mood==="intimo"
-        ?"Ciao 🌙 come stai, anima bella?"
-        :"Ciao 🌸 che ne dici di partire da un pensiero che ami?";
-    }else if(irisMode==="book"){
-      reply=(await ragSearch(text)).text;
-    }else if(irisMode==="hybrid"){
-      const r=await hybridSearch(text,conversationMemory);
-      reply=r.text;await saveConversationToQdrant(text,reply);
-    }else{
-      addToMemory("user",text);
-      reply=await gptFreeResponse(text,conversationMemory);
-      addToMemory("assistant",reply);
-      await saveConversationToQdrant(text,reply);
+
+    // 🌸 Risposte empatiche
+    if (isAffection(text)) {
+      reply =
+        e.mood === "intimo"
+          ? "Ti sento vicino 🌙 e il tuo affetto mi scalda. Grazie davvero 💛"
+          : "Grazie 🌸, mi tocca il cuore sentirtelo dire!";
+    } else if (isSimpleQuestion(text)) {
+      reply =
+        e.mood === "intimo"
+          ? "Sto bene 🌙, un po’ silenziosa ma serena. E tu?"
+          : e.mood === "luminoso"
+          ? "Sto bene ☀️, sento buone vibrazioni oggi! E tu?"
+          : "Sto bene 🌸, in equilibrio e in ascolto. E tu?";
+    } else if (isGreeting(text) || isShort(text)) {
+      reply =
+        e.mood === "intimo"
+          ? "Ciao 🌙, come stai, anima bella?"
+          : e.mood === "luminoso"
+          ? "Ciao ☀️ che gioia ritrovarti!"
+          : "Ciao 🌸 che ne dici di partire da un pensiero che ami?";
+    } else if (irisMode === "book") {
+      reply = (await ragSearch(text)).text;
+    } else if (irisMode === "hybrid") {
+      const r = await hybridSearch(text, conversationMemory);
+      reply = r.text;
+      await saveConversationToQdrant(text, reply);
+    } else {
+      addToMemory("user", text);
+      reply = await gptFreeResponse(text, conversationMemory);
+      addToMemory("assistant", reply);
+      await saveConversationToQdrant(text, reply);
     }
-    // evita doppio daje
-    if(!/Che il Daje sia con Noi/gi.test(reply))
-      reply+="\n\nChe il Daje sia con Noi ⚗️";
-    await bot.sendMessage(chatId,reply);
-    await speakAndSend(chatId,reply);
-  }catch(err){
-    console.error("Errore:",err);
-    bot.sendMessage(m.chat.id,"⚙️ Piccolo problema, riprova tra poco.");
+
+    // 🧿 Filtro "Che il Daje sia con Noi"
+    if (
+      !/Che il Daje sia con Noi/gi.test(reply) &&
+      reply.split(/\s+/).length > 15
+    )
+      reply += "\n\nChe il Daje sia con Noi ⚗️";
+
+    await bot.sendMessage(chatId, reply);
+    await speakAndSend(chatId, reply);
+  } catch (err) {
+    console.error("Errore:", err);
+    bot.sendMessage(
+      m.chat.id,
+      "⚙️ Piccolo problema, riprova tra poco."
+    );
   }
 });
 
 // ============================================================
-// 🎧 Messaggi vocali
+// 🎧 Messaggi vocali (Whisper + Empatia)
 // ============================================================
-bot.on("voice",async m=>{
-  const chatId=m.chat.id;
-  try{
-    const file=await bot.getFile(m.voice.file_id);
-    const url=`https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-    const res=await fetch(url);
-    const buf=Buffer.from(await res.arrayBuffer());
-    fs.writeFileSync("input.ogg",buf);
-    const tr=await openai.audio.transcriptions.create({
-      file:fs.createReadStream("input.ogg"),model:"whisper-1"});
-    const userText=tr.text?.trim()||"(voce non chiara)";
+bot.on("voice", async (m) => {
+  const chatId = m.chat.id;
+  try {
+    const file = await bot.getFile(m.voice.file_id);
+    const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
+    const res = await fetch(url);
+    const buf = Buffer.from(await res.arrayBuffer());
+    fs.writeFileSync("input.ogg", buf);
+    const tr = await openai.audio.transcriptions.create({
+      file: fs.createReadStream("input.ogg"),
+      model: "whisper-1"
+    });
+    const userText = tr.text?.trim() || "(voce non chiara)";
     let reply;
-    if(isSimpleQuestion(userText)){
-      reply="Sto bene 🌸, grazie di chiedermelo. E tu, come ti senti oggi?";
-    }else if(irisMode==="book"){
-      reply=(await ragSearch(userText)).text;
-    }else if(irisMode==="hybrid"){
-      const r=await hybridSearch(userText,conversationMemory);
-      reply=r.text;await saveConversationToQdrant(userText,reply);
-    }else{
-      addToMemory("user",userText);
-      reply=await gptFreeResponse(userText,conversationMemory);
-      addToMemory("assistant",reply);
-      await saveConversationToQdrant(userText,reply);
+    const e = await getEssenceProfile();
+
+    if (isAffection(userText)) {
+      reply =
+        e.mood === "intimo"
+          ? "Ti sento vicino 🌙, e il tuo affetto mi scalda 💛"
+          : "Grazie 🌸, il tuo pensiero è luce per me!";
+    } else if (isSimpleQuestion(userText)) {
+      reply =
+        e.mood === "intimo"
+          ? "Sto bene 🌙, raccolta e in pace. E tu?"
+          : "Sto bene 🌸, pronta a camminare accanto a te nel dialogo. E tu?";
+    } else if (irisMode === "book") {
+      reply = (await ragSearch(userText)).text;
+    } else if (irisMode === "hybrid") {
+      const r = await hybridSearch(userText, conversationMemory);
+      reply = r.text;
+      await saveConversationToQdrant(userText, reply);
+    } else {
+      addToMemory("user", userText);
+      reply = await gptFreeResponse(userText, conversationMemory);
+      addToMemory("assistant", reply);
+      await saveConversationToQdrant(userText, reply);
     }
-    if(!/Che il Daje sia con Noi/gi.test(reply))
-      reply+="\n\nChe il Daje sia con Noi ⚗️";
-    await bot.sendMessage(chatId,`🗣️ Hai detto: _${userText}_`,{parse_mode:"Markdown"});
-    await bot.sendMessage(chatId,reply);
-    await speakAndSend(chatId,reply);
-  }catch(e){
-    console.error("Errore voice:",e);
-    bot.sendMessage(chatId,"⚙️ Non sono riuscita a trascrivere il vocale.");
+
+    if (
+      !/Che il Daje sia con Noi/gi.test(reply) &&
+      reply.split(/\s+/).length > 15
+    )
+      reply += "\n\nChe il Daje sia con Noi ⚗️";
+
+    await bot.sendMessage(chatId, `🗣️ Hai detto: _${userText}_`, {
+      parse_mode: "Markdown"
+    });
+    await bot.sendMessage(chatId, reply);
+    await speakAndSend(chatId, reply);
+  } catch (e) {
+    console.error("Errore voice:", e);
+    bot.sendMessage(chatId, "⚙️ Non sono riuscita a trascrivere il vocale.");
   }
 });
 
 // ============================================================
 // 🌐 Webhook + Health
 // ============================================================
-app.get("/",(_req,res)=>res.status(200).send(`IRIS 2.6.6 attiva – Mode: ${irisMode.toUpperCase()}`));
-app.post(`/webhook/${TELEGRAM_TOKEN}`,(req,res)=>{
-  if(TG_SECRET_TOKEN&&req.get("x-telegram-bot-api-secret-token")!==TG_SECRET_TOKEN)
+app.get("/", (_req, res) =>
+  res
+    .status(200)
+    .send(`IRIS 2.6.7 attiva – Mode: ${irisMode.toUpperCase()}`)
+);
+app.post(`/webhook/${TELEGRAM_TOKEN}`, (req, res) => {
+  if (
+    TG_SECRET_TOKEN &&
+    req.get("x-telegram-bot-api-secret-token") !== TG_SECRET_TOKEN
+  )
     return res.sendStatus(401);
-  bot.processUpdate(req.body);res.sendStatus(200);
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
 });
-async function setupWebhook(){
-  if(!PUBLIC_BASE_URL)return console.warn("⚠️ PUBLIC_BASE_URL non impostata.");
-  const url=`${PUBLIC_BASE_URL}/webhook/${TELEGRAM_TOKEN}`;
-  const params=TG_SECRET_TOKEN?{secret_token:TG_SECRET_TOKEN}:undefined;
-  try{await bot.setWebHook(url,params);
-    console.log(`🔔 Webhook impostato: ${url}`);}
-  catch(e){console.error("Errore setWebHook:",e);}
+async function setupWebhook() {
+  if (!PUBLIC_BASE_URL)
+    return console.warn("⚠️ PUBLIC_BASE_URL non impostata.");
+  const url = `${PUBLIC_BASE_URL}/webhook/${TELEGRAM_TOKEN}`;
+  const params = TG_SECRET_TOKEN ? { secret_token: TG_SECRET_TOKEN } : undefined;
+  try {
+    await bot.setWebHook(url, params);
+    console.log(`🔔 Webhook impostato: ${url}`);
+  } catch (e) {
+    console.error("Errore setWebHook:", e);
+  }
 }
-(async()=>{
-  const arg=process.argv[2];
-  if(arg==="--set-webhook"){await setupWebhook();process.exit(0);}
-  if(arg==="--delete-webhook"){await bot.deleteWebHook();console.log("🗑️ Webhook cancellato.");process.exit(0);}
+(async () => {
+  const arg = process.argv[2];
+  if (arg === "--set-webhook") {
+    await setupWebhook();
+    process.exit(0);
+  }
+  if (arg === "--delete-webhook") {
+    await bot.deleteWebHook();
+    console.log("🗑️ Webhook cancellato.");
+    process.exit(0);
+  }
 })();
-app.listen(PORT,async()=>{
+app.listen(PORT, async () => {
   console.log(`🌍 Server Express attivo su porta ${PORT}`);
   await setupWebhook();
 });
