@@ -1,19 +1,19 @@
 // =====================================================
-// IRIS — Respiro HTTP (Step 4.0)
-// Mantiene l'app viva su Render e permette test essenza/cuore.
-// Endpoints:
-//   GET  /health        -> ok
-//   GET  /essenza       -> testo d’essenza (getEssence())
-//   POST /talk          -> { name, message } => risposta di IRIS + memoria aggiornata
+// IRIS — Respiro HTTP (Step 4.0 + Telegram bootstrap)
+// Mantiene l'app viva su Render e collega Telegram (se BOT_TOKEN presente)
 // =====================================================
 
 import express from "express";
 import { irisHeartResponse } from "./core/iris_heart_voice.js";
 import { getEssence, getWeights } from "./core/iris_essence_core.js";
 import { processMemory } from "./memory/memoryManager.js";
+import { bootstrapTelegram } from "./adapters/telegram_bot.js";
 
 const app = express();
 app.use(express.json());
+
+// Avvia Telegram se BOT_TOKEN esiste
+bootstrapTelegram();
 
 // -------------------- Health --------------------
 app.get("/health", (req, res) => {
@@ -31,22 +31,16 @@ app.get("/essenza", (req, res) => {
 });
 
 // -------------------- Talk --------------------
-// Body JSON: { "name": "Ivano", "message": "testo..." }
 app.post("/talk", async (req, res) => {
   try {
     const name = (req.body?.name || "Amico").toString().trim();
     const message = (req.body?.message || "").toString();
 
-    // Stato vibrazionale attuale (pesi)
     const weights = getWeights();
-
-    // Risposta del Cuore
     const reply = irisHeartResponse(name, message, weights);
 
-    // Memorizza esperienza e aggiorna Essenza
     await processMemory(message, reply);
 
-    // Ritorna risposta e snapshot Essenza
     const essenceText = getEssence();
     res.status(200).json({
       ok: true,
