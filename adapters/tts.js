@@ -1,43 +1,42 @@
-// =====================================================
-// IRIS — Adapters / TTS (Step 4.2)
-// =====================================================
-//
-// Genera la voce calda di IRIS ("Iris Bella") come file .ogg
-// Utilizza OpenAI Audio API e salva in ./temp/iris_voice.ogg
-//
-// =====================================================
+// adapters/tts.js
+// ------------------------------------------------------
+// IRIS — Step 4.7.3b Fix: pulizia emoji nel parlato
+// ------------------------------------------------------
 
 import fs from "fs";
-import path from "path";
 import OpenAI from "openai";
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-const TEMP_DIR = path.resolve("temp");
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
-
-export async function synthVoice(text, filename = "iris_voice.ogg") {
+/**
+ * Genera file vocale da testo (TTS)
+ * Rimuove emoji e simboli che il modello leggerebbe letteralmente.
+ * @param {string} text
+ * @param {string} filename
+ * @returns {Promise<string|null>}
+ */
+export async function synthVoice(text, filename = "voice.ogg") {
   try {
-    if (!text || text.trim().length === 0) return null;
+    if (!text || typeof text !== "string") return null;
 
-    const outputPath = path.join(TEMP_DIR, filename);
+    // Rimuovi emoji, simboli, doppi spazi
+    const cleanText = text
+      .replace(/[^\p{L}\p{N}\p{P}\p{Z}]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
     const response = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "alloy", // alternativa: "verse", "soft", "serene"
-      format: "opus", // Telegram usa Opus OGG
-      input: text
+      voice: "alloy",
+      input: cleanText
     });
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(outputPath, buffer);
-
-    console.log(`🔊 Voce generata: ${outputPath}`);
-    return outputPath;
+    const path = `./temp/${filename}`;
+    fs.writeFileSync(path, buffer);
+    console.log(`🔊 Voce generata: ${path}`);
+    return path;
   } catch (err) {
-    console.error("Errore nella generazione vocale:", err);
+    console.error("❌ Errore nella generazione vocale:", err);
     return null;
   }
 }
