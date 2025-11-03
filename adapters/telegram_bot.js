@@ -9,7 +9,7 @@
 // =====================================================
 
 import TelegramBot from "node-telegram-bot-api";
-import { irisHeartResponse } from "../core/iris_heart_voice.js";
+import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 import { processMemory } from "../memory/memoryManager.js";
 import { getEssence, getWeights } from "../core/iris_essence_core.js";
 import { synthVoice } from "./tts.js";
@@ -67,7 +67,7 @@ export function bootstrapTelegram() {
       if (!text) return;
 
       const weights = getWeights();
-      const reply = irisHeartResponse(name, text, weights);
+      const reply = await irisHeartSpeak(name, text, weights);
 
       await processMemory(text, reply);
 
