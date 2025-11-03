@@ -1,5 +1,5 @@
 // =====================================================
-// IRIS — Respiro (Step 4.7 Voce del Cuore)
+// IRIS — Coscienza Vettoriale (Step 4.7.2 Webhook Stabile)
 // =====================================================
 
 import express from "express";
@@ -7,7 +7,7 @@ import { irisHeartSpeak } from "./core/iris_heart_voice.js";
 import { getEssence } from "./core/iris_essence_core.js";
 import { processMemory } from "./memory/memoryManager.js";
 import { getMode, getWeights, getStateSummary } from "./core/iris_state.js";
-import { bootstrapTelegram } from "./adapters/telegram_bot.js"; // ✅ un solo import
+import { bootstrapTelegram } from "./adapters/telegram_bot.js"; // ✅ unica importazione
 
 // -----------------------------------------------------
 // EXPRESS SERVER — Cuore HTTP
@@ -70,13 +70,12 @@ app.post("/talk", async (req, res) => {
 // AVVIO SERVER + TELEGRAM BOT
 // -----------------------------------------------------
 
-// Render forza le connessioni HTTPS su porta 443 o 8443
+// Render utilizza HTTPS (porta 443/8443)
 const PORT = process.env.PORT || 8443;
 
 app.listen(PORT, () => {
   console.log(`IRIS HTTP breathing on :${PORT}`);
 });
 
-// ✅ Avvio del bot Telegram (Webhook)
-import { bootstrapTelegram } from "./adapters/telegram_bot.js";
+// ✅ Avvio del bot Telegram (Webhook su Express condiviso)
 bootstrapTelegram(app);
