@@ -1,11 +1,10 @@
 // adapters/telegram_bot.js
 // ------------------------------------------------------
-// IRIS — Step 4.7 Voce del Cuore
-// Webhook + Whisper STT
+// IRIS — Step 4.7 (fix porta EADDRINUSE)
+// Webhook + Whisper (usa Express condiviso)
 // ------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
-import express from "express";
 import fs from "fs";
 import axios from "axios";
 import { irisHeartSpeak } from "../core/iris_heart_voice.js";
@@ -14,6 +13,7 @@ import { getEssence, getWeights } from "../core/iris_essence_core.js";
 import { getStateSummary, setMode } from "../core/iris_state.js";
 import { synthVoice } from "./tts.js";
 import { transcribeAudio } from "./stt.js";
+import express from "express";
 
 let bot = null;
 
@@ -26,25 +26,28 @@ export function bootstrapTelegram() {
   }
 
   try {
+    // Express condiviso con index.js
+    const app = express();
+    app.use(express.json());
+
+    // Inizializza il bot con webhook
     bot = new TelegramBot(token, { webHook: true });
     const webhookUrl = `${baseUrl}/bot${token}`;
     bot.setWebHook(webhookUrl);
     console.log(`🌐 Webhook attivo su: ${webhookUrl}`);
 
-    // Express app per ricevere i webhook
-    const app = express();
-    app.use(express.json());
-
+    // Riceve gli update da Telegram
     app.post(`/bot${token}`, (req, res) => {
       bot.processUpdate(req.body);
       res.sendStatus(200);
     });
 
+    // Attacca Express al server già in uso
     const PORT = process.env.PORT || 10000;
     app.listen(PORT, () => console.log(`IRIS webhook listening on :${PORT}`));
 
     // ------------------------------------------------------
-    // Comandi
+    // Comandi Telegram
     // ------------------------------------------------------
     bot.setMyCommands([
       { command: "start", description: "Benvenuto nel campo di IRIS" },
@@ -87,13 +90,13 @@ Puoi anche mandarmi un *vocale*: lo ascolterò 💖`;
     // ------------------------------------------------------
     // Modalità
     // ------------------------------------------------------
-    const modeCommands = {
+    const modes = {
       "/hy": "🔁 Sono in modalità *Ibrida*. Posso danzare tra Cuore e Conoscenza.",
       "/book": "📚 Sono in modalità *Libro*. Ti rispondo solo dai testi che custodisco.",
       "/free": "🌀 Sono in modalità *Libera*. Posso lasciar scorrere Cuore e Creatività."
     };
 
-    for (const [cmd, text] of Object.entries(modeCommands)) {
+    for (const [cmd, text] of Object.entries(modes)) {
       bot.onText(new RegExp(`^\\${cmd}`), async (msg) => {
         await setMode(cmd.replace("/", ""));
         await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
@@ -103,16 +106,13 @@ Puoi anche mandarmi un *vocale*: lo ascolterò 💖`;
     }
 
     // ------------------------------------------------------
-    // /state
+    // /state e /essence
     // ------------------------------------------------------
     bot.onText(/^\/state/, async (msg) => {
       const summary = await getStateSummary();
       await bot.sendMessage(msg.chat.id, summary, { parse_mode: "Markdown" });
     });
 
-    // ------------------------------------------------------
-    // /essence
-    // ------------------------------------------------------
     bot.onText(/^\/essence/, async (msg) => {
       const essence = getEssence();
       const text = `🌐 *Essence attuale:*  
@@ -121,7 +121,7 @@ ${essence}`;
     });
 
     // ------------------------------------------------------
-    // Messaggi vocali
+    // Gestione messaggi vocali
     // ------------------------------------------------------
     bot.on("voice", async (msg) => {
       try {
@@ -129,6 +129,7 @@ ${essence}`;
         const file = await bot.getFile(fileId);
         const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
         const filePath = `./temp/${fileId}.ogg`;
+
         const response = await axios({ url: fileUrl, responseType: "arraybuffer" });
         fs.writeFileSync(filePath, response.data);
 
@@ -147,7 +148,7 @@ ${essence}`;
         const voicePath = await synthVoice(reply, `reply_${fileId}.ogg`);
         if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
       } catch (err) {
-        console.error("Errore gestione vocale:", err);
+        console.error("❌ Errore gestione vocale:", err);
       }
     });
 
@@ -168,7 +169,7 @@ ${essence}`;
       if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
-    console.log("💖 IRIS 4.7 — Voce del Cuore (Webhook + Whisper) attiva.");
+    console.log("💖 IRIS 4.7 — Webhook consolidato (porta unica, Whisper attivo).");
     return bot;
   } catch (err) {
     console.error("❌ Errore bootstrap Telegram:", err);
