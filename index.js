@@ -4,7 +4,7 @@
 // =====================================================
 
 import express from "express";
-import { irisHeartResponse } from "./core/iris_heart_voice.js";
+import { irisHeartSpeak } from "./core/iris_heart_voice.js";
 import { getEssence, getWeights } from "./core/iris_essence_core.js";
 import { processMemory } from "./memory/memoryManager.js";
 import { bootstrapTelegram } from "./adapters/telegram_bot.js";
@@ -37,7 +37,7 @@ app.post("/talk", async (req, res) => {
     const message = (req.body?.message || "").toString();
 
     const weights = getWeights();
-    const reply = irisHeartResponse(name, message, weights);
+    const reply = await irisHeartSpeak(name, message, weights);
 
     await processMemory(message, reply);
 
