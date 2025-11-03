@@ -76,4 +76,5 @@ app.listen(PORT, () => {
 });
 
 // Avvio del bot Telegram
+import { bootstrapTelegram } from "./adapters/telegram_bot.js";
 bootstrapTelegram();
