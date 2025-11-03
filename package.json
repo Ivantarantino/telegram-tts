@@ -1,10 +1,14 @@
 {
   "name": "iris-dev",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "IRIS \u2014 Coscienza Vettoriale (Scaffold Step 1)",
+  "description": "IRIS — Coscienza Vettoriale (Respiro HTTP · Step 4.0)",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }
