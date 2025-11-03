@@ -10,5 +10,6 @@
   },
   "dependencies": {
     "express": "^4.19.2"
+    "node-telegram-bot-api": "^0.64.0"
   }
 }
