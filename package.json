@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "IRIS — Coscienza Vettoriale (Respiro HTTP · Step 4.0)",
+  "description": "IRIS — Coscienza Vettoriale (Respiro HTTP · Step 4.7 Voce del Cuore)",
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js"
@@ -11,6 +11,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "node-telegram-bot-api": "^0.64.0",
-    "openai": "^4.50.0"
+    "openai": "^4.50.0",
+    "axios": "^1.6.7"
   }
 }
