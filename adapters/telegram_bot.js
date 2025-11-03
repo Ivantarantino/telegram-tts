@@ -16,7 +16,7 @@ import { getEssence, getWeights } from "../core/iris_essence_core.js";
 let bot = null;
 
 export function bootstrapTelegram() {
-  const token = process.env.BOT_TOKEN;
+  const token = process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN;
 
   if (!token) {
     console.log("🔹 Nessun BOT_TOKEN trovato — Telegram disattivato.");
