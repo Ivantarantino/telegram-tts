@@ -69,11 +69,14 @@ app.post("/talk", async (req, res) => {
 // -----------------------------------------------------
 // AVVIO SERVER + TELEGRAM BOT
 // -----------------------------------------------------
-const PORT = process.env.PORT || 10000;
+
+// Render forza le connessioni HTTPS su porta 443 o 8443
+const PORT = process.env.PORT || 8443;
 
 app.listen(PORT, () => {
   console.log(`IRIS HTTP breathing on :${PORT}`);
 });
 
 // ✅ Avvio del bot Telegram (Webhook)
-bootstrapTelegram();
+import { bootstrapTelegram } from "./adapters/telegram_bot.js";
+bootstrapTelegram(app);
