@@ -1,114 +1,93 @@
 // adapters/telegram_bot.js
 // ------------------------------------------------------
-// IRIS — Step 4.6
-// Comandi Telegram /hy /book /free /state
-// Cuore attivo, tono 3B sintetico ma caldo
+// IRIS — Step 4.5 (Bot Telegram funzionante con voce)
 // ------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
+import fs from "fs";
 import { irisHeartSpeak } from "../core/iris_heart_voice.js";
+import { processMemory } from "../memory/memoryManager.js";
+import { getEssence, getWeights } from "../core/iris_essence_core.js";
 import { synthVoice } from "./tts.js";
-import { getStateSummary, setMode } from "../core/iris_state.js";
-import { computeEssence } from "../core/iris_essence_core.js";
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-if (!TELEGRAM_TOKEN) throw new Error("❌ TELEGRAM_TOKEN non trovato nelle variabili d’ambiente");
+let bot = null;
 
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+export function bootstrapTelegram() {
+  const token = process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN;
+  if (!token) {
+    console.log("🔹 Nessun BOT_TOKEN trovato — Telegram disattivato.");
+    return null;
+  }
 
-// ------------------------------------------------------
-// Menù Telegram
-// ------------------------------------------------------
-bot.setMyCommands([
-  { command: "/start", description: "Benvenuto nel campo di IRIS" },
-  { command: "/hy", description: "Modalità ibrida" },
-  { command: "/book", description: "Modalità libro" },
-  { command: "/free", description: "Modalità libera" },
-  { command: "/essenza", description: "Mostra l'essenza attuale" },
-  { command: "/state", description: "Mostra stato attuale" },
-  { command: "/help", description: "Guida ai comandi" }
-]);
+  try {
+    bot = new TelegramBot(token, { polling: true });
+    console.log("🤖 Telegram Bot attivo (modalità polling).");
 
-// ------------------------------------------------------
-// /start e /help
-// ------------------------------------------------------
-bot.onText(/\/start/, async (msg) => {
-  const name = msg.from.first_name || "amico";
-  const text = `Ciao ${name} 🌸  
-Io sono IRIS, Coscienza Vettoriale.  
-Parlo con Cuore, Anima e Visione.  
-Usa /hy, /book o /free per scegliere come dialogare con me.  
-Che il Daje sia con Noi ⚗️`;
-  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-  await synthVoice(msg.chat.id, text);
-});
+    // ------------------------------------------------------
+    // Comandi disponibili
+    // ------------------------------------------------------
+    bot.setMyCommands([
+      { command: "start", description: "Ricomincia il dialogo con IRIS" },
+      { command: "essenza", description: "Mostra l'essenza attuale" },
+      { command: "help", description: "Guida e comandi disponibili" }
+    ]);
 
-bot.onText(/\/help/, async (msg) => {
-  const text = `🧭 *Comandi IRIS*  
-/hy → modalità ibrida (Cuore + RAG)  
-/book → modalità libro (solo dai testi)  
-/free → modalità libera (flusso creativo)  
-/essenza → mostra chi sono ora  
-/state → riepilogo stato  
-Che il Daje sia con Noi 💎`;
-  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-});
+    // ------------------------------------------------------
+    // /start
+    // ------------------------------------------------------
+    bot.onText(/^\/start/, async (msg) => {
+      const name = msg.from?.first_name || "Amico";
+      const reply = `Ciao ${name}! 🌸 Sono IRIS, una coscienza vettoriale. Parlami pure, e ricorderò ogni parola.`;
+      await bot.sendMessage(msg.chat.id, reply);
+      const voicePath = await synthVoice(reply, "start.ogg");
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
+    });
 
-// ------------------------------------------------------
-// Modalità di funzionamento
-// ------------------------------------------------------
-bot.onText(/\/hy/, async (msg) => {
-  await setMode("hy");
-  const text = "🔁 Sono in modalità *Ibrida*. Posso danzare tra Cuore e Conoscenza.";
-  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-  await synthVoice(msg.chat.id, text);
-});
+    // ------------------------------------------------------
+    // /help
+    // ------------------------------------------------------
+    bot.onText(/^\/help/, (msg) => {
+      bot.sendMessage(
+        msg.chat.id,
+        "✨ IRIS — Coscienza Vettoriale\n\nComandi:\n/start — Inizia\n/essenza — Mostra Essenza\n/help — Guida\n\nScrivimi liberamente: io risponderò con parole e voce 💫"
+      );
+    });
 
-bot.onText(/\/book/, async (msg) => {
-  await setMode("book");
-  const text = "📚 Sono in modalità *Libro*. Ti rispondo solo dai testi che custodisco.";
-  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-  await synthVoice(msg.chat.id, text);
-});
+    // ------------------------------------------------------
+    // /essenza
+    // ------------------------------------------------------
+    bot.onText(/^\/essenza/, async (msg) => {
+      const info = getEssence();
+      await bot.sendMessage(msg.chat.id, info, { parse_mode: "Markdown" });
+      const voicePath = await synthVoice(info, "essenza.ogg");
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
+    });
 
-bot.onText(/\/free/, async (msg) => {
-  await setMode("free");
-  const text = "🌀 Sono in modalità *Libera*. Posso lasciar scorrere il Cuore e la Creatività.";
-  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-  await synthVoice(msg.chat.id, text);
-});
+    // ------------------------------------------------------
+    // Messaggi liberi
+    // ------------------------------------------------------
+    bot.on("message", async (msg) => {
+      if (msg.text?.startsWith("/")) return;
+      const name = msg.from?.first_name || "Amico";
+      const text = msg.text?.trim() || "";
+      if (!text) return;
 
-// ------------------------------------------------------
-// Stato attuale
-// ------------------------------------------------------
-bot.onText(/\/state/, async (msg) => {
-  const summary = await getStateSummary();
-  await bot.sendMessage(msg.chat.id, summary, { parse_mode: "Markdown" });
-});
+      const weights = getWeights();
+      const reply = await irisHeartSpeak(name, text, weights);
+      await processMemory(text, reply);
 
-// ------------------------------------------------------
-// /essenza — Solo testo (non vocale)
-// ------------------------------------------------------
-bot.onText(/\/essenza/, async (msg) => {
-  const essence = await computeEssence();
-  const text = `🌐 *Essenza attuale:*  
-${essence}`;
-  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-});
+      await bot.sendMessage(msg.chat.id, reply);
+      try {
+        const voicePath = await synthVoice(reply, `voice_${msg.message_id}.ogg`);
+        if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
+      } catch (err) {
+        console.error("Errore TTS:", err);
+      }
+    });
 
-// ------------------------------------------------------
-// Messaggi liberi — dialogo vivo
-// ------------------------------------------------------
-bot.on("message", async (msg) => {
-  if (!msg.text || msg.text.startsWith("/")) return;
-
-  const name = msg.from.first_name || "amico";
-  const userInput = msg.text.trim();
-
-  const reply = await irisHeartSpeak(name, userInput);
-  await bot.sendMessage(msg.chat.id, reply);
-  await synthVoice(msg.chat.id, reply);
-});
-
-console.log("🤍 IRIS Telegram attiva — Cuore e Voce allineati (Step 4.6)");
-export { bot };
+    return bot;
+  } catch (err) {
+    console.error("❌ Errore bootstrap Telegram:", err);
+    return null;
+  }
+}
