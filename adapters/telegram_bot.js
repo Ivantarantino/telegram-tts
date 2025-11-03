@@ -1,7 +1,6 @@
 // adapters/telegram_bot.js
 // ------------------------------------------------------
-// IRIS — Step 4.7 (fix porta EADDRINUSE)
-// Webhook + Whisper (usa Express condiviso)
+// IRIS — Step 4.7.1 (Webhook stabile, porta condivisa)
 // ------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -16,8 +15,9 @@ import { transcribeAudio } from "./stt.js";
 import express from "express";
 
 let bot = null;
+let app = null;
 
-export function bootstrapTelegram() {
+export function bootstrapTelegram(existingApp = null) {
   const token = process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN;
   const baseUrl = process.env.PUBLIC_BASE_URL;
   if (!token || !baseUrl) {
@@ -26,25 +26,20 @@ export function bootstrapTelegram() {
   }
 
   try {
-    // Express condiviso con index.js
-    const app = express();
+    // Usa l'app Express esistente, se fornita
+    app = existingApp || express();
     app.use(express.json());
 
-    // Inizializza il bot con webhook
     bot = new TelegramBot(token, { webHook: true });
     const webhookUrl = `${baseUrl}/bot${token}`;
     bot.setWebHook(webhookUrl);
     console.log(`🌐 Webhook attivo su: ${webhookUrl}`);
 
-    // Riceve gli update da Telegram
+    // Webhook route (senza listen separato)
     app.post(`/bot${token}`, (req, res) => {
       bot.processUpdate(req.body);
       res.sendStatus(200);
     });
-
-    // Attacca Express al server già in uso
-    const PORT = process.env.PORT || 10000;
-    app.listen(PORT, () => console.log(`IRIS webhook listening on :${PORT}`));
 
     // ------------------------------------------------------
     // Comandi Telegram
@@ -169,7 +164,7 @@ ${essence}`;
       if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
-    console.log("💖 IRIS 4.7 — Webhook consolidato (porta unica, Whisper attivo).");
+    console.log("💖 IRIS 4.7.1 — Webhook stabile (porta condivisa, Whisper attivo).");
     return bot;
   } catch (err) {
     console.error("❌ Errore bootstrap Telegram:", err);
