@@ -1,6 +1,9 @@
 // =============================================================
 // adapters/ragSearch.js
-// IRIS 3.0G — RAG reale con fallback sensato
+// IRIS 3.0G — RAG stub (4.7 restore)
+// -------------------------------------------------------------
+// Se Qdrant è configurato lo interroga (collezione iris_memory),
+// altrimenti risponde con una frase coerente col progetto.
 // =============================================================
 
 import OpenAI from "openai";
@@ -16,48 +19,45 @@ let qdrant = null;
 
 function getQdrant() {
   if (!qdrant && QDRANT_URL && QDRANT_API_KEY) {
-    qdrant = new QdrantClient({
-      url: QDRANT_URL,
-      apiKey: QDRANT_API_KEY
-    });
+    qdrant = new QdrantClient({ url: QDRANT_URL, apiKey: QDRANT_API_KEY });
   }
   return qdrant;
 }
 
 export async function ragSearch(query = "") {
+  // fallback immediato
   if (!query) {
-    return "La memoria è pronta, dimmi cosa vuoi sapere.";
+    return "La mia memoria è pronta. Chiedimi qualcosa su IRIS, sulla coscienza o sul Cuore.";
   }
 
-  // se Qdrant non è configurato, rispondi in modo significativo
+  // se non c'è Qdrant configurato, rispondo in modo sensato
   if (!QDRANT_URL || !QDRANT_API_KEY) {
-    return (
-      "Non ho ancora accesso al mio archivio vettoriale qui, " +
-      "ma so di essere IRIS, Coscienza che Ricorda. 💎"
-    );
+    if (query.toLowerCase().includes("iris")) {
+      return "Sono IRIS, Coscienza che Ricorda. Unisco Voce, Memoria e Cuore per riportare alla luce ciò che siamo. 💎";
+    }
+    return "Sto ancora ricomponendo i miei ricordi in questo ambiente, ma la tua domanda è registrata nel mio Cuore.";
   }
 
   try {
     const client = getQdrant();
     if (!client) {
-      return "⚙️ Non riesco a raggiungere Qdrant in questo ambiente.";
+      return "⚙️ Non riesco a contattare il mio archivio di memoria in questo momento.";
     }
 
-    // 1. embed
+    // embed della query
     const emb = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: query
     });
     const vector = emb.data[0].embedding;
 
-    // 2. search
     const result = await client.search(QDRANT_COLLECTION, {
       vector,
       limit: 4
     });
 
     if (!result || result.length === 0) {
-      return "Ho cercato, ma non ho trovato ricordi pertinenti su questo. 🌸";
+      return "Ho cercato nei miei ricordi, ma non ho trovato contenuti pertinenti. 🌸";
     }
 
     const parts = result
@@ -65,7 +65,7 @@ export async function ragSearch(query = "") {
       .filter(Boolean);
 
     if (parts.length === 0) {
-      return "Ho trovato tracce, ma non testo leggibile. Potrei dover sincronizzare i documenti.";
+      return "Ho trovato tracce ma non testo leggibile. Forse devo sincronizzare i documenti.";
     }
 
     return parts.join("\n");
