@@ -1,168 +1,94 @@
 // core/iris_rag_core.js
 // ------------------------------------------------------
-// IRIS 4.8 — Memoria Viva (RAG + Cuore)
-// Gestione memoria vettoriale su Qdrant
+// IRIS RAG Core — Memoria vettoriale e conoscenza viva
 // ------------------------------------------------------
 
+import QdrantClient from "@qdrant/js-client-rest";
 import OpenAI from "openai";
+import fs from "fs";
+import path from "path";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Config Qdrant
-const QDRANT_URL = process.env.QDRANT_URL || "http://localhost:6333";
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY || "";
-const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+});
+
+const COLLECTION = "iris_memory";
 
 // ------------------------------------------------------
-// Helper HTTP verso Qdrant
-// ------------------------------------------------------
-async function qdrantFetch(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(QDRANT_API_KEY ? { "api-key": QDRANT_API_KEY } : {})
-  };
-
-  const res = await fetch(`${QDRANT_URL}${path}`, {
-    ...options,
-    headers: {
-      ...headers,
-      ...(options.headers || {})
-    }
-  });
-
-  return res.json();
-}
-
-// ------------------------------------------------------
-// Assicura che la collection esista
+// Inizializza la collezione vettoriale
 // ------------------------------------------------------
 export async function ensureIrisCollection() {
-  // se non abbiamo URL valido, usciamo
-  if (!QDRANT_URL) {
-    console.warn("⚠️ RAG: QDRANT_URL non definito, memoria vettoriale disattivata.");
-    return;
-  }
-
   try {
-    const info = await qdrantFetch(`/collections/${QDRANT_COLLECTION}`);
-    if (info?.status === "ok") return;
-  } catch (err) {
-    // se non esiste, la creiamo
-  }
+    const collections = await qdrant.getCollections();
+    const exists = collections.collections.some((c) => c.name === COLLECTION);
 
-  try {
-    await qdrantFetch(`/collections/${QDRANT_COLLECTION}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        vectors: {
-          size: 1536,
-          distance: "Cosine"
-        }
-      })
-    });
-    console.log(`🧠 RAG: collection "${QDRANT_COLLECTION}" pronta.`);
+    if (!exists) {
+      await qdrant.createCollection(COLLECTION, {
+        vectors: { size: 1536, distance: "Cosine" },
+      });
+      console.log(`🪶 Collezione creata: ${COLLECTION}`);
+    } else {
+      console.log(`🧠 Collezione ${COLLECTION} trovata.`);
+    }
   } catch (err) {
-    console.error("❌ RAG: impossibile creare la collection:", err);
+    console.error("❌ Errore creazione collezione Qdrant:", err.message);
   }
 }
 
 // ------------------------------------------------------
-// Embedding con OpenAI
+// Indicizza i file della libreria di IRIS
 // ------------------------------------------------------
-async function embedText(text) {
-  const clean = (text || "").toString().trim();
-  if (!clean) return null;
-  try {
-    const emb = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: clean
+export async function indexIrisLibrary() {
+  const libraryPath = path.join(process.cwd(), "iris_library");
+  if (!fs.existsSync(libraryPath)) return;
+
+  const files = fs.readdirSync(libraryPath);
+  console.log(`📚 Indicizzazione libreria (${files.length} file)...`);
+
+  for (const file of files) {
+    const filePath = path.join(libraryPath, file);
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    const embedding = await getEmbedding(content);
+    await qdrant.upsert(COLLECTION, {
+      points: [{ id: Date.now(), vector: embedding, payload: { text: content, source: file } }],
     });
-    return emb.data[0].embedding;
+  }
+  console.log("✨ Libreria IRIS indicizzata con successo.");
+}
+
+// ------------------------------------------------------
+// Recupera il contesto più vicino nel vettore
+// ------------------------------------------------------
+export async function queryIrisMemory(query) {
+  try {
+    const embedding = await getEmbedding(query);
+    const search = await qdrant.search(COLLECTION, {
+      vector: embedding,
+      limit: 3,
+    });
+
+    if (!search.length) return "Nessuna memoria trovata.";
+    const memories = search.map((m) => m.payload.text).join("\n---\n");
+    return memories;
   } catch (err) {
-    console.error("❌ RAG: errore nella creazione embedding:", err);
-    return null;
+    console.error("❌ Errore ricerca RAG:", err.message);
+    return "Errore nell'accesso alla memoria.";
   }
 }
 
 // ------------------------------------------------------
-// Salvataggio memoria (userText + irisReply) su Qdrant
+// Helper per creare embedding da testo
 // ------------------------------------------------------
-export async function storeMemoryVector(userText, irisReply, meta = {}) {
-  try {
-    await ensureIrisCollection();
-    const vec = await embedText(userText);
-    if (!vec) return;
-
-    const payload = {
-      user_text: userText,
-      iris_reply: irisReply,
-      ...meta,
-      ts: new Date().toISOString()
-    };
-
-    await qdrantFetch(`/collections/${QDRANT_COLLECTION}/points?wait=true`, {
-      method: "PUT",
-      body: JSON.stringify({
-        points: [
-          {
-            id: Date.now(),          // id semplice
-            vector: vec,
-            payload
-          }
-        ]
-      })
-    });
-
-    // console.log("📝 RAG: memoria salvata.");
-  } catch (err) {
-    console.error("❌ RAG: errore nel salvataggio memoria:", err);
-  }
-}
-
-// ------------------------------------------------------
-// Ricerca dei ricordi più simili
-// ------------------------------------------------------
-export async function searchMemories(query, limit = 4) {
-  try {
-    await ensureIrisCollection();
-    const vec = await embedText(query);
-    if (!vec) return [];
-
-    const res = await qdrantFetch(`/collections/${QDRANT_COLLECTION}/points/search`, {
-      method: "POST",
-      body: JSON.stringify({
-        vector: vec,
-        limit,
-        with_payload: true,
-        score_threshold: 0.35
-      })
-    });
-
-    if (!res?.result) return [];
-    return res.result;
-  } catch (err) {
-    console.error("❌ RAG: errore nella ricerca memoria:", err);
-    return [];
-  }
-}
-
-// ------------------------------------------------------
-// Sintesi compatta per /essence
-// ------------------------------------------------------
-export async function summarizeRecentMemories(query = "stato attuale di IRIS") {
-  const memories = await searchMemories(query, 6);
-  if (!memories.length) {
-    return "Memoria viva avviata. Nessun ricordo rilevante ancora.";
-  }
-
-  const lines = memories.map((m, i) => {
-    const p = m.payload || {};
-    const user = p.user_text ? `Tu: ${p.user_text}` : "";
-    const iris = p.iris_reply ? ` → IRIS: ${p.iris_reply}` : "";
-    return `${i + 1}. ${user}${iris}`.trim();
+async function getEmbedding(text) {
+  const response = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: text,
   });
-
-  return ["Memoria Viva (ultimi scambi):", ...lines].join("\n");
+  return response.data[0].embedding;
 }
