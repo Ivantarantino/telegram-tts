@@ -96,6 +96,16 @@ export function createTelegramBot(app) {
   return bot;
 }
 
+// adapters/telegram_bot.js
+// -------------------------------------------------------------
+// Stub temporaneo — Telegram Bootstrap (Fase 4.8 Diagnostica)
+// -------------------------------------------------------------
+export async function bootstrapTelegram() {
+  console.log("🤖 bootstrapTelegram stub OK — Telegram inizializzato in modalità diagnosi");
+  return true;
+}
+
+
 // ======================================================
 // Helper: invio risposta testuale + vocale
 // ======================================================
