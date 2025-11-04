@@ -13,6 +13,7 @@ import { getStateSummary, setMode } from "../core/iris_state.js";
 import { synthVoice } from "./tts.js";
 import { transcribeAudio } from "./stt.js";
 import express from "express";
+import { summarizeRecentMemories } from "../core/iris_rag_core.js";
 
 let bot = null;
 let app = null;
@@ -105,19 +106,25 @@ Puoi anche mandarmi un *vocale*: lo ascolterò 💖`;
 
 
     // ------------------------------------------------------
-    // /state e /essence
-    // ------------------------------------------------------
-    bot.onText(/^\/state/, async (msg) => {
-      const summary = await getStateSummary();
-      await bot.sendMessage(msg.chat.id, summary, { parse_mode: "Markdown" });
-    });
+// /state e /essence
+// ------------------------------------------------------
+bot.onText(/^\/state/, async (msg) => {
+  const summary = await getStateSummary();
+  await bot.sendMessage(msg.chat.id, summary, { parse_mode: "Markdown" });
+});
 
-    bot.onText(/^\/essence/, async (msg) => {
-      const essence = getEssence();
-      const text = `🌐 *Essence attuale:*  
-${essence}`;
-      await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
-    });
+// 🔄 sostituisci TUTTO questo blocco con quello nuovo qui sotto
+bot.onText(/^\/essence/, async (msg) => {
+  const essence = getEssence();
+  const mem = await summarizeRecentMemories(); // <-- aggiunto
+  const text = `🌐 *Essence attuale:*  
+${essence}
+
+📝 *Memoria Viva:*  
+${mem}`;
+  await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
+});
+
 
     // ------------------------------------------------------
     // Gestione messaggi vocali
