@@ -25,7 +25,7 @@ const openai = new OpenAI({
 // -------------------------------------------------------------
 export async function embedText(text) {
   const embedding = await openai.embeddings.create({
-    model: "text-embedding-3-large",
+    model: "text-embedding-3-small",
     input: text,
   });
   return embedding.data[0].embedding;
