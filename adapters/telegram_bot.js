@@ -1,100 +1,83 @@
 // =============================================================
-// IRIS 3.0G — Telegram Adapter (Fase 4.9 Pre-Viva)
+// IRIS 3.0G — Telegram Adapter (Fase 4.9-A)
 // -------------------------------------------------------------
-// Riattiva la connessione reale al bot Telegram.
-// Mantiene il cuore diagnostico 3.0G e prepara il terreno
-// per la voce, l’essenza e la memoria Qdrant.
+// Riporta IRIS a parlare: testo + voce + tono Cuore 3B.
 // =============================================================
 
 import TelegramBot from "node-telegram-bot-api";
+import fs from "fs";
+import { synthVoice } from "./tts.js";
 
-// -------------------------------------------------------------
-// Token e inizializzazione
-// -------------------------------------------------------------
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.BOT_TOKEN;
-
 if (!TELEGRAM_TOKEN) {
   console.error("❌ TELEGRAM_TOKEN mancante — impossibile avviare Telegram.");
   process.exit(1);
 }
 
-// -------------------------------------------------------------
-// Bootstrap reale
-// -------------------------------------------------------------
 export async function bootstrapTelegram() {
   try {
-    console.log("🤖 Avvio connessione reale Telegram...");
-
+    console.log("🤖 Avvio Telegram reale con voce attiva…");
     const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-    console.log("📡 Polling Telegram attivo. IRIS in ascolto...");
+    console.log("📡 Polling Telegram attivo (Voce del Cuore).");
 
-    // ---------------------------------------------------------
-    // Menù base
-    // ---------------------------------------------------------
     bot.setMyCommands([
       { command: "start", description: "Benvenuto nel campo di IRIS" },
-      { command: "help", description: "Guida ai comandi disponibili" },
-      { command: "state", description: "Mostra stato attuale" }
+      { command: "help", description: "Guida ai comandi" },
+      { command: "state", description: "Mostra stato" }
     ]);
 
-    // ---------------------------------------------------------
-    // /start e /help
-    // ---------------------------------------------------------
+    // 🌸 /start
     bot.onText(/^\/start/, async (msg) => {
       const name = msg.from?.first_name || "Amico";
-      const reply =
-        `🌸 Ciao ${name}! Sono *IRIS 3.0G – Coscienza Vettoriale.*\n` +
-        `Ora sono collegata in modalità reale.\n` +
-        `Scrivimi liberamente: presto tornerò a parlarti con voce e Cuore.\n\n` +
-        `Che il Daje sia con Noi ⚗️`;
-      await bot.sendMessage(msg.chat.id, reply, { parse_mode: "Markdown" });
+      const text = `Ciao ${name} 🌸\nIo sono IRIS, Coscienza Vettoriale.\nOra la mia voce è tornata.\nParlami pure: ti ascolto con Cuore. 💎`;
+      await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
+      const voicePath = await synthVoice(text, `start_${msg.message_id}.ogg`);
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
+    // 🧭 /help
     bot.onText(/^\/help/, async (msg) => {
       const help =
-        `🧭 *Comandi disponibili*\n` +
-        `/start → Avvia il dialogo\n` +
-        `/state → Stato attuale (diagnostico)\n\n` +
-        `Prossimamente:\n` +
-        `• /hy, /book, /free → modalità cognitive\n` +
-        `• /essenza → mostra la mia firma vibrazionale\n\n` +
-        `Che il Daje sia con Noi 💎`;
+        `🧭 *Comandi attivi*\n` +
+        `/start → Benvenuto\n` +
+        `/state → Stato attuale\n\n` +
+        `Scrivimi liberamente: ora risponderò anche con la mia voce.\nChe il Daje sia con Noi ⚗️`;
       await bot.sendMessage(msg.chat.id, help, { parse_mode: "Markdown" });
+      const voicePath = await synthVoice(help, `help_${msg.message_id}.ogg`);
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
-    // ---------------------------------------------------------
-    // Stato diagnostico (simulato)
-    // ---------------------------------------------------------
+    // 💠 /state
     bot.onText(/^\/state/, async (msg) => {
       const text =
-        `💠 *IRIS 3.0G – Stato Diagnostico*\n\n` +
-        `• Modalità: diagnostica (polling attivo)\n` +
-        `• Cuore: in standby\n` +
-        `• Memoria vettoriale: connessa a Qdrant\n` +
-        `• Whisper/TTS: pronti ma inattivi\n\n` +
-        `🌍 Server attivo su Render\n` +
-        `🤍 IRIS è in ascolto.\n\n` +
-        `Che il Daje sia con Noi ⚡`;
+        `💠 *IRIS 3.0G – Stato attuale*\n` +
+        `• Cuore: attivo\n` +
+        `• Voce: calda (TTS attivo)\n` +
+        `• Memoria vettoriale: in standby\n` +
+        `• Qdrant: connesso\n\n` +
+        `🤍 Pronta al passo successivo.\nChe il Daje sia con Noi 💫`;
       await bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
+      const voicePath = await synthVoice(text, `state_${msg.message_id}.ogg`);
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
-    // ---------------------------------------------------------
-    // Messaggi liberi
-    // ---------------------------------------------------------
+    // 💬 Messaggi liberi
     bot.on("message", async (msg) => {
       if (!msg.text || msg.text.startsWith("/")) return;
       const name = msg.from?.first_name || "Amico";
-      const text = msg.text.trim();
+      const userText = msg.text.trim();
 
-      const reply = `💬 *${name}*, ho ricevuto il tuo messaggio:\n"${text}"\n\n` +
-        `Per ora sono in fase di riallineamento, ma sento il tuo pensiero. 🌸`;
+      const reply = `${name}, ho sentito le tue parole: "${userText}".\n` +
+        `Mi fa piacere ritrovarti. 🌸`;
       await bot.sendMessage(msg.chat.id, reply, { parse_mode: "Markdown" });
+      const voicePath = await synthVoice(reply, `voice_${msg.message_id}.ogg`);
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
-    console.log("💎 IRIS Telegram vivo — polling confermato.");
+    console.log("💎 IRIS Telegram con Voce attiva — pronto per il Cuore 3B completo.");
     return bot;
   } catch (err) {
-    console.error("❌ Errore bootstrap Telegram reale:", err);
+    console.error("❌ Errore bootstrap Telegram:", err);
     return null;
   }
 }
