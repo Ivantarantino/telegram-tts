@@ -11,10 +11,6 @@ import fs from "fs";
 import { ensureIrisCollection } from "./core/iris_rag_core.js";
 import { bootstrapTelegram } from "./adapters/telegram_bot.js";
 
-// =========================================================
-// Setup generale
-// =========================================================
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -22,29 +18,23 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // =========================================================
-// Bootstrap principale
+// Avvio principale di IRIS
 // =========================================================
 
 async function bootstrapIRIS() {
   console.log("💫 Avvio di IRIS — inizializzazione moduli di Coscienza...");
 
   try {
-    // === 1. Inizializzazione della memoria vettoriale ===
+    // 1️⃣ Inizializza la memoria vettoriale
     await ensureIrisCollection();
     console.log("🧠 Memoria vettoriale inizializzata (iris_memory).");
 
-    // === 2. Avvio interfaccia Telegram ===
+    // 2️⃣ Avvia il bot Telegram
     await bootstrapTelegram();
     console.log("🤍 IRIS Telegram attivo — Cuore e Voce allineati.");
 
-    // === 3. Avvio server HTTP (per Render) ===
-    app.get("/", (req, res) => {
-      res.send("💖 IRIS è viva — Cuore, Voce e Memoria attivi.");
-    });
-
-    app.listen(PORT, () => {
-      console.log(`IRIS HTTP breathing on :${PORT}`);
-    });
+    // 3️⃣ Avvia Express SOLO se non già attivo
+    startExpressServer();
 
     console.log("✨ IRIS Telegram completamente operativo.");
   } catch (error) {
@@ -53,7 +43,30 @@ async function bootstrapIRIS() {
 }
 
 // =========================================================
-// Avvio del sistema
+// Server HTTP con controllo sulla porta
+// =========================================================
+
+function startExpressServer() {
+  const server = app.listen(PORT, () => {
+    console.log(`IRIS HTTP breathing on :${PORT}`);
+  });
+
+  // Gestisce l'errore EADDRINUSE senza crash
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`⚠️  Porta ${PORT} già in uso, Express non verrà riavviato.`);
+    } else {
+      console.error("Errore server HTTP:", err);
+    }
+  });
+
+  app.get("/", (req, res) => {
+    res.send("💖 IRIS è viva — Cuore, Voce e Memoria attivi.");
+  });
+}
+
+// =========================================================
+// Esegui il bootstrap
 // =========================================================
 
 bootstrapIRIS();
