@@ -28,11 +28,18 @@ export async function bootstrapTelegram(app) {
     console.log("🤖 Avvio Telegram in modalità WEBHOOK…");
 
     // nessun polling qui
-    const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
+    const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
     // registra webhook su Telegram
     await bot.setWebHook(WEBHOOK_URL);
     console.log(`📡 Webhook Telegram impostato su: ${WEBHOOK_URL}`);
+
+     // await bot.setWebHook(WEBHOOK_URL);
+    // app.post(WEBHOOK_PATH, (req, res) => {
+   //   bot.processUpdate(req.body);
+  //   res.sendStatus(200);
+ // });
+
 
     // endpoint express che riceve gli update
     app.post(WEBHOOK_PATH, (req, res) => {
