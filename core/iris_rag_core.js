@@ -1,116 +1,78 @@
-// ===========================================
-// IRIS — Rag Core (Memoria Vettoriale Qdrant)
-// Gestione embedding, ricerca e inserimento dei ricordi
-// ===========================================
+// =============================================================
+// core/iris_rag_core.js
+// IRIS 3.0G — RAG & Memoria Vettoriale (milestone 4.8)
+// -------------------------------------------------------------
+// Espone SOLO ciò che index.js e i bot devono chiamare:
+// - initMemoryCollection()
+// - searchMemories(query)
+// Internamente riusa la stessa logica di ragSearch.js (adapters)
+// così non duplichiamo il motore.
+// =============================================================
 
-import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
+import { ragSearch } from "../adapters/ragSearch.js";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const QDRANT_URL = process.env.QDRANT_URL;
+const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
+const BOOK_COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
+const CHAT_COLLECTION = process.env.QDRANT_CHAT_COLLECTION || "iris_chat_history";
 
-const qdrant = new QdrantClient({
-  url: process.env.QDRANT_URL,
-  apiKey: process.env.QDRANT_API_KEY,
-});
+let qdrantClient = null;
 
-// =========================================================
-// Inizializzazione collezione (solo se non esiste)
-// =========================================================
-
-export async function ensureIrisCollection() {
-  try {
-    const collections = await qdrant.getCollections();
-    const exists = collections.collections.some(c => c.name === "iris_memory");
-
-    if (!exists) {
-      console.log("🧩 Creazione nuova collezione: iris_memory ...");
-      await qdrant.createCollection("iris_memory", {
-        vectors: {
-          size: 1536, // dimensione compatibile con text-embedding-3-small
-          distance: "Cosine",
-        },
-      });
-      console.log("✅ Collezione iris_memory creata.");
-    } else {
-      console.log("🧠 Collezione iris_memory trovata.");
-    }
-  } catch (error) {
-    console.error("❌ Errore in ensureIrisCollection:", error);
-  }
-}
-
-// =========================================================
-// Creazione embedding testuale
-// =========================================================
-
-export async function embedText(text) {
-  try {
-    const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: text,
-    });
-    return response.data[0].embedding;
-  } catch (error) {
-    console.error("Errore generazione embedding:", error);
-    return null;
-  }
-}
-
-// =========================================================
-// Inserimento nuovo ricordo nella memoria
-// =========================================================
-
-export async function storeMemory(text, metadata = {}) {
-  try {
-    const vector = await embedText(text);
-    if (!vector) return null;
-
-    const payload = { text, ...metadata };
-    const id = `${Date.now()}`;
-
-    await qdrant.upsert("iris_memory", {
-      points: [{ id, vector, payload }],
-    });
-
-    console.log("💾 Ricordo memorizzato:", id);
-    return id;
-  } catch (error) {
-    console.error("Errore in storeMemory:", error);
-    return null;
-  }
-}
-
-// =========================================================
-// Ricerca di ricordi rilevanti
-// =========================================================
-
-export async function searchMemories(query, limit = 5) {
-  try {
-    const vector = await embedText(query);
-    if (!vector) return [];
-
-    const search = await qdrant.search("iris_memory", {
-      vector,
-      limit,
-      with_payload: true,
-      score_threshold: 0.2,
-    });
-
-    if (!search || search.length === 0) {
-      console.log("📭 Nessun ricordo trovato.");
-      return [];
-    }
-
-    console.log(`📚 ${search.length} risultati Qdrant ricevuti.`);
-    return search;
-  } catch (error) {
-    console.error("❌ Errore in searchMemories:", error);
-    return [];
-  }
-}
-// Alias per compatibilità (richiamato da index.js)
+// -------------------------------------------------------------
+// Inizializza le collection necessarie (libri + chat)
+// -------------------------------------------------------------
 export async function initMemoryCollection() {
-  return await ensureIrisCollection(); // o la tua funzione principale
+  try {
+    if (!QDRANT_URL || !QDRANT_API_KEY) {
+      console.warn("⚠️ Qdrant non configurato (URL o API key mancante). Procedo in modalità fallback.");
+      return;
+    }
+
+    qdrantClient = new QdrantClient({
+      url: QDRANT_URL,
+      apiKey: QDRANT_API_KEY
+    });
+
+    const existing = await qdrantClient.getCollections();
+    const names = existing.collections.map((c) => c.name);
+
+    // libri / documenti
+    if (!names.includes(BOOK_COLLECTION)) {
+      console.log(`📚 Creo la collection libri: ${BOOK_COLLECTION}`);
+      await qdrantClient.createCollection(BOOK_COLLECTION, {
+        vectors: { size: 1536, distance: "Cosine" }
+      });
+    } else {
+      console.log(`📚 Collection '${BOOK_COLLECTION}' già presente`);
+    }
+
+    // chat / memoria conversazionale
+    if (!names.includes(CHAT_COLLECTION)) {
+      console.log(`💬 Creo la collection chat: ${CHAT_COLLECTION}`);
+      await qdrantClient.createCollection(CHAT_COLLECTION, {
+        vectors: { size: 1536, distance: "Cosine" }
+      });
+    } else {
+      console.log(`💬 Collection '${CHAT_COLLECTION}' già presente`);
+    }
+
+    console.log("🧠 Collezioni Qdrant pronte (RAG attivabile).");
+  } catch (err) {
+    console.error("❌ Errore in initMemoryCollection:", err.message);
+  }
+}
+
+// -------------------------------------------------------------
+// Ricerca di memoria (usata dal bot o dal core Cuore+Mente)
+// -------------------------------------------------------------
+export async function searchMemories(query) {
+  try {
+    // Deleghiamo al motore già presente in adapters/ragSearch.js
+    const answer = await ragSearch(query);
+    return typeof answer === "string" ? answer : JSON.stringify(answer);
+  } catch (err) {
+    console.error("❌ Errore in searchMemories:", err.message);
+    return "⚙️ Non riesco a consultare la mia memoria in questo momento.";
+  }
 }
