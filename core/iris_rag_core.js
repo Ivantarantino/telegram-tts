@@ -1,6 +1,6 @@
 // =============================================================
 // core/iris_rag_core.js
-// IRIS 3.0G — ponte ufficiale tra il core e il RAG
+// Ponte tra IRIS e il motore RAG
 // =============================================================
 
 import { QdrantClient } from "@qdrant/js-client-rest";
@@ -16,7 +16,7 @@ let qdrantClient = null;
 export async function initMemoryCollection() {
   try {
     if (!QDRANT_URL || !QDRANT_API_KEY) {
-      console.warn("⚠️ Qdrant non configurato (URL/API key mancanti). Avvio in modalità senza memoria.");
+      console.warn("⚠️ Qdrant non configurato — avvio senza memoria persistente.");
       return;
     }
 
