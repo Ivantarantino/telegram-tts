@@ -26,7 +26,7 @@ export async function synthVoice(text, filename = null) {
 
     console.log("🎧 Genero voce (fetch) per:", cleanText.slice(0, 80));
 
-    const res = await fetch("https://api.openai.com/v1/audio/speech", {
+    const res = await fetch("https://api.openai.com/v1/audio/speech/generate", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
