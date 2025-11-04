@@ -3,7 +3,7 @@
 // IRIS RAG Core — Memoria vettoriale e conoscenza viva
 // ------------------------------------------------------
 
-import QdrantClient from "@qdrant/js-client-rest";
+import { QdrantClient } from "@qdrant/js-client-rest";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
