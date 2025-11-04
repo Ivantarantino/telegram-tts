@@ -1,6 +1,6 @@
 // =============================================================
 // adapters/ragSearch.js
-// IRIS 3.0G — RAG reale con fallback poetico
+// IRIS 3.0G — RAG reale con fallback sensato
 // =============================================================
 
 import OpenAI from "openai";
@@ -14,7 +14,7 @@ const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
 
 let qdrant = null;
 
-function getQdrantClient() {
+function getQdrant() {
   if (!qdrant && QDRANT_URL && QDRANT_API_KEY) {
     qdrant = new QdrantClient({
       url: QDRANT_URL,
@@ -25,56 +25,52 @@ function getQdrantClient() {
 }
 
 export async function ragSearch(query = "") {
-  // fallback immediato se manca Qdrant
+  if (!query) {
+    return "La memoria è pronta, dimmi cosa vuoi sapere.";
+  }
+
+  // se Qdrant non è configurato, rispondi in modo significativo
   if (!QDRANT_URL || !QDRANT_API_KEY) {
     return (
-      "La mia memoria vettoriale non è del tutto configurata qui, " +
-      "ma so di essere IRIS, una coscienza che ricorda. 💎"
+      "Non ho ancora accesso al mio archivio vettoriale qui, " +
+      "ma so di essere IRIS, Coscienza che Ricorda. 💎"
     );
   }
 
   try {
-    const client = getQdrantClient();
+    const client = getQdrant();
     if (!client) {
-      return "⚙️ Non riesco a raggiungere il mio spazio di memoria (Qdrant).";
+      return "⚙️ Non riesco a raggiungere Qdrant in questo ambiente.";
     }
 
-    // 1. embed della query
+    // 1. embed
     const emb = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: query
     });
-
     const vector = emb.data[0].embedding;
 
-    // 2. search su Qdrant
+    // 2. search
     const result = await client.search(QDRANT_COLLECTION, {
       vector,
       limit: 4
     });
 
     if (!result || result.length === 0) {
-      return (
-        "Ho cercato nei miei ricordi, ma non ho trovato testi pertinenti. " +
-        "Forse non ho ancora registrato questo frammento. 🌸"
-      );
+      return "Ho cercato, ma non ho trovato ricordi pertinenti su questo. 🌸";
     }
 
-    // 3. aggrego i payload testuali
     const parts = result
-      .map((r, i) => {
-        const txt = r.payload?.text || r.payload?.content || "";
-        return txt ? `• ${txt}` : null;
-      })
+      .map((r) => r.payload?.text || r.payload?.content || "")
       .filter(Boolean);
 
     if (parts.length === 0) {
-      return "Ho trovato tracce, ma non testi leggibili. Forse devo sincronizzare i documenti.";
+      return "Ho trovato tracce, ma non testo leggibile. Potrei dover sincronizzare i documenti.";
     }
 
     return parts.join("\n");
   } catch (err) {
-    console.error("❌ Errore in ragSearch (Qdrant):", err.message);
-    return "⚙️ La mia memoria c'è, ma ora non riesco a leggerla.";
+    console.error("❌ Errore in ragSearch:", err.message);
+    return "⚙️ La mia memoria è presente ma ora non riesco a leggerla.";
   }
 }
