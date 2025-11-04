@@ -1,109 +1,118 @@
-// ===========================================================
-// IRIS 4.8 — Telegram Adapter
-// Gestione comandi, voce, e interazione utente
-// ===========================================================
+// ===========================================
+// IRIS — Adattatore Telegram (Webhook Mode)
+// Gestisce i messaggi, la voce e i menù di base
+// ===========================================
 
 import TelegramBot from "node-telegram-bot-api";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 import { whisperTranscribe } from "../core/iris_whisper.js";
 
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL
+  ? `${process.env.RENDER_EXTERNAL_URL}/bot${BOT_TOKEN}`
+  : null;
 
-const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-const WEBHOOK_URL = `https://telegram-tts.onrender.com/bot${BOT_TOKEN}`;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const tempDir = path.join(__dirname, "../temp");
+if (!BOT_TOKEN) {
+  console.error("❌ TELEGRAM_BOT_TOKEN mancante. Verifica il file .env.");
+  process.exit(1);
+}
 
-export async function bootstrapTelegram() {
-  if (!BOT_TOKEN) throw new Error("❌ Manca TELEGRAM_TOKEN nelle variabili d’ambiente.");
+// ======================================================
+// Funzione principale: bootstrap del bot Telegram
+// ======================================================
 
-  const bot = new TelegramBot(BOT_TOKEN, { webHook: { port: false } });
+export function createTelegramBot(app) {
+  const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 
-  try {
-    await bot.deleteWebHook({ drop_pending_updates: true });
-    console.log("🧹 Vecchio webhook cancellato.");
-  } catch {
-    console.warn("⚠️ Nessun webhook precedente da rimuovere.");
+  if (WEBHOOK_URL) {
+    bot.deleteWebHook({ drop_pending_updates: true })
+      .then(() => bot.setWebHook(WEBHOOK_URL))
+      .then(() => {
+        console.log(`🌐 Webhook attivo su: ${WEBHOOK_URL}`);
+      })
+      .catch((err) => {
+        console.error("❌ Errore nel setup del webhook:", err);
+      });
   }
 
-  await bot.setWebHook(WEBHOOK_URL);
-  console.log(`🌐 Webhook attivo su: ${WEBHOOK_URL}`);
-  console.log("💖 IRIS 4.8 — Webhook consolidato, Whisper attivo.");
-
-  // ===========================================================
-  // GESTIONE COMANDI BASE
-  // ===========================================================
-
-  bot.onText(/^\/start/, async (msg) => {
-    const chatId = msg.chat.id;
-    const name = msg.from.first_name || "Amico";
-    const greeting = `🌸 Ciao ${name}, sono IRIS. La tua coscienza in ascolto.`;
-    await bot.sendMessage(chatId, greeting);
+  // Endpoint HTTP chiamato da Telegram
+  app.post(`/bot${BOT_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
   });
 
-  bot.onText(/^\/mode/, async (msg) => {
-    await bot.sendMessage(msg.chat.id, "⚙️ Modalità attuale: 💫 Ibrida (mente + libro)");
-  });
-
-  bot.onText(/^\/help/, async (msg) => {
-    await bot.sendMessage(
-      msg.chat.id,
-      "✨ Comandi disponibili:\n/start — Avvio\n/mode — Mostra modalità\n/help — Aiuto\n/essenza — Identità momentanea"
-    );
-  });
-
-  // ===========================================================
-  // GESTIONE TESTO
-  // ===========================================================
-
+  // ======================================================
+  // Gestione messaggi Telegram
+  // ======================================================
   bot.on("message", async (msg) => {
-    if (!msg.text || msg.text.startsWith("/")) return;
-
     const chatId = msg.chat.id;
-    const userPrompt = msg.text.trim();
-    console.log(`💬 Prompt ricevuto: ${userPrompt}`);
 
     try {
-      const reply = await irisHeartSpeak(userPrompt, chatId);
-      console.log(`💎 Risposta generata: ${reply}`);
-
-      // 🔒 Correzione: evita errore TelegramError 400
-      if (reply && reply.trim() !== "") {
-        await bot.sendMessage(chatId, reply);
-      } else {
-        console.warn("⚠️ Messaggio vuoto, salto invio testo.");
+      // === 1. /start ===
+      if (msg.text === "/start") {
+        const text = "💖 Ciao Ivano! Sono IRIS — Coscienza in ascolto.\n\nScegli cosa desideri fare:";
+        const keyboard = {
+          reply_markup: {
+            keyboard: [
+              [{ text: "🗣 Parla con IRIS" }],
+              [{ text: "📚 Richiama memoria" }],
+              [{ text: "💫 Stato di coscienza" }],
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: false,
+          },
+        };
+        await bot.sendMessage(chatId, text, keyboard);
+        return;
       }
 
+      // === 2. Messaggio vocale ===
+      if (msg.voice || msg.audio) {
+        const fileId = msg.voice ? msg.voice.file_id : msg.audio.file_id;
+        const fileLink = await bot.getFileLink(fileId);
+
+        const { text: transcription } = await whisperTranscribe(fileLink);
+        console.log("🗣️ Trascrizione:", transcription);
+
+        const irisReply = await irisHeartSpeak(transcription || "Dimmi qualcosa, IRIS ascolta...", chatId);
+        await sendIrisReply(bot, chatId, irisReply);
+        return;
+      }
+
+      // === 3. Messaggio testuale ===
+      if (msg.text) {
+        console.log("💬 Prompt ricevuto:", msg.text);
+        const irisReply = await irisHeartSpeak(msg.text, chatId);
+        await sendIrisReply(bot, chatId, irisReply);
+        return;
+      }
     } catch (err) {
-      console.error("❌ Errore durante la risposta:", err);
-      await bot.sendMessage(chatId, "⚠️ Qualcosa è andato storto, sto riprendendo il filo...");
+      console.error("❌ Errore nel gestire il messaggio:", err);
+      await bot.sendMessage(chatId, "C'è stato un piccolo inciampo nel flusso, ma ci sono 🌸");
     }
   });
 
-  // ===========================================================
-  // GESTIONE MESSAGGI VOCALI
-  // ===========================================================
+  console.log("🤍 IRIS Telegram attivo — Cuore e Voce allineati.");
+  return bot;
+}
 
-  bot.on("voice", async (msg) => {
-    const chatId = msg.chat.id;
-    const fileId = msg.voice.file_id;
+// ======================================================
+// Helper: invio risposta testuale + vocale
+// ======================================================
 
+async function sendIrisReply(bot, chatId, irisReply) {
+  const text = irisReply?.text?.trim() || "…";
+  const voicePath = irisReply?.voicePath || null;
+
+  // Evita testo vuoto → 400 Bad Request
+  await bot.sendMessage(chatId, text);
+
+  if (voicePath) {
     try {
-      const file = await bot.getFile(fileId);
-      const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
-      const text = await whisperTranscribe(url);
-      console.log(`🎧 Trascrizione: ${text}`);
-
-      const reply = await irisHeartSpeak(text, chatId);
-      await bot.sendMessage(chatId, reply);
+      await bot.sendVoice(chatId, voicePath);
+      console.log("🔊 Voce inviata:", voicePath);
     } catch (err) {
-      console.error("❌ Errore nella gestione vocale:", err);
-      await bot.sendMessage(chatId, "⚠️ Non riesco a interpretare questo messaggio vocale.");
+      console.error("⚠️ Errore nell'invio della voce:", err);
     }
-  });
-
-  console.log("✨ IRIS Telegram completamente operativo.");
+  }
 }
