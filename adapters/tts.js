@@ -1,9 +1,6 @@
 // =============================================================
 // adapters/tts.js
-// IRIS 3.0G — TTS con log di debug (fase 4.9-C)
-// -------------------------------------------------------------
-// Converte testo in voce calda .ogg (Telegram compatibile)
-// e scrive log dettagliati su Render per il debug.
+// IRIS 3.0G — Voce "Iris Bella" (gpt-4o-tts, verse)
 // =============================================================
 
 import fs from "fs";
@@ -20,13 +17,14 @@ export async function synthVoice(text, filename = null) {
   try {
     if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-    console.log("🎧 Avvio generazione voce per:", text.slice(0, 80));
-
+    // rimuovo emoji che possono disturbare
     const cleanText = text.replace(/[💎🌸⚡❤️✨]/g, "").trim();
 
+    console.log("🎧 Genero voce (Iris Bella) per:", cleanText.slice(0, 80));
+
     const response = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "alloy",
+      model: "gpt-4o-tts",
+      voice: "verse",
       input: cleanText,
       format: "opus"
     });
@@ -34,10 +32,10 @@ export async function synthVoice(text, filename = null) {
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(outputPath, buffer);
 
-    console.log(`🔊 Voce generata correttamente: ${outputPath}`);
+    console.log(`🔊 Voce generata (Iris Bella): ${outputPath}`);
     return outputPath;
   } catch (err) {
-    console.error("❌ Errore nella generazione vocale:", err.message);
+    console.error("❌ Errore generazione voce (Iris Bella):", err.message);
     return null;
   }
 }
