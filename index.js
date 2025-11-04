@@ -4,7 +4,8 @@
 // ------------------------------------------------------
 
 import { bootstrapTelegram } from "./adapters/telegram_bot.js";
-import { ensureIrisCollection } from "./core/iris_rag_core.js";
+import { initMemoryCollection } from "./core/iris_rag_core.js";
+
 
 // ------------------------------------------------------
 // Avvio sequenziale — ordine di respirazione
@@ -14,7 +15,7 @@ import { ensureIrisCollection } from "./core/iris_rag_core.js";
 
   try {
     // 1️⃣ Inizializza memoria vettoriale (Qdrant)
-    await ensureIrisCollection();
+    await initMemoryCollection();
     console.log("🧠 Memoria vettoriale inizializzata (iris_memory).");
 
     // 2️⃣ Avvia Telegram + server HTTP (già incluso nel bot)
