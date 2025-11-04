@@ -8,7 +8,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { irisHeartSpeak } from "../core/iris_heart_voice.js";
-import { transcribeVoice } from "../core/iris_whisper.js";
+import { whisperTranscribe } from "../core/iris_whisper.js";
+
 
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const WEBHOOK_URL = `https://telegram-tts.onrender.com/bot${BOT_TOKEN}`;
@@ -93,7 +94,7 @@ export async function bootstrapTelegram() {
     try {
       const file = await bot.getFile(fileId);
       const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
-      const text = await transcribeVoice(url);
+      const text = await whisperTranscribe(url);
       console.log(`🎧 Trascrizione: ${text}`);
 
       const reply = await irisHeartSpeak(text, chatId);
