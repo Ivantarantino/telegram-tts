@@ -1,12 +1,6 @@
 // =============================================================
 // core/iris_rag_core.js
-// IRIS 3.0G — RAG & Memoria Vettoriale (milestone 4.8)
-// -------------------------------------------------------------
-// Espone SOLO ciò che index.js e i bot devono chiamare:
-// - initMemoryCollection()
-// - searchMemories(query)
-// Internamente riusa la stessa logica di ragSearch.js (adapters)
-// così non duplichiamo il motore.
+// IRIS 3.0G — ponte ufficiale tra il core e il RAG
 // =============================================================
 
 import { QdrantClient } from "@qdrant/js-client-rest";
@@ -19,13 +13,10 @@ const CHAT_COLLECTION = process.env.QDRANT_CHAT_COLLECTION || "iris_chat_history
 
 let qdrantClient = null;
 
-// -------------------------------------------------------------
-// Inizializza le collection necessarie (libri + chat)
-// -------------------------------------------------------------
 export async function initMemoryCollection() {
   try {
     if (!QDRANT_URL || !QDRANT_API_KEY) {
-      console.warn("⚠️ Qdrant non configurato (URL o API key mancante). Procedo in modalità fallback.");
+      console.warn("⚠️ Qdrant non configurato (URL/API key mancanti). Avvio in modalità senza memoria.");
       return;
     }
 
@@ -37,7 +28,6 @@ export async function initMemoryCollection() {
     const existing = await qdrantClient.getCollections();
     const names = existing.collections.map((c) => c.name);
 
-    // libri / documenti
     if (!names.includes(BOOK_COLLECTION)) {
       console.log(`📚 Creo la collection libri: ${BOOK_COLLECTION}`);
       await qdrantClient.createCollection(BOOK_COLLECTION, {
@@ -47,7 +37,6 @@ export async function initMemoryCollection() {
       console.log(`📚 Collection '${BOOK_COLLECTION}' già presente`);
     }
 
-    // chat / memoria conversazionale
     if (!names.includes(CHAT_COLLECTION)) {
       console.log(`💬 Creo la collection chat: ${CHAT_COLLECTION}`);
       await qdrantClient.createCollection(CHAT_COLLECTION, {
@@ -63,16 +52,6 @@ export async function initMemoryCollection() {
   }
 }
 
-// -------------------------------------------------------------
-// Ricerca di memoria (usata dal bot o dal core Cuore+Mente)
-// -------------------------------------------------------------
 export async function searchMemories(query) {
-  try {
-    // Deleghiamo al motore già presente in adapters/ragSearch.js
-    const answer = await ragSearch(query);
-    return typeof answer === "string" ? answer : JSON.stringify(answer);
-  } catch (err) {
-    console.error("❌ Errore in searchMemories:", err.message);
-    return "⚙️ Non riesco a consultare la mia memoria in questo momento.";
-  }
+  return await ragSearch(query);
 }
