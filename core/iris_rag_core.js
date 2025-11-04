@@ -1,6 +1,6 @@
 // =============================================================
 // core/iris_rag_core.js
-// Ponte tra IRIS e il motore RAG
+// IRIS 3.0G — ponte tra core e RAG (4.7 restore)
 // =============================================================
 
 import { QdrantClient } from "@qdrant/js-client-rest";
@@ -16,7 +16,7 @@ let qdrantClient = null;
 export async function initMemoryCollection() {
   try {
     if (!QDRANT_URL || !QDRANT_API_KEY) {
-      console.warn("⚠️ Qdrant non configurato — avvio senza memoria persistente.");
+      console.warn("⚠️ Qdrant non configurato — avvio in modalità senza memoria persistente.");
       return;
     }
 
@@ -46,7 +46,7 @@ export async function initMemoryCollection() {
       console.log(`💬 Collection '${CHAT_COLLECTION}' già presente`);
     }
 
-    console.log("🧠 Collezioni Qdrant pronte (RAG attivabile).");
+    console.log("🧠 Collezione iris_memory trovata.");
   } catch (err) {
     console.error("❌ Errore in initMemoryCollection:", err.message);
   }
