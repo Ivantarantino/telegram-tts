@@ -110,3 +110,7 @@ export async function searchMemories(query, limit = 5) {
     return [];
   }
 }
+// Alias per compatibilità (richiamato da index.js)
+export async function initMemoryCollection() {
+  return await ensureIrisCollection(); // o la tua funzione principale
+}
