@@ -1,7 +1,7 @@
 // ===========================================
-// IRIS — Orchestratore del Battito (4.8 — Flusso Webhook)
-// Da 4.7: +setWebhook con drop_pending_updates (risolve 409 da Rapporti 1/2)
-// Endpoint /bot<token> per Telegram updates
+// IRIS — Orchestratore del Battito (4.9 — Flusso Unificato)
+// Da 4.8: +deleteWebhook in setWebhook (cleara conflitti da Rapporti 1/2)
+// Endpoint /bot<token> per Telegram updates puri
 // ===========================================
 
 import express from "express";
@@ -79,10 +79,10 @@ async function bootstrapIRIS() {
   // Bootstrap Telegram (no polling)
   const botInstance = bootstrapTelegram();
   if (botInstance) {
-    // Setup webhook: URL su Render (porta 10000, ma Render proxy)
+    // Setup webhook unificato: delete + set (dissolve conflitti)
     const webhookUrl = `https://telegram-tts.onrender.com/bot${process.env.TELEGRAM_TOKEN}`;
     await setWebhook(botInstance, webhookUrl);
-    console.log("🤖 Telegram attivo (webhook puro).");
+    console.log("🤖 Telegram attivo (flusso unificato, no conflitti).");
   } else {
     console.log("🔹 Telegram disattivato (no token).");
   }
