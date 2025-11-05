@@ -1,6 +1,6 @@
 // adapters/tts.js
 // =====================================================
-// IRIS 5.3 — Motore TTS
+// IRIS 5.3.1 — Motore TTS (fix input type)
 // =====================================================
 
 import fs from "fs";
@@ -18,6 +18,7 @@ export function setVoiceEngine(provider, name) {
 }
 
 export async function synthVoice(text) {
+  const safeText = String(text || "").trim() || "…";
   const tempPath = path.resolve(`./temp/voice_${Date.now()}.ogg`);
 
   try {
@@ -25,7 +26,7 @@ export async function synthVoice(text) {
       const response = await openai.audio.speech.create({
         model: "gpt-4o-mini-tts",
         voice: voiceEngine.name || "alloy",
-        input: text,
+        input: safeText,
         format: "ogg",
       });
 
