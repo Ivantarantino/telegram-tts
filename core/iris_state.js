@@ -1,3 +1,8 @@
+// ===========================================
+// IRIS State — Stato Centrale (4.7)
+// Da 3.0B: mode, weights, getStateSummary()
+// ===========================================
+
 export const irisState = {
   mode: "hy",
   lang: "it",
