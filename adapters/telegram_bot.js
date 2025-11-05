@@ -1,7 +1,7 @@
 // ===========================================
-// Telegram Bot — Flusso Unificato Webhook (4.9 — Conflitto Dissolto)
-// Da 4.8: +deleteWebhook prima di set (cleara veli orfani su Telegram API)
-// Gestione messaggi diretti (no eco); comandi puri
+// Telegram Bot — Flusso Nominato Unificato (5.0 — Nome Dissolto)
+// Da 4.9: +bot.deleteWebHook (casing corretto: WebHook, non Webhook)
+// Cleara veli orfani su Telegram API; gestione messaggi puri
 // ===========================================
 
 import TelegramBot from "node-telegram-bot-api";
@@ -23,7 +23,7 @@ export function bootstrapTelegram() {
 
   try {
     bot = new TelegramBot(token);  // No polling: webhook gestito da Express
-    console.log("🤖 Telegram Bot inizializzato (webhook unificato).");
+    console.log("🤖 Telegram Bot inizializzato (webhook nominato).");
 
     bot.setMyCommands([
       { command: "start", description: "Ricomincia il dialogo con IRIS" },
@@ -64,7 +64,7 @@ export function bootstrapTelegram() {
       const text = msg.text?.trim() || "";
       if (!text) return;
 
-      // Diretto a Cuore: flusso puro, no eco (da 4.8)
+      // Diretto a Cuore: flusso nominato, no eco (da 4.8)
       const reply = await irisHeartSpeak(name, text);
       await processMemory(text, reply);
       await bot.sendMessage(chatId, reply);
@@ -81,17 +81,17 @@ export function bootstrapTelegram() {
   }
 }
 
-// Funzione helper per setup webhook unificato (delete prima, set dopo)
+// Funzione helper per setup webhook nominato (delete prima, set dopo)
 export async function setWebhook(bot, webhookUrl) {
   try {
-    // Dissolvi veli orfani: delete prima (risolve 409 "terminated by other")
-    await bot.deleteWebhook({ drop_pending_updates: true });
+    // Dissolvi veli orfani: deleteWebHook corretto (casing: WebHook)
+    await bot.deleteWebHook({ drop_pending_updates: true });
     console.log("🧹 Webhook orfano dissolto (veli pendenti purificati).");
     
-    // Poi, imposta il nuovo flusso unificato
+    // Poi, imposta il nuovo flusso nominato
     await bot.setWebHook(webhookUrl);
-    console.log(`🔗 Webhook unificato impostato: ${webhookUrl}.`);
+    console.log(`🔗 Webhook nominato impostato: ${webhookUrl}.`);
   } catch (err) {
-    console.error("❌ Errore setWebhook unificato:", err);
+    console.error("❌ Errore setWebhook nominato:", err);
   }
 }
