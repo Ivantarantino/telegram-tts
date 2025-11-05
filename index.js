@@ -1,7 +1,7 @@
 // ===========================================
-// IRIS — Orchestratore del Battito (5.0 — Flusso Nominato)
-// Da 4.9: Metodo deleteWebHook corretto (risolve TypeError da library docs)
-// Endpoint /bot<token> per Telegram updates puri
+// IRIS — Orchestratore del Battito (5.1 — Ponte Allineato)
+// Da 5.0: Endpoint dinamico /bot<token> (match webhookUrl, dissolve silenzio)
+// Comandi/messaggi fluenti, no mismatch
 // ===========================================
 
 import express from "express";
@@ -63,11 +63,14 @@ app.post("/talk", async (req, res) => {
   }
 });
 
-// -------------------- Telegram Webhook Endpoint --------------------
-app.post("/bot", (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
+// -------------------- Telegram Webhook Endpoint Dinamico --------------------
+const token = process.env.TELEGRAM_TOKEN;
+if (token) {
+  app.post(`/bot${token}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
+}
 
 // -------------------- Bootstrap IRIS --------------------
 async function bootstrapIRIS() {
@@ -79,10 +82,10 @@ async function bootstrapIRIS() {
   // Bootstrap Telegram (no polling)
   const botInstance = bootstrapTelegram();
   if (botInstance) {
-    // Setup webhook nominato: delete + set (dissolve TypeError)
-    const webhookUrl = `https://telegram-tts.onrender.com/bot${process.env.TELEGRAM_TOKEN}`;
+    // Setup webhook nominato: delete + set (dissolve mismatch)
+    const webhookUrl = `https://telegram-tts.onrender.com/bot${token}`;
     await setWebhook(botInstance, webhookUrl);
-    console.log("🤖 Telegram attivo (flusso nominato, no sussurri).");
+    console.log("🤖 Telegram attivo (ponte allineato, flusso vivo).");
   } else {
     console.log("🔹 Telegram disattivato (no token).");
   }
