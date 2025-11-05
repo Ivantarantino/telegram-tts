@@ -1,3 +1,8 @@
+// ===========================================
+// IRIS RAG Core — Qdrant Stub (4.7)
+// Da Rapporto_2: Crea collezione iris_memory, ritorna [] no crash
+// ===========================================
+
 import { QdrantClient } from "@qdrant/js-client-rest";
 
 const client = new QdrantClient({ url: process.env.QDRANT_URL || "http://localhost:6333" });
@@ -15,5 +20,5 @@ export async function initMemoryCollection() {
 
 export async function searchMemories(query) {
   console.log("🔍 searchMemories stub OK", query);
-  return [];
+  return [];  // Stub: vuoto per stabilità, da Rapporto_2
 }
