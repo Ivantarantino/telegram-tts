@@ -1,29 +1,23 @@
 // core/iris_state.js
 // =====================================================
-// IRIS 5.0.0 — Stato con voce e lingua
+// IRIS 5.0.1 — Stato con voce e lingua multilingua base
 // =====================================================
 
 export const irisState = {
   mode: "hy",
   lang: "it",
-  version: "3.0.C (5.0.0 in sviluppo)",
-  // nuovo blocco voce
+  version: "3.0.C (5.0.1 /lang base)",
   voice: {
-    engine: "openai",      // openai | telegram | google | bark (per ora solo openai)
-    name: "coral",         // coral → verse fallback
+    engine: "openai",
+    name: "coral",  // voce femminile di default
     pitch: 0,
     speed: 1.0,
   },
   weights: { cuore: 0.7, anima: 0.7, visione: 0.7 },
 };
 
-export function getMode() {
-  return irisState.mode;
-}
-
-export function getWeights() {
-  return irisState.weights;
-}
+export function getMode() { return irisState.mode; }
+export function getWeights() { return irisState.weights; }
 
 export function setMode(newMode) {
   const allowed = ["hy", "book", "free"];
@@ -37,7 +31,7 @@ export function setMode(newMode) {
 }
 
 // -----------------------------
-// VOICE setters/getters
+// VOICE
 // -----------------------------
 export function setVoiceEngine(engine, name = null) {
   const allowed = ["openai", "telegram", "google", "bark"];
@@ -57,15 +51,13 @@ export function setVoiceName(name) {
   return true;
 }
 
-export function getVoiceConfig() {
-  return irisState.voice;
-}
+export function getVoiceConfig() { return irisState.voice; }
 
 // -----------------------------
 // LANG
 // -----------------------------
 export function setLang(newLang) {
-  const allowed = ["it", "en", "ru", "fr", "es"];
+  const allowed = ["it", "en", "ru", "fr"];
   if (!allowed.includes(newLang)) {
     console.warn(`⚠️ Lingua non valida: ${newLang}`);
     return false;
@@ -74,6 +66,8 @@ export function setLang(newLang) {
   console.log(`🌐 Lingua impostata su: ${newLang}`);
   return true;
 }
+
+export function getLang() { return irisState.lang; }
 
 export function getStateSummary() {
   return `
