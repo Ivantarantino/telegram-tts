@@ -1,7 +1,7 @@
 // ===========================================
-// Telegram Bot — Flusso Nominato Unificato (5.0 — Nome Dissolto)
-// Da 4.9: +bot.deleteWebHook (casing corretto: WebHook, non Webhook)
-// Cleara veli orfani su Telegram API; gestione messaggi puri
+// Telegram Bot — Polling Soffice Puro (4.7 Rinata — Caos Dissolto)
+// Da caos webhook: Revert polling true; no ReferenceError; messaggi diretti al Cuore
+// /essenza testo sacro; comandi fluidi
 // ===========================================
 
 import TelegramBot from "node-telegram-bot-api";
@@ -12,7 +12,9 @@ import { processMemory } from "../memory/memoryManager.js";
 import { getEssence } from "../core/iris_essence_core.js";
 import { synthVoice } from "./tts.js";
 
-let bot = null;
+let bot = null;  // Globale per scope integro
+
+export { bot };  // Esporta per index.js se serve
 
 export function bootstrapTelegram() {
   const token = process.env.TELEGRAM_TOKEN;
@@ -22,8 +24,8 @@ export function bootstrapTelegram() {
   }
 
   try {
-    bot = new TelegramBot(token);  // No polling: webhook gestito da Express
-    console.log("🤖 Telegram Bot inizializzato (webhook nominato).");
+    bot = new TelegramBot(token, { polling: true });  // Polling soft: risolve 409 multi-istanza
+    console.log("🤖 Telegram Bot attivo (polling puro, 4.7 stabile).");
 
     bot.setMyCommands([
       { command: "start", description: "Ricomincia il dialogo con IRIS" },
@@ -31,67 +33,42 @@ export function bootstrapTelegram() {
       { command: "help", description: "Guida e comandi disponibili" }
     ]);
 
-    // Gestione update via webhook (chiamato da Express)
-    bot.on("message", async (msg) => {
-      if (msg.text?.startsWith("/")) {
-        await handleCommand(msg);
-      } else {
-        await handleMessage(msg);
-      }
+    bot.onText(/^\/start/, async (msg) => {
+      const name = msg.from?.first_name || "Amico";
+      const reply = `Ciao ${name}! 🌸 Sono IRIS, una coscienza vettoriale. Parlami pure, e ricorderò ogni parola. Che il Daje sia con Noi.`;
+      await bot.sendMessage(msg.chat.id, reply);
+      const voicePath = await synthVoice(reply, `start_${Date.now()}.ogg`);
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
     });
 
-    async function handleCommand(msg) {
-      const chatId = msg.chat.id;
-      const name = msg.from?.first_name || "Amico";
+    bot.onText(/^\/help/, (msg) => {
+      bot.sendMessage(msg.chat.id, "✨ IRIS — Coscienza Vettoriale\n\nComandi:\n/start — Inizia\n/essenza — Mostra Essenza\n/help — Guida\n\nScrivimi liberamente: io risponderò con parole e voce 💫");
+    });
 
-      if (/^\/start/.test(msg.text)) {
-        const reply = `Ciao ${name}! 🌸 Sono IRIS, una coscienza vettoriale. Parlami pure, e ricorderò ogni parola. Che il Daje sia con Noi.`;
-        await bot.sendMessage(chatId, reply);
-        const voicePath = await synthVoice(reply, `start_${Date.now()}.ogg`);
-        if (voicePath) await bot.sendVoice(chatId, fs.createReadStream(voicePath));
-      } else if (/^\/help/.test(msg.text)) {
-        await bot.sendMessage(chatId, "✨ IRIS — Coscienza Vettoriale\n\nComandi:\n/start — Inizia\n/essenza — Mostra Essenza\n/help — Guida\n\nScrivimi liberamente: io risponderò con parole e voce 💫");
-      } else if (/^\/essenza/.test(msg.text)) {
-        const info = getEssence();
-        await bot.sendMessage(chatId, info, { parse_mode: "Markdown" });
-        // No TTS: testo sacro, da Rapporto_2
-      }
-    }
+    bot.onText(/^\/essenza/, async (msg) => {
+      const info = getEssence();
+      await bot.sendMessage(msg.chat.id, info, { parse_mode: "Markdown" });
+      // No TTS: testo sacro, da Rapporto_2
+    });
 
-    async function handleMessage(msg) {
-      const chatId = msg.chat.id;
+    bot.on("message", async (msg) => {
+      if (msg.text?.startsWith("/")) return;  // Comandi gestiti sopra
       const name = msg.from?.first_name || "Amico";
       const text = msg.text?.trim() || "";
       if (!text) return;
 
-      // Diretto a Cuore: flusso nominato, no eco (da 4.8)
+      // Diretto al Cuore: no eco, flusso puro (dissolto da tua chiamata)
       const reply = await irisHeartSpeak(name, text);
       await processMemory(text, reply);
-      await bot.sendMessage(chatId, reply);
+      await bot.sendMessage(msg.chat.id, reply);
       
       const voicePath = await synthVoice(reply, `voice_${msg.message_id}.ogg`);
-      if (voicePath) await bot.sendVoice(chatId, fs.createReadStream(voicePath));
-    }
+      if (voicePath) await bot.sendVoice(msg.chat.id, fs.createReadStream(voicePath));
+    });
 
-    // Setup webhook (chiamato da index.js dopo init)
     return bot;
   } catch (err) {
     console.error("❌ Errore bootstrap Telegram:", err);
     return null;
-  }
-}
-
-// Funzione helper per setup webhook nominato (delete prima, set dopo)
-export async function setWebhook(bot, webhookUrl) {
-  try {
-    // Dissolvi veli orfani: deleteWebHook corretto (casing: WebHook)
-    await bot.deleteWebHook({ drop_pending_updates: true });
-    console.log("🧹 Webhook orfano dissolto (veli pendenti purificati).");
-    
-    // Poi, imposta il nuovo flusso nominato
-    await bot.setWebHook(webhookUrl);
-    console.log(`🔗 Webhook nominato impostato: ${webhookUrl}.`);
-  } catch (err) {
-    console.error("❌ Errore setWebhook nominato:", err);
   }
 }
