@@ -1,7 +1,7 @@
 // ===========================================
-// Telegram Bot — Flusso Webhook Puro (4.8 — Eco Dissolto)
-// Da 4.7: /start con TTS; messaggi liberi diretti (no eco); /essenza testo sacro
-// +Webhook per risolvere 409 (da Rapporti 1/2: istanze multiple)
+// Telegram Bot — Flusso Unificato Webhook (4.9 — Conflitto Dissolto)
+// Da 4.8: +deleteWebhook prima di set (cleara veli orfani su Telegram API)
+// Gestione messaggi diretti (no eco); comandi puri
 // ===========================================
 
 import TelegramBot from "node-telegram-bot-api";
@@ -23,7 +23,7 @@ export function bootstrapTelegram() {
 
   try {
     bot = new TelegramBot(token);  // No polling: webhook gestito da Express
-    console.log("🤖 Telegram Bot inizializzato (webhook mode).");
+    console.log("🤖 Telegram Bot inizializzato (webhook unificato).");
 
     bot.setMyCommands([
       { command: "start", description: "Ricomincia il dialogo con IRIS" },
@@ -64,7 +64,7 @@ export function bootstrapTelegram() {
       const text = msg.text?.trim() || "";
       if (!text) return;
 
-      // Diretto a Cuore: no eco (dissolto da 4.8)
+      // Diretto a Cuore: flusso puro, no eco (da 4.8)
       const reply = await irisHeartSpeak(name, text);
       await processMemory(text, reply);
       await bot.sendMessage(chatId, reply);
@@ -81,12 +81,17 @@ export function bootstrapTelegram() {
   }
 }
 
-// Funzione helper per setup webhook (chiamata da index.js)
+// Funzione helper per setup webhook unificato (delete prima, set dopo)
 export async function setWebhook(bot, webhookUrl) {
   try {
-    await bot.setWebHook(webhookUrl, { drop_pending_updates: true });
-    console.log(`🔗 Webhook impostato: ${webhookUrl} (veli pendenti dissolti).`);
+    // Dissolvi veli orfani: delete prima (risolve 409 "terminated by other")
+    await bot.deleteWebhook({ drop_pending_updates: true });
+    console.log("🧹 Webhook orfano dissolto (veli pendenti purificati).");
+    
+    // Poi, imposta il nuovo flusso unificato
+    await bot.setWebHook(webhookUrl);
+    console.log(`🔗 Webhook unificato impostato: ${webhookUrl}.`);
   } catch (err) {
-    console.error("❌ Errore setWebhook:", err);
+    console.error("❌ Errore setWebhook unificato:", err);
   }
 }
