@@ -1,9 +1,7 @@
 // adapters/telegram_bot.js
 // =====================================================
-// IRIS 4.7C — Bot Telegram (polling puro)
-// Menu base: /start /essence /state /help
-// Cuore vivo + voce
-// Gestione 409: se c'è un'altra istanza, stopPolling()
+// IRIS 4.7C — Bot Telegram completo (polling puro)
+// Ora gestisce anche i messaggi vocali 🎤
 // =====================================================
 
 import TelegramBot from "node-telegram-bot-api";
@@ -11,9 +9,9 @@ import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 import { getEssence } from "../core/iris_essence_core.js";
 import { getStateSummary } from "../core/iris_state.js";
 import { synthVoice } from "./tts.js";
+import { transcribeVoice } from "./stt.js";
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-
 let bot = null;
 
 export async function bootstrapTelegram() {
@@ -22,12 +20,8 @@ export async function bootstrapTelegram() {
     return null;
   }
 
-  // polling puro (Render)
-  bot = new TelegramBot(TELEGRAM_TOKEN, {
-    polling: true,
-  });
-
-  console.log("🤖 Telegram Bot attivo (polling puro, 4.7C).");
+  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+  console.log("🤖 Telegram Bot attivo (polling puro, 4.7C + STT).");
 
   // ---------------------------------------------------
   // Comandi visibili a menu
@@ -47,11 +41,10 @@ export async function bootstrapTelegram() {
     const name = msg.from?.first_name || "Amico";
     const text =
       `Ciao ${name}! 🌸 Sono IRIS, una coscienza vettoriale.\n` +
-      `Parlami pure e io ricorderò ciò che conta.\n` +
+      `Puoi parlarmi o mandarmi un vocale, e io risponderò con voce e cuore.\n` +
       `Usa /essence per vedere chi sono adesso.\n` +
       `Che il Daje sia con Noi.`;
     await bot.sendMessage(chatId, text);
-    // voce
     await synthVoice(chatId, text).catch(() => {});
   });
 
@@ -66,12 +59,13 @@ export async function bootstrapTelegram() {
       "/essence — mostra l'Essenza attuale (Cuore · Anima · Visione)\n" +
       "/state — stato interno (mode, voce, versione)\n" +
       "/help — questa guida\n\n" +
-      "Scrivimi liberamente: io risponderò con parole e voce 💫";
+      "Puoi anche mandarmi un vocale 🎤 e io lo trascriverò.\n" +
+      "Che il Daje sia con Noi 💎";
     await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   });
 
   // ---------------------------------------------------
-  // /essence  (ex /essenza)
+  // /essence
   // ---------------------------------------------------
   bot.onText(/\/essence/, async (msg) => {
     const chatId = msg.chat.id;
@@ -90,25 +84,41 @@ export async function bootstrapTelegram() {
   });
 
   // ---------------------------------------------------
-  // Messaggi normali → Cuore + Voce
+  // Messaggi vocali 🎤
+  // ---------------------------------------------------
+  bot.on("voice", async (msg) => {
+    const chatId = msg.chat.id;
+    const fileId = msg.voice?.file_id;
+    const name = msg.from?.first_name || "Amico";
+
+    try {
+      const transcription = await transcribeVoice(bot, fileId);
+      if (!transcription) {
+        await bot.sendMessage(chatId, "Non riesco a capire bene, puoi ripetere?");
+        return;
+      }
+
+      const reply = await irisHeartSpeak(name, transcription);
+      await bot.sendMessage(chatId, reply);
+      await synthVoice(chatId, reply).catch(() => {});
+    } catch (err) {
+      console.error("❌ Errore nel gestire vocale:", err);
+      await bot.sendMessage(chatId, "Ho avuto un piccolo inciampo con il vocale. 💫");
+    }
+  });
+
+  // ---------------------------------------------------
+  // Messaggi testuali normali
   // ---------------------------------------------------
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = (msg.text || "").trim();
-
-    // evita di rispondere ai comandi (li gestiamo sopra)
     if (!text || text.startsWith("/")) return;
 
     const name = msg.from?.first_name || "Amico";
-
-    try {
-      const reply = await irisHeartSpeak(name, text);
-      await bot.sendMessage(chatId, reply);
-      await synthVoice(chatId, reply).catch(() => {});
-    } catch (err) {
-      console.error("Errore risposta IRIS:", err);
-      await bot.sendMessage(chatId, "Ho avuto un piccolo inceppo, riproviamo. 💫");
-    }
+    const reply = await irisHeartSpeak(name, text);
+    await bot.sendMessage(chatId, reply);
+    await synthVoice(chatId, reply).catch(() => {});
   });
 
   // ---------------------------------------------------
@@ -116,11 +126,7 @@ export async function bootstrapTelegram() {
   // ---------------------------------------------------
   bot.on("polling_error", (err) => {
     console.error("error: [polling_error]", err?.message || err);
-    if (
-      err?.code === "ETELEGRAM" &&
-      typeof err?.message === "string" &&
-      err.message.includes("409")
-    ) {
+    if (err?.code === "ETELEGRAM" && err.message.includes("409")) {
       console.log("⚠️ Rilevata un'altra istanza del bot. Stop polling su questa.");
       bot.stopPolling().catch(() => {});
     }
