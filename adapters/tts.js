@@ -1,13 +1,14 @@
 // adapters/tts.js
 // =====================================================
-// IRIS 4.7C — Modulo TTS (voce alloy caldo, fallback sicuro)
-// Gestisce qualsiasi tipo di input evitando crash
+// IRIS 4.7C — Modulo TTS (voce alloy calda + invio a Telegram)
+// Genera .ogg e lo invia come messaggio vocale
 // =====================================================
 
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
+import TelegramBot from "node-telegram-bot-api";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -15,8 +16,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_DIR = path.join(__dirname, "../temp");
 
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const bot = TELEGRAM_TOKEN ? new TelegramBot(TELEGRAM_TOKEN) : null;
+
 // -----------------------------------------------------
-// Sintesi vocale: genera file .ogg
+// Sintesi vocale + invio file a Telegram
 // -----------------------------------------------------
 export async function synthVoice(chatId, textInput) {
   try {
@@ -25,7 +29,6 @@ export async function synthVoice(chatId, textInput) {
       return null;
     }
 
-    // Se non è stringa, convertila
     const text =
       typeof textInput === "string"
         ? textInput
@@ -42,13 +45,28 @@ export async function synthVoice(chatId, textInput) {
       model: "gpt-4o-mini-tts",
       voice: "alloy",
       format: "ogg",
-      input: text.replace(/[❤️✨💖🤍]/g, ""), // pulizia emoji
+      input: text.replace(/[❤️✨💖🤍]/g, ""),
     });
 
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(outputPath, buffer);
 
     console.log(`🔊 Voce alloy calda evocata: ${outputPath}`);
+
+    // Invio vocale a Telegram se possibile
+    if (bot && chatId) {
+      try {
+        await bot.sendVoice(chatId, fs.createReadStream(outputPath), {
+          caption: "🎧 Voce di IRIS",
+        });
+        console.log(`📨 Voce inviata a Telegram: ${chatId}`);
+      } catch (err) {
+        console.error("⚠️ Errore invio vocale a Telegram:", err);
+      }
+    } else {
+      console.log("⚠️ Bot o chatId non disponibili — voce non inviata.");
+    }
+
     return outputPath;
   } catch (err) {
     console.error("❌ Errore TTS alloy:", err);
