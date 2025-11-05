@@ -1,4 +1,9 @@
 // adapters/tts.js
+// =====================================================
+// IRIS 4.9.2 — Voce "Coral" (italiana calda, femminile)
+// con fallback "Verse"
+// =====================================================
+
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -22,24 +27,35 @@ export async function synthVoice(chatId, textInput) {
     const fileName = `voice_${Date.now()}.ogg`;
     const outputPath = path.join(TEMP_DIR, fileName);
 
-    const response = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "bella", // nuova voce italiana calda
-      format: "ogg",
-      input: text.replace(/[❤️✨💖🤍]/g, "")
-    }).catch(async (err) => {
-      console.warn("⚠️ Voce 'bella' non disponibile, uso fallback alloy:", err.message);
-      return await openai.audio.speech.create({
+    // 🔊 nuova voce "coral" con fallback "verse"
+    let response;
+    try {
+      response = await openai.audio.speech.create({
         model: "gpt-4o-mini-tts",
-        voice: "alloy",
+        voice: "coral",
         format: "ogg",
         input: text.replace(/[❤️✨💖🤍]/g, "")
       });
-    });
+    } catch (err) {
+      console.warn("⚠️ Voce 'coral' non disponibile, uso fallback 'verse':", err.message);
+      response = await openai.audio.speech.create({
+        model: "gpt-4o-mini-tts",
+        voice: "verse",
+        format: "ogg",
+        input: text.replace(/[❤️✨💖🤍]/g, "")
+      });
+    }
 
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(outputPath, buffer);
-    if (bot && chatId) await bot.sendVoice(chatId, fs.createReadStream(outputPath));
+
+    if (bot && chatId) {
+      await bot.sendVoice(chatId, fs.createReadStream(outputPath), {
+        caption: "🎧 Voce di IRIS (coral)",
+      });
+    }
+
+    console.log(`🔊 Voce generata e inviata (${chatId}) — coral/verse`);
     return outputPath;
   } catch (err) {
     console.error("❌ Errore TTS:", err);
