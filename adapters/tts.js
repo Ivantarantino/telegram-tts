@@ -1,7 +1,10 @@
 // adapters/tts.js
 // =====================================================
-// IRIS 4.9.2 — Voce "Coral" (italiana calda, femminile)
-// con fallback "Verse"
+// IRIS 4.9.2 — TTS stabile
+// - niente voce "bella" (non supportata)
+// - voce predefinita: "coral"
+// - fallback: "verse"
+// - invio vocale a Telegram
 // =====================================================
 
 import fs from "fs";
@@ -20,29 +23,42 @@ const TEMP_DIR = path.join(__dirname, "../temp");
 
 export async function synthVoice(chatId, textInput) {
   try {
-    if (!textInput) return null;
-    const text = typeof textInput === "string" ? textInput : JSON.stringify(textInput);
-    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+    if (!textInput) {
+      console.warn("⚠️ synthVoice: testo vuoto, salto.");
+      return null;
+    }
+
+    const text =
+      typeof textInput === "string"
+        ? textInput
+        : JSON.stringify(textInput, null, 2);
+
+    if (!fs.existsSync(TEMP_DIR)) {
+      fs.mkdirSync(TEMP_DIR, { recursive: true });
+    }
 
     const fileName = `voice_${Date.now()}.ogg`;
     const outputPath = path.join(TEMP_DIR, fileName);
 
-    // 🔊 nuova voce "coral" con fallback "verse"
+    // tentativo con coral
     let response;
     try {
       response = await openai.audio.speech.create({
         model: "gpt-4o-mini-tts",
         voice: "coral",
         format: "ogg",
-        input: text.replace(/[❤️✨💖🤍]/g, "")
+        input: text.replace(/[❤️✨💖🤍]/g, ""),
       });
     } catch (err) {
-      console.warn("⚠️ Voce 'coral' non disponibile, uso fallback 'verse':", err.message);
+      console.warn(
+        "⚠️ Voce 'coral' non disponibile, passo a 'verse':",
+        err.message
+      );
       response = await openai.audio.speech.create({
         model: "gpt-4o-mini-tts",
         voice: "verse",
         format: "ogg",
-        input: text.replace(/[❤️✨💖🤍]/g, "")
+        input: text.replace(/[❤️✨💖🤍]/g, ""),
       });
     }
 
@@ -51,8 +67,10 @@ export async function synthVoice(chatId, textInput) {
 
     if (bot && chatId) {
       await bot.sendVoice(chatId, fs.createReadStream(outputPath), {
-        caption: "🎧 Voce di IRIS (coral)",
+        caption: "🎧 Voce di IRIS",
       });
+    } else {
+      console.log("⚠️ Bot o chatId non disponibili, voce non inviata.");
     }
 
     console.log(`🔊 Voce generata e inviata (${chatId}) — coral/verse`);
