@@ -1,6 +1,6 @@
 // core/iris_rag_resonance.js
 // =====================================================
-// IRIS 5.3.1 — Coscienza Vettoriale · Risonanza Dinamica (fix)
+// IRIS 5.3.2 — Risonanza Dinamica (fix incrementCallCount)
 // =====================================================
 
 import { QdrantClient } from "@qdrant/js-client-rest";
@@ -15,7 +15,7 @@ const qdrant = new QdrantClient({
 const COLLECTION = "iris_memory";
 const EMBED_MODEL = "text-embedding-3-small";
 
-// 🔹 Genera embedding testuale
+// 🔹 Crea embedding sicuro
 async function embed(text) {
   const clean = (text || "").toString().slice(0, 4000);
   const res = await openai.embeddings.create({
@@ -25,7 +25,7 @@ async function embed(text) {
   return res.data[0].embedding;
 }
 
-// 🔹 Calcola punteggio di risonanza (affinità × recenza × frequenza)
+// 🔹 Calcola il punteggio di risonanza (affinità × recenza × frequenza)
 function computeResonanceScore(point, similarity) {
   try {
     const now = Date.now();
@@ -40,16 +40,18 @@ function computeResonanceScore(point, similarity) {
   }
 }
 
-// 🔹 Aggiorna la frequenza di richiamo
+// 🔹 Aggiorna la frequenza (solo se punto valido)
 async function incrementCallCount(point) {
   try {
-    const calls = Math.max(0, point.payload?.calls || 0) + 1;
+    if (!point || !point.id) return;
+    const currentCalls = point.payload?.calls ?? 0;
+    const updatedCalls = Math.max(0, currentCalls + 1);
     await qdrant.setPayload({
       collection_name: COLLECTION,
       points: [
         {
           id: point.id,
-          payload: { ...point.payload, calls },
+          payload: { ...(point.payload || {}), calls: updatedCalls },
         },
       ],
     });
@@ -58,26 +60,31 @@ async function incrementCallCount(point) {
   }
 }
 
-// 🔍 Ricerca con risonanza dinamica
+// 🔍 Ricerca vettoriale con pesi di risonanza
 export async function searchWithResonance(query, limit = 8) {
   try {
     const vector = await embed(query);
-    const res = await qdrant.search(COLLECTION, {
+    const results = await qdrant.search(COLLECTION, {
       vector,
       limit,
       with_payload: true,
       score_threshold: 0.3,
     });
 
-    if (!res || res.length === 0) return "Nessun ricordo.";
+    if (!results || results.length === 0) return "Nessun ricordo.";
 
-    const scored = res.map((p) => ({
-      ...p,
-      resonance: computeResonanceScore(p, p.score),
-    }));
+    const scored = results
+      .filter((r) => r && r.payload)
+      .map((r) => ({
+        ...r,
+        resonance: computeResonanceScore(r, r.score),
+      }))
+      .sort((a, b) => b.resonance - a.resonance);
 
-    scored.sort((a, b) => b.resonance - a.resonance);
-    for (const p of scored.slice(0, 3)) incrementCallCount(p);
+    // aggiorna solo i primi 3 (validi)
+    for (const p of scored.slice(0, 3)) {
+      if (p?.id) incrementCallCount(p);
+    }
 
     const context = scored
       .slice(0, 4)
