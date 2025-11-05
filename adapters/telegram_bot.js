@@ -148,7 +148,7 @@ Che il Daje sia con Noi.`;
     const engine = parts[0].toLowerCase();
     const name = parts[1] ? parts[1].toLowerCase() : null;
     if (engine === "openai") {
-      setVoiceEngine("openai", name || "coral");
+      setVoiceEngine("openai", name || "alloy");
       await bot.sendMessage(chatId, `✅ Voce impostata su OpenAI${name ? " (" + name + ")" : " (coral)"}`);
       return;
     }
