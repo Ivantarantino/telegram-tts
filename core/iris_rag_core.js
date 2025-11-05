@@ -1,9 +1,4 @@
 // core/iris_rag_core.js
-// =====================================================
-// IRIS 5.3 — Centrale RAG con Risonanza Dinamica
-// Esporta tutte le funzioni che le vecchie build si aspettano
-// =====================================================
-
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { searchWithResonance } from "./iris_rag_resonance.js";
 import { storeMemory } from "./iris_rag_store.js";
@@ -14,9 +9,8 @@ const qdrant = new QdrantClient({
 });
 
 const COLLECTION = "iris_memory";
-const VECTOR_SIZE = 1536; // allineato alle build precedenti
+const VECTOR_SIZE = 1536;
 
-// 🔹 alcune parti del progetto chiamano ancora questa in index.js
 export async function initMemoryCollection() {
   try {
     await qdrant.createCollection(COLLECTION, {
@@ -28,19 +22,16 @@ export async function initMemoryCollection() {
   }
 }
 
-// 🔹 vecchio nome usato da adapters/ragSearch.js
-// ora semplicemente delega alla ricerca con risonanza
+// vecchie build lo chiamano così
 export async function searchMemories(query, limit = 8) {
-  const ctx = await searchWithResonance(query, limit);
-  return ctx;
+  return await searchWithResonance(query, limit);
 }
 
-// 🔹 nuovo nome “pulito” usato dal Cuore
+// nuovo nome usato dal Cuore
 export async function performRAG(query) {
   return await searchWithResonance(query, 8);
 }
 
-// 🔹 salvataggio ricordi (usato dal Cuore dopo la risposta)
 export async function saveRAGMemory(user, input, reply) {
   try {
     await storeMemory(user, input, reply);
