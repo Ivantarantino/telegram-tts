@@ -1,4 +1,5 @@
 {
-  "essence": "🌸 Essenza iniziale di IRIS — Cuore, Anima e Visione in equilibrio.",
-  "weights": { "cuore": 0.6, "anima": 0.6, "visione": 0.6 }
+  "initialEmbeddings": [],
+  "weights": [0.6, 0.6, 0.6],
+  "essenceVector": [0.5, 0.5, 0.5]
 }
