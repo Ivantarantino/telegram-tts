@@ -1,18 +1,15 @@
-// =====================================================
-// IRIS — Respiro HTTP (Ripristino 4.7 Stabile)
-// Step 4.7: Base viva con stub per Qdrant/Telegram/STT
-// =====================================================
+// ===========================================
+// IRIS — Orchestratore del Battito (4.7 Stabile)
+// Fusione 3.0B + Stub Rapporto_2
+// ===========================================
 
 import express from "express";
-import dotenv from "dotenv";
-dotenv.config();
-
 import { bootstrapTelegram } from "./adapters/telegram_bot.js";
 import { initMemoryCollection } from "./core/iris_rag_core.js";
 import { irisHeartSpeak } from "./core/iris_heart_voice.js";
-import { getEssence } from "./core/iris_essence_core.js";
 import { processMemory } from "./memory/memoryManager.js";
 import { getStateSummary } from "./core/iris_state.js";
+import { getEssence } from "./core/iris_essence_core.js";
 
 const app = express();
 app.use(express.json());
@@ -65,31 +62,25 @@ app.post("/talk", async (req, res) => {
   }
 });
 
-// =====================================================
-// Bootstrap IRIS (da Rapporto_2: Momento buono)
-// =====================================================
+// -------------------- Bootstrap IRIS --------------------
 async function bootstrapIRIS() {
-  console.log("🚀 Avvio inizializzazione IRIS 4.7...");
+  console.log("🚀 Avvio inizializzazione IRIS 3.0G...");
   
-  try {
-    await initMemoryCollection();
-    console.log("🧠 Collezione iris_memory trovata.");
-  } catch (err) {
-    console.error("❌ Errore initMemoryCollection:", err);
+  // Init Qdrant
+  await initMemoryCollection();
+  
+  // Bootstrap Telegram
+  const bot = bootstrapTelegram();
+  if (bot) {
+    console.log("🤖 Telegram attivo.");
+  } else {
+    console.log("🔹 Telegram disattivato (no token).");
   }
-
-  try {
-    await bootstrapTelegram();
-    console.log("🤖 bootstrapTelegram OK — Telegram inizializzato.");
-  } catch (err) {
-    console.error("❌ Errore bootstrapTelegram:", err);
-  }
-
+  
   console.log("💠 Tutti i moduli base inizializzati correttamente.");
 }
 
+bootstrapIRIS();
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🌍 Server Express attivo su porta ${PORT}`);
-  bootstrapIRIS();
-});
+app.listen(PORT, () => console.log(`🌍 Server Express attivo su porta ${PORT}`));
