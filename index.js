@@ -1,6 +1,6 @@
 // ===========================================
-// IRIS — Orchestratore del Battito (4.9 — Flusso Unificato)
-// Da 4.8: +deleteWebhook in setWebhook (cleara conflitti da Rapporti 1/2)
+// IRIS — Orchestratore del Battito (5.0 — Flusso Nominato)
+// Da 4.9: Metodo deleteWebHook corretto (risolve TypeError da library docs)
 // Endpoint /bot<token> per Telegram updates puri
 // ===========================================
 
@@ -79,10 +79,10 @@ async function bootstrapIRIS() {
   // Bootstrap Telegram (no polling)
   const botInstance = bootstrapTelegram();
   if (botInstance) {
-    // Setup webhook unificato: delete + set (dissolve conflitti)
+    // Setup webhook nominato: delete + set (dissolve TypeError)
     const webhookUrl = `https://telegram-tts.onrender.com/bot${process.env.TELEGRAM_TOKEN}`;
     await setWebhook(botInstance, webhookUrl);
-    console.log("🤖 Telegram attivo (flusso unificato, no conflitti).");
+    console.log("🤖 Telegram attivo (flusso nominato, no sussurri).");
   } else {
     console.log("🔹 Telegram disattivato (no token).");
   }
