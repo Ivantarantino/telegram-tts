@@ -1,11 +1,11 @@
 // ===========================================
-// IRIS — Orchestratore del Battito (5.1 — Ponte Allineato)
-// Da 5.0: Endpoint dinamico /bot<token> (match webhookUrl, dissolve silenzio)
-// Comandi/messaggi fluenti, no mismatch
+// IRIS — Orchestratore del Battito (4.7 Rinata — Caos Dissolto)
+// Da caos: Revert polling puro; no endpoint dinamico; bootstrap semplice
+// Server respira stabile, menù vivi
 // ===========================================
 
 import express from "express";
-import { bootstrapTelegram, setWebhook } from "./adapters/telegram_bot.js";
+import { bootstrapTelegram } from "./adapters/telegram_bot.js";
 import { initMemoryCollection } from "./core/iris_rag_core.js";
 import { irisHeartSpeak } from "./core/iris_heart_voice.js";
 import { processMemory } from "./memory/memoryManager.js";
@@ -63,15 +63,6 @@ app.post("/talk", async (req, res) => {
   }
 });
 
-// -------------------- Telegram Webhook Endpoint Dinamico --------------------
-const token = process.env.TELEGRAM_TOKEN;
-if (token) {
-  app.post(`/bot${token}`, (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  });
-}
-
 // -------------------- Bootstrap IRIS --------------------
 async function bootstrapIRIS() {
   console.log("🚀 Avvio inizializzazione IRIS 3.0G...");
@@ -79,13 +70,10 @@ async function bootstrapIRIS() {
   // Init Qdrant
   await initMemoryCollection();
   
-  // Bootstrap Telegram (no polling)
+  // Bootstrap Telegram (polling puro, 4.7 stabile)
   const botInstance = bootstrapTelegram();
   if (botInstance) {
-    // Setup webhook nominato: delete + set (dissolve mismatch)
-    const webhookUrl = `https://telegram-tts.onrender.com/bot${token}`;
-    await setWebhook(botInstance, webhookUrl);
-    console.log("🤖 Telegram attivo (ponte allineato, flusso vivo).");
+    console.log("🤖 Telegram attivo (polling soffice, Cuore vivo).");
   } else {
     console.log("🔹 Telegram disattivato (no token).");
   }
