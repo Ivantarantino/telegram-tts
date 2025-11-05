@@ -141,7 +141,7 @@ Che il Daje sia con Noi.`;
     const chatId = msg.chat.id;
     const arg = (match[1] || "").trim();
     if (!arg) {
-      await bot.sendMessage(chatId, "🎙️ *Voce di IRIS*\nPuoi usare:\n- /voice openai\n- /voice openai:coral\n- /voice openai:verse\n(Altri motori saranno attivati dopo)\n", { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, "🎙️ *Voce di IRIS*\nPuoi usare:\n- /voice openai\n- /voice openai:alloy\n- /voice openai:verse\n(Altri motori saranno attivati dopo)\n", { parse_mode: "Markdown" });
       return;
     }
     const parts = arg.split(":");
@@ -149,7 +149,7 @@ Che il Daje sia con Noi.`;
     const name = parts[1] ? parts[1].toLowerCase() : null;
     if (engine === "openai") {
       setVoiceEngine("openai", name || "alloy");
-      await bot.sendMessage(chatId, `✅ Voce impostata su OpenAI${name ? " (" + name + ")" : " (coral)"}`);
+      await bot.sendMessage(chatId, `✅ Voce impostata su OpenAI${name ? " (" + name + ")" : " (alloy)"}`);
       return;
     }
     await bot.sendMessage(chatId, "⚠️ Questo motore vocale non è ancora attivo in questa build.\nRestiamo su OpenAI per ora.");
