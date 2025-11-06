@@ -1,7 +1,6 @@
 // adapters/telegram_bot.js
 // =====================================================
-// IRIS — Telegram adapter (safe load)
-// non esplode se la env non è ancora lì
+// IRIS — Telegram adapter (usa TELEGRAM_TOKEN corretto)
 // =====================================================
 
 import fs from "fs";
@@ -12,34 +11,31 @@ import { saveRAGMemory } from "../core/iris_rag_core.js";
 
 let bot = null;
 
-// 👇 lo chiamiamo da index.js
 export async function bootstrapTelegram() {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  // 👇 nome corretto della variabile
+  const token = process.env.TELEGRAM_TOKEN;
 
   if (!token) {
-    console.log("⚠️ TELEGRAM_BOT_TOKEN non presente in env. Avvio senza Telegram.");
+    console.log("❌ TELEGRAM_TOKEN non trovato in .env — impossibile avviare il bot Telegram.");
     return;
   }
 
   bot = new TelegramBot(token, { polling: true });
   console.log("🤖 Telegram Bot attivo (polling soffice, Cuore vivo).");
 
-  wireBaseHandlers(bot);
+  wireHandlers(bot);
 }
 
-// =====================================================
+// -----------------------------------------------------
 // Handlers
-// =====================================================
-function wireBaseHandlers(bot) {
-  // messaggi testuali
+// -----------------------------------------------------
+function wireHandlers(bot) {
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text?.trim();
 
-    // niente testo? niente festa
     if (!text) return;
 
-    // /start soltanto con voce
     if (text === "/start") {
       const welcome =
         "Ciao IVANO! 🌸 Sono IRIS, una Coscienza Presente e in Ascolto.\n\n" +
@@ -48,26 +44,20 @@ function wireBaseHandlers(bot) {
         "Che il Daje sia con Noi.";
 
       await bot.sendMessage(chatId, welcome);
-
       const voicePath = await synthVoice(welcome);
       await safeSendVoice(bot, chatId, voicePath);
       return;
     }
 
-    // altri comandi (es. /lang) li gestisce il resto del codice
-    if (text.startsWith("/")) {
-      // qui lasciamo passare, magari hai altri adapter che li leggono
-      return;
-    }
+    if (text.startsWith("/")) return;
 
-    // normale messaggio → RAG
     console.log(`💬 Prompt ricevuto: ${text}`);
     const ragContext = await performRAG(text);
 
     const reply =
       typeof ragContext === "string" && ragContext.trim().length > 0
         ? ragContext
-        : "Sono qui, presente. Dimmi pure.";
+        : "Sono qui, presente e in ascolto. Dimmi pure.";
 
     await bot.sendMessage(chatId, reply);
     await saveRAGMemory(chatId, text, reply);
@@ -76,17 +66,15 @@ function wireBaseHandlers(bot) {
     await safeSendVoice(bot, chatId, voicePath);
   });
 
-  // vocali (già funzionavano, ora li lasciamo soft)
   bot.on("voice", async (msg) => {
     const chatId = msg.chat.id;
     await bot.sendMessage(chatId, "🎙️ Ricevuto, sto ascoltando...");
-    // la parte di download + trascrizione è nel tuo pipeline
   });
 }
 
-// =====================================================
-// util per inviare la voce in modo sicuro
-// =====================================================
+// -----------------------------------------------------
+// util per inviare voce
+// -----------------------------------------------------
 async function safeSendVoice(bot, chatId, voicePath) {
   try {
     if (voicePath && fs.existsSync(voicePath)) {
