@@ -1,44 +1,27 @@
-// adapters/ragSearch.js
 // =====================================================
-// IRIS 5.3 — Ponte RAG
-// 1. prova la memoria vettoriale (con risonanza dinamica)
-// 2. se vuota → fallback su memory/memory.json
-// 3. restituisce SEMPRE una stringa
+// adapters/ragSearch.js — IRIS 3.0G Adapter RAG
 // =====================================================
 
-import { searchMemories } from "../core/iris_rag_core.js";
-import fs from "fs";
-import path from "path";
+import { performRAG, saveRAGMemory } from "../core/iris_rag_core.js";
 
-const MEMORY_PATH = path.join(process.cwd(), "memory", "memory.json");
-
-export async function performRAG(query) {
+/**
+ * Esegue la ricerca tramite RAG e salva il ricordo risultante.
+ * @param {number|string} userId - ID utente Telegram
+ * @param {string} prompt - Input testuale dell’utente
+ * @returns {Promise<string>} Risposta generata da IRIS
+ */
+export async function handleRAG(userId, prompt) {
   try {
-    // 1) QDRANT / RISONANZA
-    const ragText = await searchMemories(query);
-    if (ragText && ragText !== "Nessun ricordo.") {
-      return ragText;
-    }
+    // 🔍 Ricerca e generazione risposta
+    const answer = await performRAG(prompt);
 
-    // 2) FALLBACK LOCALE
-    if (fs.existsSync(MEMORY_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(MEMORY_PATH, "utf8"));
-      const relevant = raw
-        .filter(
-          (m) =>
-            m?.irisReply &&
-            m.irisReply.toLowerCase().includes(query.toLowerCase())
-        )
-        .slice(0, 3)
-        .map((m) => m.irisReply)
-        .join("\n");
+    // 💾 Salvataggio memoria
+    await saveRAGMemory(userId, prompt, answer);
 
-      if (relevant) return relevant;
-    }
-
-    return "Nessun ricordo.";
-  } catch (err) {
-    console.error("❌ Errore RAG (adapter):", err.message);
-    return "Un velo sulla memoria, ma il cuore batte.";
+    // ✅ Restituisce la risposta generata
+    return answer;
+  } catch (error) {
+    console.error("❌ Errore in handleRAG:", error.message);
+    return "Mi sento un po’ confusa… puoi ripetere con calma?";
   }
 }
