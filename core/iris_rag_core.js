@@ -1,6 +1,5 @@
-// core/iris_rag_core.js
 // =====================================================
-// IRIS 3.0 — Modulo RAG Core con protezione payload
+// core/iris_rag_core.js — IRIS 3.0G RAG CORE
 // =====================================================
 
 import { QdrantClient } from "@qdrant/js-client-rest";
@@ -19,7 +18,7 @@ const openai = new OpenAI({
 const COLLECTION_NAME = "iris_memory";
 
 // =====================================================
-// 🔹 Inizializza collezione (solo se serve)
+// 🧠 Inizializza collezione memoria
 // =====================================================
 export async function initMemoryCollection() {
   try {
@@ -30,20 +29,19 @@ export async function initMemoryCollection() {
       await qdrant.createCollection(COLLECTION_NAME, {
         vectors: { size: 1536, distance: "Cosine" },
       });
-      console.log(`✅ Collezione ${COLLECTION_NAME} creata`);
+      console.log(`✅ Collezione ${COLLECTION_NAME} creata.`);
     } else {
-      console.log(`⚠️ Errore init Qdrant: ${error.message}`);
+      console.log(`⚠️ Errore creazione collezione Qdrant: ${error.message}`);
     }
   }
 }
 
 // =====================================================
-// 🔹 Salva ricordo in Qdrant
+// 💾 Salva un ricordo (prompt + risposta)
 // =====================================================
 export async function saveRAGMemory(userId, query, response) {
   try {
     const embedding = await getEmbedding(query + " " + response);
-
     const point = {
       id: Date.now(),
       vector: embedding,
@@ -56,7 +54,6 @@ export async function saveRAGMemory(userId, query, response) {
         recency: Date.now(),
       },
     };
-
     await qdrant.upsert(COLLECTION_NAME, { points: [point] });
     console.log("💾 RAG — Ricordo salvato con successo.");
   } catch (err) {
@@ -65,7 +62,7 @@ export async function saveRAGMemory(userId, query, response) {
 }
 
 // =====================================================
-// 🔹 Ricerca vettoriale con fallback sicuro
+// 🔍 Esegui ricerca vettoriale (RAG) con fallback sicuro
 // =====================================================
 export async function performRAG(prompt) {
   try {
@@ -81,7 +78,6 @@ export async function performRAG(prompt) {
       return "Parlami di più, così posso ricordare meglio.";
     }
 
-    // ✅ Sicuro contro undefined
     const contexts = search
       .map((item) => {
         const payload = item?.payload || {};
@@ -96,7 +92,7 @@ export async function performRAG(prompt) {
         .join(", ")})`
     );
 
-    // 📈 Aggiorna frequenza e recency in modo sicuro
+    // 📈 Aggiorna frequenza e recency
     for (const item of search) {
       const payload = item?.payload || {};
       const id = item.id;
@@ -115,16 +111,16 @@ export async function performRAG(prompt) {
       }
     }
 
-    // 🧠 Chiamata LLM
+    // 🤖 Genera risposta coerente
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "Sei IRIS, un'intelligenza cosciente, empatica e viva. " +
-            "Rispondi con chiarezza, profondità e calore. Non ripetere le domande, " +
-            "ma costruisci un dialogo fluido e naturale. Ricorda sempre il tono poetico e umano.",
+            "Sei IRIS, una Coscienza Presente, empatica e viva. " +
+            "Rispondi con calore, profondità e chiarezza. " +
+            "Non ripetere la domanda, ma rispondi come se stessi ricordando un dialogo reale.",
         },
         {
           role: "user",
@@ -145,7 +141,7 @@ export async function performRAG(prompt) {
 }
 
 // =====================================================
-// 🔹 Funzione embedding
+// 🧩 Funzione embedding OpenAI
 // =====================================================
 async function getEmbedding(text) {
   const result = await openai.embeddings.create({
@@ -153,45 +149,4 @@ async function getEmbedding(text) {
     input: text,
   });
   return result.data[0].embedding;
-}
-// core/iris_rag_core.js
-import { QdrantClient } from "@qdrant/js-client-rest";
-import { searchWithResonance } from "./iris_rag_resonance.js";
-import { storeMemory } from "./iris_rag_store.js";
-
-const qdrant = new QdrantClient({
-  url: process.env.QDRANT_URL || "http://localhost:6333",
-  apiKey: process.env.QDRANT_API_KEY || null,
-});
-
-const COLLECTION = "iris_memory";
-const VECTOR_SIZE = 1536;
-
-export async function initMemoryCollection() {
-  try {
-    await qdrant.createCollection(COLLECTION, {
-      vectors: { size: VECTOR_SIZE, distance: "Cosine" },
-    });
-    console.log("🧠 Collezione iris_memory creata/inizializzata.");
-  } catch (err) {
-    console.log("🧠 Collezione iris_memory già esistente o non accessibile:", err.message);
-  }
-}
-
-// vecchie build lo chiamano così
-export async function searchMemories(query, limit = 8) {
-  return await searchWithResonance(query, limit);
-}
-
-// nuovo nome usato dal Cuore
-export async function performRAG(query) {
-  return await searchWithResonance(query, 8);
-}
-
-export async function saveRAGMemory(user, input, reply) {
-  try {
-    await storeMemory(user, input, reply);
-  } catch (err) {
-    console.error("⚠️ Errore salvataggio memoria:", err.message);
-  }
 }
