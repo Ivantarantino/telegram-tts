@@ -1,82 +1,64 @@
 // adapters/tts.js
-// =====================================================
-// IRIS 4.9.2 — TTS stabile
-// - niente voce "bella" (non supportata)
-// - voce predefinita: "coral"
-// - fallback: "verse"
-// - invio vocale a Telegram
-// =====================================================
-
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import fs from "node:fs";
+import path from "node:path";
 import OpenAI from "openai";
-import TelegramBot from "node-telegram-bot-api";
+import { getVoiceEngine } from "../core/iris_state.js";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const bot = TELEGRAM_TOKEN ? new TelegramBot(TELEGRAM_TOKEN) : null;
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const TEMP_DIR = path.join(__dirname, "../temp");
+// cartella temp per i .ogg
+const TEMP_DIR = path.resolve("temp");
 
-export async function synthVoice(chatId, textInput) {
+if (!fs.existsSync(TEMP_DIR)) {
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
+
+/**
+ * Genera un audio TTS con la voce scelta nello stato
+ * e lo invia al chatId passato.
+ *
+ * @param {TelegramBot} bot
+ * @param {number|string} chatId
+ * @param {string} text
+ */
+export async function sendVoice(bot, chatId, text) {
+  const voiceEngine = getVoiceEngine() || "alloy";
+
   try {
-    if (!textInput) {
-      console.warn("⚠️ synthVoice: testo vuoto, salto.");
-      return null;
-    }
+    // nome file temporaneo
+    const fileName = `iris_voice_${Date.now()}.ogg`;
+    const filePath = path.join(TEMP_DIR, fileName);
 
-    const text =
-      typeof textInput === "string"
-        ? textInput
-        : JSON.stringify(textInput, null, 2);
+    // chiamata TTS OpenAI
+    const speech = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts", // quello che stavi usando in 4.9.2
+      voice: voiceEngine,
+      format: "opus",
+      input: text,
+    });
 
-    if (!fs.existsSync(TEMP_DIR)) {
-      fs.mkdirSync(TEMP_DIR, { recursive: true });
-    }
+    // salva su file
+    const buffer = Buffer.from(await speech.arrayBuffer());
+    fs.writeFileSync(filePath, buffer);
 
-    const fileName = `voice_${Date.now()}.ogg`;
-    const outputPath = path.join(TEMP_DIR, fileName);
+    // invia a telegram
+    await bot.sendVoice(chatId, fs.createReadStream(filePath));
 
-    // tentativo con coral
-    let response;
-    try {
-      response = await openai.audio.speech.create({
-        model: "gpt-4o-mini-tts",
-        voice: "coral",
-        format: "ogg",
-        input: text.replace(/[❤️✨💖🤍]/g, ""),
-      });
-    } catch (err) {
-      console.warn(
-        "⚠️ Voce 'coral' non disponibile, passo a 'verse':",
-        err.message
-      );
-      response = await openai.audio.speech.create({
-        model: "gpt-4o-mini-tts",
-        voice: "verse",
-        format: "ogg",
-        input: text.replace(/[❤️✨💖🤍]/g, ""),
-      });
-    }
+    console.log(
+      `🔊 Voce generata e inviata (${chatId}) — openai:${voiceEngine}`
+    );
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(outputPath, buffer);
-
-    if (bot && chatId) {
-      await bot.sendVoice(chatId, fs.createReadStream(outputPath), {
-        caption: "🎧 Voce di IRIS",
-      });
-    } else {
-      console.log("⚠️ Bot o chatId non disponibili, voce non inviata.");
-    }
-
-    console.log(`🔊 Voce generata e inviata (${chatId}) — coral/verse`);
-    return outputPath;
+    // opzionale: pulizia
+    setTimeout(() => {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (err) {
+        // niente panico
+      }
+    }, 15_000);
   } catch (err) {
-    console.error("❌ Errore TTS:", err);
-    return null;
+    console.error("❌ Errore TTS:", err?.message || err);
   }
 }
