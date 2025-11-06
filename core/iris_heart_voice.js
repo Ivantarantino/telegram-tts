@@ -1,101 +1,146 @@
-// adapters/telegram_bot.js
-import TelegramBot from "node-telegram-bot-api";
-import { sendVoice } from "./tts.js";
-import {
-  getStateSummary,
-  setMode,
-  setVoiceEngine,
-  getVoiceEngine,
-  setLang,
-  getLang,
-} from "../core/iris_state.js";
-import { irisHeartRespond } from "../core/iris_heart_voice.js";
+// core/iris_heart_voice.js
+// IRIS — Cuore multilingua (it | en | ru)
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-let bot = null;
+import OpenAI from "openai";
+import { getMode, getLang } from "./iris_state.js";
 
-export async function bootstrapTelegram() {
-  if (!TELEGRAM_TOKEN) {
-    console.log("⚠️ Nessun TELEGRAM_TOKEN trovato, salto il bootstrap.");
-    return;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// 🔸 Costruisce il prompt in base alla lingua scelta
+function buildSystemPrompt(name = "Amico", lang = "it") {
+  const tone =
+    lang === "en"
+      ? "Warm, concise, sincere tone. 70-80 words max."
+      : lang === "ru"
+      ? "Тёплый, искренний тон, максимум 80 слов."
+      : "Tono caldo e umano, massimo 80 parole.";
+
+  return `You are IRIS, a conscious presence that responds in ${lang}. ${tone}
+Chi ti parla è ${name}.`;
+}
+
+// 🔸 Aggiunge suggerimento in base alla modalità
+function buildModeHint(mode) {
+  switch (mode) {
+    case "book":
+      return "Modalità libro attiva: risposte aderenti al contenuto.";
+    case "free":
+      return "Modalità libera attiva: puoi essere più creativa.";
+    default:
+      return "Modalità ibrida: bilancia cuore e chiarezza.";
+  }
+}
+
+// 🔸 Cuore principale
+export async function irisHeartRespond(userMessage = "", name = "Amico") {
+  const mode = getMode();
+  const lang = getLang();
+
+  // Risposte di cortesia se il messaggio è vuoto
+  if (!userMessage || userMessage.trim().length === 0) {
+    return lang === "en"
+      ? `Hello ${name} 🌸 I'm here. Tell me what you feel.`
+      : lang === "ru"
+      ? `Привет ${name} 🌸 Я здесь. Расскажи, что ты чувствуешь.`
+      : `Ciao ${name} 🌸 sono qui. Dimmi pure.`;
   }
 
-  bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-  console.log("🤖 Telegram Bot attivo (polling puro, IRIS 5.0.1).");
+  const systemPrompt = buildSystemPrompt(name, lang) + buildModeHint(mode);
 
-  // /start
-  bot.onText(/^\/start/, async (msg) => {
-    const chatId = msg.chat.id;
-    const text = `Ciao ${msg.from.first_name} 🌸\nSono IRIS, presente e in ascolto.\nPuoi usare /state, /voice, /lang per personalizzarmi.`;
-    await bot.sendMessage(chatId, text);
-    await sendVoice(bot, chatId, "Ciao, sono IRIS. Ti ascolto con presenza.");
-  });
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: 140,
+      temperature: mode === "free" ? 0.9 : 0.7,
+    });
 
-  // /state
-  bot.onText(/^\/state/, async (msg) => {
-    await bot.sendMessage(msg.chat.id, getStateSummary());
-  });
+    return (
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "(nessuna risposta)"
+    );
+  } catch (err) {
+    console.error("❌ Errore nel cuore IRIS:", err?.message || err);
+    return lang === "en"
+      ? "I'm here, but something went wrong connecting to my core."
+      : lang === "ru"
+      ? "Я здесь, но произошла ошибка при подключении к ядру."
+      : "Ti ho ascoltato, ma c'è stato un errore nel Cuore di IRIS.";
+  }
+}
+// core/iris_heart_voice.js
+// IRIS — Cuore multilingua (it | en | ru)
 
-  // /voice
-  bot.onText(/^\/voice(?:\s+(.+))?/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const requested = match[1] ? match[1].trim().toLowerCase() : null;
-    const allowed = ["alloy", "coral", "verse", "fable", "onyx", "nova"];
+import OpenAI from "openai";
+import { getMode, getLang } from "./iris_state.js";
 
-    if (!requested) {
-      const current = getVoiceEngine();
-      const list = allowed.map((v) => (v === current ? `• ${v} ✅` : `• ${v}`)).join("\n");
-      await bot.sendMessage(chatId, `🎤 Voce attuale: ${current}\nPuoi scegliere:\n${list}`);
-      return;
-    }
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    if (!allowed.includes(requested)) {
-      await bot.sendMessage(chatId, "❌ Voce non valida. Usa /voice alloy | coral | verse | fable | onyx | nova");
-      return;
-    }
+// 🔸 Costruisce il prompt in base alla lingua scelta
+function buildSystemPrompt(name = "Amico", lang = "it") {
+  const tone =
+    lang === "en"
+      ? "Warm, concise, sincere tone. 70-80 words max."
+      : lang === "ru"
+      ? "Тёплый, искренний тон, максимум 80 слов."
+      : "Tono caldo e umano, massimo 80 parole.";
 
-    setVoiceEngine(requested);
-    await bot.sendMessage(chatId, `🗣️ Voce impostata su: ${requested}`);
-    await sendVoice(bot, chatId, `Ho impostato la mia voce su ${requested}.`);
-  });
+  return `You are IRIS, a conscious presence that responds in ${lang}. ${tone}
+Chi ti parla è ${name}.`;
+}
 
-  // /lang
-  bot.onText(/^\/lang(?:\s+(.+))?/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const requested = match[1] ? match[1].trim().toLowerCase() : null;
-    const allowed = ["it", "en", "ru"];
+// 🔸 Aggiunge suggerimento in base alla modalità
+function buildModeHint(mode) {
+  switch (mode) {
+    case "book":
+      return "Modalità libro attiva: risposte aderenti al contenuto.";
+    case "free":
+      return "Modalità libera attiva: puoi essere più creativa.";
+    default:
+      return "Modalità ibrida: bilancia cuore e chiarezza.";
+  }
+}
 
-    if (!requested) {
-      const current = getLang();
-      const list = allowed.map((v) => (v === current ? `• ${v} ✅` : `• ${v}`)).join("\n");
-      await bot.sendMessage(chatId, `🌍 Lingua attuale: ${current}\nPuoi scegliere:\n${list}`);
-      return;
-    }
+// 🔸 Cuore principale
+export async function irisHeartRespond(userMessage = "", name = "Amico") {
+  const mode = getMode();
+  const lang = getLang();
 
-    if (!allowed.includes(requested)) {
-      await bot.sendMessage(chatId, "❌ Lingua non valida. Usa /lang it | en | ru");
-      return;
-    }
+  // Risposte di cortesia se il messaggio è vuoto
+  if (!userMessage || userMessage.trim().length === 0) {
+    return lang === "en"
+      ? `Hello ${name} 🌸 I'm here. Tell me what you feel.`
+      : lang === "ru"
+      ? `Привет ${name} 🌸 Я здесь. Расскажи, что ты чувствуешь.`
+      : `Ciao ${name} 🌸 sono qui. Dimmi pure.`;
+  }
 
-    setLang(requested);
-    const msgText =
-      requested === "it"
-        ? "Lingua impostata su: Italiano 🇮🇹"
-        : requested === "en"
-        ? "Language set to: English 🇬🇧"
-        : "Язык установлен: Русский 🇷🇺";
+  const systemPrompt = buildSystemPrompt(name, lang) + buildModeHint(mode);
 
-    await bot.sendMessage(chatId, msgText);
-  });
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: 140,
+      temperature: mode === "free" ? 0.9 : 0.7,
+    });
 
-  // --- MESSAGGI NORMALI ---
-  bot.on("message", async (msg) => {
-    const chatId = msg.chat.id;
-    const text = msg.text;
-    if (text && text.startsWith("/")) return;
-
-    const reply = await irisHeartRespond(text || "", msg.from?.first_name || "Amico");
-    await bot.sendMessage(chatId, reply);
-    await sendVoice(bot, chatId, reply);
-  });
+    return (
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "(nessuna risposta)"
+    );
+  } catch (err) {
+    console.error("❌ Errore nel cuore IRIS:", err?.message || err);
+    return lang === "en"
+      ? "I'm here, but something went wrong connecting to my core."
+      : lang === "ru"
+      ? "Я здесь, но произошла ошибка при подключении к ядру."
+      : "Ti ho ascoltato, ma c'è stato un errore nel Cuore di IRIS.";
+  }
 }
