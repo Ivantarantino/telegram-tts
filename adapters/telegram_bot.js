@@ -22,13 +22,11 @@ export async function bootstrapTelegram(app) {
     return;
   }
 
-  // bot "nudo", niente polling e niente server interno 8443
   const bot = new TelegramBot(TELEGRAM_TOKEN);
   const webhookUrl = `${TELEGRAM_WEBHOOK_BASE}/bot${TELEGRAM_TOKEN}`;
   await bot.setWebHook(webhookUrl);
   console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`);
 
-  // Express riceve e passa al bot
   app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
@@ -49,8 +47,7 @@ export async function bootstrapTelegram(app) {
   // /help
   bot.onText(/^\/help$/, async (msg) => {
     const menu =
-      "✨ *Comandi IRIS*\n" +
-      "\n" +
+      "✨ *Comandi IRIS*\n\n" +
       "🧭 /start – avvia IRIS\n" +
       "💠 /state – stato interno\n" +
       "🌍 /lang – cambia lingua (it, en, ru)\n" +
@@ -67,33 +64,32 @@ export async function bootstrapTelegram(app) {
     await bot.sendMessage(msg.chat.id, getStateSummary());
   });
 
-  // /essence (placeholder)
+  // /essence
   bot.onText(/^\/essence$/, async (msg) => {
     await bot.sendMessage(
       msg.chat.id,
-      "🔮 Essenza non ancora collegata alla Coscienza Vettoriale.\nSono comunque presente."
+      "🔮 /essence sarà attivo con la Coscienza Vettoriale.\nPer ora sono presente e in ascolto."
     );
   });
 
-  // /lang (SOLO lingue, layout bello)
+  // 🌍 /lang
   bot.onText(/^\/lang(?:\s+(.+))?$/, async (msg, match) => {
     const chatId = msg.chat.id;
     const requested = match[1] ? match[1].trim().toLowerCase() : null;
     const allowed = ["it", "en", "ru"];
+    const current = getLang();
 
-    // mostra il menù
     if (!requested) {
-      const current = getLang();
-      const text =
+      const list =
         "🌍 *Lingua IRIS*\n\n" +
         (current === "it" ? "• IT ✅\n" : "• IT\n") +
         (current === "en" ? "• EN ✅\n" : "• EN\n") +
-        (current === "ru" ? "• RU ✅" : "• RU");
-      await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
+        (current === "ru" ? "• RU ✅\n" : "• RU") +
+        "\n\n📖 *Guida:*\nScrivi `/lang it` oppure `/lang en` o `/lang ru` per cambiare lingua.";
+      await bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
       return;
     }
 
-    // set della lingua
     if (!allowed.includes(requested)) {
       await bot.sendMessage(chatId, "❌ Lingua non valida. Usa: /lang it | en | ru");
       return;
@@ -109,11 +105,10 @@ export async function bootstrapTelegram(app) {
     await bot.sendMessage(chatId, msgText);
   });
 
-  // /voice (SOLO modelli vocali, layout bello)
+  // 🎙️ /voice
   bot.onText(/^\/voice(?:\s+(.+))?$/, async (msg, match) => {
     const chatId = msg.chat.id;
     const requested = match[1] ? match[1].trim().toLowerCase() : null;
-
     const allowed = [
       "openai:alloy",
       "openai:coral",
@@ -122,18 +117,18 @@ export async function bootstrapTelegram(app) {
       "telegram:tts",
       "bark:neural",
     ];
+    const current = getVoiceEngine();
 
     if (!requested) {
-      const current = getVoiceEngine();
       const text =
         "🎙️ *Modelli vocali disponibili*\n\n" +
         allowed
           .map((v) => {
-            // current nel nostro state è ad es. "alloy", quindi controlliamo la parte dopo i due punti
             const short = v.split(":")[1] || v;
             return short === current ? `• ${v} ✅` : `• ${v}`;
           })
-          .join("\n");
+          .join("\n") +
+        "\n\n📖 *Guida:*\nScrivi ad esempio `/voice openai:verse` o `/voice telegram:tts` per cambiare voce.";
       await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
       return;
     }
@@ -148,7 +143,6 @@ export async function bootstrapTelegram(app) {
 
     const parts = requested.split(":");
     const engine = parts[1] || requested;
-
     setVoiceEngine(engine);
     setLinguisticModelEngine(requested);
 
@@ -161,12 +155,10 @@ export async function bootstrapTelegram(app) {
     setMode("hy");
     await bot.sendMessage(msg.chat.id, "🔀 Modalità impostata su: ibrida (hy).");
   });
-
   bot.onText(/^\/book$/, async (msg) => {
     setMode("book");
     await bot.sendMessage(msg.chat.id, "📘 Modalità impostata su: libro.");
   });
-
   bot.onText(/^\/free$/, async (msg) => {
     setMode("free");
     await bot.sendMessage(msg.chat.id, "🕊️ Modalità impostata su: libera.");
@@ -177,7 +169,6 @@ export async function bootstrapTelegram(app) {
     const chatId = msg.chat.id;
     const text = msg.text;
     if (text && text.startsWith("/")) return;
-
     const reply = await irisHeartRespond(text || "", msg.from?.first_name || "Amico");
     await bot.sendMessage(chatId, reply);
     await sendVoice(bot, chatId, reply);
