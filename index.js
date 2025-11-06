@@ -1,19 +1,22 @@
 // index.js
 // =====================================================
-// IRIS 5.3.2 — Avvio principale
+// IRIS 5.3.3 — Bootstrap completo (fix .env loading)
 // =====================================================
 
-import express from "express";
+// ⚠️ Prima di tutto, carica le variabili
 import dotenv from "dotenv";
-import { initMemoryCollection } from "./core/iris_rag_core.js";
-import "./adapters/telegram_bot.js"; // avvia direttamente il bot
-
 dotenv.config();
+
+import express from "express";
+import { initMemoryCollection } from "./core/iris_rag_core.js";
+
+// ⚙️ Il bot viene importato dopo che .env è attivo
+import "./adapters/telegram_bot.js";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Avvio
+// Avvio principale
 (async () => {
   console.log("🚀 Avvio inizializzazione IRIS 3.0G...");
 
