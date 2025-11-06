@@ -45,4 +45,7 @@ bootstrapTelegram();
 
 // Avvio Express
 app.listen(PORT, () => {
-  console.log(
+  console.log("🌍 Server Express attivo su porta " + PORT);
+  console.log("💠 Tutti i moduli base inizializzati correttamente.");
+  console.log("🚀 Avvio inizializzazione IRIS 5.0 /voice switcher...");
+});
