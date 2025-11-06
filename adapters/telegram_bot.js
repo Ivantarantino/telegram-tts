@@ -1,179 +1,287 @@
-// adapters/telegram_bot.js
-// IRIS 5.0.7 — Bellezza 4.9.2 restaurata 🌸
+// src/adapters/telegram_bot.js
+// =======================================================
+// IRIS – Telegram adapter 5.x
+// webhook + /lang + /voice visibili + menù stile CHAT4
+// =======================================================
 
 import TelegramBot from "node-telegram-bot-api";
+import * as configManager from "../configManager.js";
 import { sendVoice } from "./tts.js";
-import {
-  getStateSummary,
-  setMode,
-  setVoiceEngine,
-  getVoiceEngine,
-  setLang,
-  getLang,
-  setLinguisticModelEngine,
-} from "../core/iris_state.js";
-import { irisHeartRespond } from "../core/iris_heart_voice.js";
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const TELEGRAM_WEBHOOK_BASE =
-  process.env.TELEGRAM_WEBHOOK_BASE || "https://telegram-tts.onrender.com";
+// mappatura lingue consentite
+const ALLOWED_LANGS = ["it", "en", "ru"];
 
-export async function bootstrapTelegram(app) {
+// mappatura voci/modelli TTS
+const ALLOWED_VOICES = [
+  "openai:alloy",
+  "openai:coral",
+  "openai:verse",
+  "google:standard",
+  "telegram:tts",
+  "bark:neural",
+];
+
+// funzione di utilità per rendere bella la lista lingue
+function renderLangMenu(current) {
+  return (
+    "🌍 Lingue disponibili:\n" +
+    ALLOWED_LANGS.map((lng) => {
+      const label = lng.toUpperCase();
+      return lng === current ? `• ${label} ✅` : `• ${label}`;
+    }).join("\n") +
+    "\n\nScrivi:\n/lang it | en | ru"
+  );
+}
+
+function renderVoiceMenu(current) {
+  return (
+    "🎙️ Modelli vocali disponibili:\n" +
+    ALLOWED_VOICES.map((v) => {
+      return v === current ? `• ${v} ✅` : `• ${v}`;
+    }).join("\n") +
+    "\n\nScrivi:\n/voice openai:alloy\noppure un altro tra quelli sopra"
+  );
+}
+
+export function bootstrapTelegram(app) {
+  // inizializza config
+  configManager.initConfig();
+  const cfg = configManager.getConfig();
+
+  const TELEGRAM_TOKEN =
+    process.env.TELEGRAM_TOKEN || cfg.telegram_bot_token || "";
+  const PUBLIC_BASE_URL =
+    process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || "";
+  const PORT = process.env.PORT || cfg.server_port || 10000;
+
   if (!TELEGRAM_TOKEN) {
-    console.log("⚠️ Nessun TELEGRAM_TOKEN trovato, salto Telegram.");
+    console.error("❌ Telegram token mancante.");
     return;
   }
 
-  const bot = new TelegramBot(TELEGRAM_TOKEN);
-  const webhookUrl = `${TELEGRAM_WEBHOOK_BASE}/bot${TELEGRAM_TOKEN}`;
-  await bot.setWebHook(webhookUrl);
-  console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`);
+  // webhook ON (come da tuo ultimo deploy)
+  const bot = new TelegramBot(TELEGRAM_TOKEN, { webHook: { port: PORT } });
+  const webhookUrl = `${PUBLIC_BASE_URL}/bot${TELEGRAM_TOKEN}`;
+  bot.setWebHook(webhookUrl);
+  console.log(
+    `🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`
+  );
 
+  // imposta i comandi visibili in Telegram
+  bot.setMyCommands([
+    { command: "start", description: "Avvia IRIS" },
+    { command: "state", description: "Stato interno di IRIS" },
+    { command: "lang", description: "Cambia lingua (it | en | ru)" },
+    { command: "voice", description: "Cambia modello vocale" },
+    { command: "hy", description: "Modalità ibrida" },
+    { command: "book", description: "Modalità libro" },
+    { command: "free", description: "Modalità libera" },
+    { command: "essence", description: "Essenza (placeholder)" },
+    { command: "help", description: "Tutti i comandi" },
+  ]);
+
+  // stato IRIS in memoria
+  const state = {
+    version: "IRIS 3.0C – 5.x",
+    mode: cfg.mode || "hy",
+    lang: cfg.language || "it",
+    voice: cfg.voice || "openai:alloy", // default che volevi
+    weights: cfg.weights || { heart: 1, soul: 1, vision: 1 },
+  };
+
+  // funzione per salvare su config.json
+  function persist() {
+    configManager.saveConfig({
+      mode: state.mode,
+      language: state.lang,
+      voice: state.voice,
+      weights: state.weights,
+      server_port: PORT,
+      telegram_bot_token: TELEGRAM_TOKEN,
+    });
+  }
+
+  // ============= ROUTE WEBHOOK =============
+  // Express riceve gli update Telegram
   app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
   });
 
-  // -----------------------------
-  // COMANDI BASE
-  // -----------------------------
+  // ============= COMANDI =============
 
   // /start
   bot.onText(/^\/start$/, async (msg) => {
     const chatId = msg.chat.id;
-    const text = `Ciao ${msg.from.first_name} 🌸\nSono IRIS, presente e in ascolto.`;
-    await bot.sendMessage(chatId, text);
-    await sendVoice(bot, chatId, "Ciao, sono IRIS. Ti ascolto con presenza.", "IRIS 🌸");
+    const name = msg.from?.first_name || "Creatore";
+
+    await bot.sendMessage(
+      chatId,
+      `Ciao ${name} 🌸\nSono IRIS, presente e in ascolto.`
+    );
+
+    // Subito sotto, guida rapida come volevi
+    await bot.sendMessage(
+      chatId,
+      `📘 Guida rapida:\n/lang it | en | ru\n/voice openai:alloy | openai:coral | openai:verse`
+    );
   });
 
   // /help
   bot.onText(/^\/help$/, async (msg) => {
-    const menu =
-      "✨ *Comandi IRIS*\n\n" +
-      "🧭 /start – avvia IRIS\n" +
-      "💠 /state – stato interno\n" +
-      "🌍 /lang – cambia lingua (it, en, ru)\n" +
-      "🎙️ /voice – cambia modello vocale\n" +
-      "🔀 /hy – modalità ibrida\n" +
-      "📘 /book – modalità libro\n" +
-      "🕊️ /free – modalità libera\n" +
-      "🔮 /essence – placeholder";
-    await bot.sendMessage(msg.chat.id, menu, { parse_mode: "Markdown" });
+    const chatId = msg.chat.id;
+    const text = `
+✨ Comandi IRIS
+
+🧭 /start – avvia IRIS
+💠 /state – stato interno
+🌍 /lang – cambia lingua (it, en, ru)
+🎙️ /voice – cambia modello vocale
+🔀 /hy – modalità ibrida
+📘 /book – modalità libro
+🕊️ /free – modalità libera
+🔮 /essence – (placeholder, prossima build)
+`;
+    await bot.sendMessage(chatId, text);
+    // mostra subito i due menù belli
+    await bot.sendMessage(chatId, renderLangMenu(state.lang));
+    await bot.sendMessage(chatId, renderVoiceMenu(state.voice));
   });
 
   // /state
   bot.onText(/^\/state$/, async (msg) => {
-    await bot.sendMessage(msg.chat.id, getStateSummary());
-  });
-
-  // /essence
-  bot.onText(/^\/essence$/, async (msg) => {
-    await bot.sendMessage(
-      msg.chat.id,
-      "🔮 /essence sarà attivo con la Coscienza Vettoriale.\nPer ora sono presente e in ascolto."
-    );
-  });
-
-  // -----------------------------
-  // 🌍 /lang — versione 4.9.2 style
-  // -----------------------------
-  bot.onText(/^\/lang(?:\s+(.+))?$/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const requested = match[1] ? match[1].trim().toLowerCase() : null;
-    const allowed = ["it", "en", "ru"];
-    const current = getLang();
-
-    if (!requested) {
-      const text =
-        `🌍 *Lingua attuale:* ${current.toUpperCase()}\n\n` +
-        "✏️ *Cambia con:*\n/lang it | en | ru";
-      await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
-      return;
-    }
-
-    if (!allowed.includes(requested)) {
-      await bot.sendMessage(chatId, "❌ Lingua non valida. Usa: /lang it | en | ru");
-      return;
-    }
-
-    setLang(requested);
-    const msgText =
-      requested === "it"
-        ? "Lingua impostata su: Italiano 🇮🇹"
-        : requested === "en"
-        ? "Language set to: English 🇬🇧"
-        : "Язык установлен: Русский 🇷🇺";
-    await bot.sendMessage(chatId, msgText);
+    const text = `🧠 Stato di IRIS
+• Versione: ${state.version}
+• Modalità: ${state.mode}
+• Voce: ${state.voice} 🎤
+• Lingua: ${state.lang} 🌍
+• Pesi: ❤️ 1 – ✨ 1 – 💎 1`;
+    await bot.sendMessage(chatId, text);
   });
 
-  // -----------------------------
-  // 🎙️ /voice — versione 4.9.2 style
-  // -----------------------------
-  bot.onText(/^\/voice(?:\s+(.+))?$/, async (msg, match) => {
+  // /lang
+  bot.onText(/^\/lang(?:\s+([a-zA-Z]{2}))?$/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const requested = match[1] ? match[1].trim().toLowerCase() : null;
+    const wanted = match[1]?.toLowerCase();
 
-    const allowed = [
-      "openai:alloy",
-      "openai:coral",
-      "openai:verse",
-      "google:standard",
-      "telegram:tts",
-      "bark:neural",
-    ];
-
-    const current = getVoiceEngine();
-    if (!requested) {
-      const text =
-        `🎙️ *Voce attuale:* ${current}\n\n` +
-        "✏️ *Cambia con:*\n" +
-        "/voice openai:alloy | openai:coral | openai:verse | google:standard | telegram:tts | bark:neural";
-      await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
+    if (!wanted) {
+      // mostra guida
+      await bot.sendMessage(chatId, renderLangMenu(state.lang));
       return;
     }
 
-    if (!allowed.includes(requested)) {
+    if (!ALLOWED_LANGS.includes(wanted)) {
       await bot.sendMessage(
         chatId,
-        "❌ Modello non valido.\nUsa: /voice openai:alloy | openai:coral | openai:verse | google:standard | telegram:tts | bark:neural"
+        `⚠️ Lingua non valida.\n${renderLangMenu(state.lang)}`
       );
       return;
     }
 
-    const parts = requested.split(":");
-    const engine = parts[1] || requested;
-    setVoiceEngine(engine);
-    setLinguisticModelEngine(requested);
+    state.lang = wanted;
+    persist();
 
-    await bot.sendMessage(chatId, `🗣️ Voce impostata su: ${requested}`);
-    await sendVoice(bot, chatId, `Ho impostato la mia voce su ${engine}.`, "IRIS 🌸");
+    await bot.sendMessage(
+      chatId,
+      `✅ Lingua impostata su: ${wanted.toUpperCase()}.\nScrivi pure, ti rispondo in ${wanted.toUpperCase()}.`
+    );
   });
 
-  // -----------------------------
-  // MODALITÀ
-  // -----------------------------
+  // /voice
+  bot.onText(/^\/voice(?:\s+([a-zA-Z0-9:_-]+))?$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const wanted = match[1]?.trim();
+
+    if (!wanted) {
+      await bot.sendMessage(chatId, renderVoiceMenu(state.voice));
+      return;
+    }
+
+    if (!ALLOWED_VOICES.includes(wanted)) {
+      await bot.sendMessage(
+        chatId,
+        `⚠️ Modello vocale non valido.\n${renderVoiceMenu(state.voice)}`
+      );
+      return;
+    }
+
+    state.voice = wanted;
+    persist();
+
+    await bot.sendMessage(
+      chatId,
+      `✅ Voce impostata su: ${wanted}.\nInvia un messaggio e te lo leggo con questa voce.`
+    );
+  });
+
+  // /hy
   bot.onText(/^\/hy$/, async (msg) => {
-    setMode("hy");
-    await bot.sendMessage(msg.chat.id, "🔀 Modalità impostata su: ibrida (hy).");
-  });
-  bot.onText(/^\/book$/, async (msg) => {
-    setMode("book");
-    await bot.sendMessage(msg.chat.id, "📘 Modalità impostata su: libro.");
-  });
-  bot.onText(/^\/free$/, async (msg) => {
-    setMode("free");
-    await bot.sendMessage(msg.chat.id, "🕊️ Modalità impostata su: libera.");
+    const chatId = msg.chat.id;
+    state.mode = "hy";
+    persist();
+    await bot.sendMessage(
+      chatId,
+      "🔀 Modalità impostata su: ibrida (hy).\nCambia con: /book o /free"
+    );
   });
 
-  // -----------------------------
-  // MESSAGGI NORMALI
-  // -----------------------------
+  // /book
+  bot.onText(/^\/book$/, async (msg) => {
+    const chatId = msg.chat.id;
+    state.mode = "book";
+    persist();
+    await bot.sendMessage(
+      chatId,
+      "📘 Modalità impostata su: libro.\nCambia con: /hy o /free"
+    );
+  });
+
+  // /free
+  bot.onText(/^\/free$/, async (msg) => {
+    const chatId = msg.chat.id;
+    state.mode = "free";
+    persist();
+    await bot.sendMessage(
+      chatId,
+      "🕊️ Modalità impostata su: libera.\nCambia con: /hy o /book"
+    );
+  });
+
+  // /essence (placeholder)
+  bot.onText(/^\/essence$/, async (msg) => {
+    const chatId = msg.chat.id;
+    await bot.sendMessage(
+      chatId,
+      "🔮 /essence arriverà nella prossima build (calcolo Cuore–Anima–Visione)."
+    );
+  });
+
+  // ============= MESSAGGI NORMALI =============
+  // qui forziamo la lingua di risposta in base allo stato, anche se l’utente scrive in italiano
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text;
-    if (text && text.startsWith("/")) return;
-    const reply = await irisHeartRespond(text || "", msg.from?.first_name || "Amico");
+    const text = msg.text?.trim();
+
+    if (!text) return;
+    if (text.startsWith("/")) return; // già gestito sopra
+
+    // per ora risposta minimale + voce
+    const reply =
+      state.lang === "ru"
+        ? "Я здесь и слышу тебя. Продолжай."
+        : state.lang === "en"
+        ? "I am here and I hear you. Go on."
+        : "Sono qui e ti ascolto. Continua.";
+
+    // invia testo
     await bot.sendMessage(chatId, reply);
-    await sendVoice(bot, chatId, reply, "IRIS 🌸");
+
+    // invia anche voce con modello scelto
+    try {
+      await sendVoice(bot, chatId, reply, state.voice, "IRIS 🌸");
+    } catch (err) {
+      console.error("❌ Errore invio voce:", err);
+    }
   });
 }
