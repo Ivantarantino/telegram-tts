@@ -2,7 +2,7 @@
 // Stato centrale di IRIS — v5.0.3 “Empatia & Modelli Linguistici”
 
 const state = {
-  version: "IRIS 3.0C – 5.0.3 Empatia & Modelli Linguistici",
+  version: "IRIS 3.0C – 5.0.3",
   mode: "hy", // hy | book | free
   weights: {
     heart: 1.0,
