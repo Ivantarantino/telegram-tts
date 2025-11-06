@@ -1,31 +1,37 @@
-// index.js
-// Entry point IRIS 5.x — Express + Telegram webhook
+// index.js — IRIS 5.x Core Bootstrap
+// ========================================================
+// Avvio sicuro con controllo porta + webhook Telegram
+// ========================================================
 
 import express from "express";
 import { bootstrapTelegram } from "./adapters/telegram_bot.js";
-import { irisHeartRespond } from "./core/iris_heart_voice.js";
-import { getStateSummary } from "./core/iris_state.js";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Funzione di avvio sicura
+async function startServer() {
+  try {
+    await bootstrapTelegram();
 
-// health
-app.get("/", (req, res) => {
-  res.send("🚀 IRIS è viva e presente.");
-});
+    const server = app.listen(PORT, () => {
+      console.log(`🌍 Server Express attivo su porta ${PORT}`);
+    });
 
-app.get("/state", (req, res) => {
-  res.type("text/plain").send(getStateSummary());
-});
+    // Gestione porta occupata
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        console.warn(`⚠️ Porta ${PORT} già in uso. Ignoro doppio avvio.`);
+      } else {
+        console.error("❌ Errore avvio server:", err);
+      }
+    });
+  } catch (err) {
+    console.error("❌ Errore durante l'inizializzazione di IRIS:", err);
+  }
+}
 
-// avvio telegram in modalità webhook agganciandolo a express
-await bootstrapTelegram(app);
-
-app.listen(PORT, () => {
-  console.log("🌍 Server Express attivo su porta " + PORT);
-  console.log("💠 Tutti i moduli base inizializzati correttamente.");
-  console.log("🚀 Avvio inizializzazione IRIS 5.x /webhook...");
-});
+// ========================================================
+// Avvio IRIS
+// ========================================================
+startServer();
