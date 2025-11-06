@@ -1,64 +1,65 @@
-// adapters/tts.js
-import fs from "node:fs";
-import path from "node:path";
+// src/adapters/tts.js
+// =======================================================
+// IRIS — Text-to-Speech Adapter 5.x
+// Genera voce con modello OpenAI (es. gpt-4o-mini-tts)
+// Invio vocale Telegram con caption “IRIS 🌸”
+// =======================================================
+
 import OpenAI from "openai";
-import { getVoiceEngine } from "../core/iris_state.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// cartella temp per i .ogg
-const TEMP_DIR = path.resolve("temp");
+// Risolve il percorso locale del file (necessario su Render)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-}
-
-/**
- * Genera un audio TTS con la voce scelta nello stato
- * e lo invia al chatId passato.
- *
- * @param {TelegramBot} bot
- * @param {number|string} chatId
- * @param {string} text
- */
-export async function sendVoice(bot, chatId, text) {
-  const voiceEngine = getVoiceEngine() || "alloy";
-
+// Crea una funzione sicura per generare il vocale
+export async function sendVoice(bot, chatId, text, voiceModel = "openai:alloy", caption = "IRIS 🌸") {
   try {
-    // nome file temporaneo
-    const fileName = `iris_voice_${Date.now()}.ogg`;
-    const filePath = path.join(TEMP_DIR, fileName);
+    // Se il testo è vuoto o nullo, evita la chiamata TTS
+    if (!text || text.trim().length === 0) {
+      await bot.sendMessage(chatId, "⚠️ Nessun testo da convertire in voce.");
+      return;
+    }
 
-    // chiamata TTS OpenAI
-    const speech = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts", // quello che stavi usando in 4.9.2
-      voice: voiceEngine,
-      format: "opus",
+    // Scegli modello in base a voce impostata
+    const [engine, model] = voiceModel.split(":");
+    let voice = "alloy"; // default
+    if (model) voice = model;
+
+    // Nome file temporaneo (Render non supporta fs persistente, ma va bene per tmp)
+    const outPath = path.join(__dirname, "voice.ogg");
+
+    // Richiesta a OpenAI TTS (voce Alloy, Coral o Verse)
+    const response = await openai.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: voice,
       input: text,
+      format: "ogg", // compatibile Telegram
     });
 
-    // salva su file
-    const buffer = Buffer.from(await speech.arrayBuffer());
-    fs.writeFileSync(filePath, buffer);
+    // Ottieni l’audio come buffer
+    const buffer = Buffer.from(await response.arrayBuffer());
 
-    // invia a telegram
-    await bot.sendVoice(chatId, voiceBuffer, { caption: "IRIS 🌸" });
+    // Scrivi temporaneamente il file (Render lo cancellerà dopo)
+    fs.writeFileSync(outPath, buffer);
 
-    console.log(
-      `🔊 Voce generata e inviata (${chatId}) — openai:${voiceEngine}`
-    );
+    // Invia vocale su Telegram con caption IRIS 🌸
+    await bot.sendVoice(chatId, outPath, { caption });
 
-    // opzionale: pulizia
-    setTimeout(() => {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (err) {
-        // niente panico
-      }
-    }, 15_000);
+    // Rimuovi il file temporaneo
+    fs.unlink(outPath, (err) => {
+      if (err) console.warn("⚠️ Impossibile cancellare file temporaneo:", err.message);
+    });
+
+    console.log(`🔊 Voce generata e inviata (${chatId}) — ${voiceModel}`);
   } catch (err) {
-    console.error("❌ Errore TTS:", err?.message || err);
+    console.error("❌ Errore TTS:", err.message || err);
+    await bot.sendMessage(chatId, "⚠️ Errore nella generazione vocale. Ti rispondo comunque in testo.");
   }
 }
