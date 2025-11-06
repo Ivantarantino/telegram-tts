@@ -1,65 +1,56 @@
 // core/iris_state.js
+// Stato centrale di IRIS (v5.0.1 — multilingua ridotto: it, en, ru)
 
-// Stato centrale di IRIS
 const state = {
-  version: "IRIS 3.0C – 5.0 /voice",
+  version: "IRIS 3.0C – 5.0.1 /lang it|en|ru",
   mode: "hy", // hy | book | free
   weights: {
     heart: 1.0,
     soul: 1.0,
     vision: 1.0,
   },
-  // nuovo: motore vocale di default
-  voiceEngine: "alloy", // <-- come richiesto
-  lang: "it",
+  voiceEngine: "alloy", // voce di default
+  lang: "it", // lingua di default
 };
 
-// ----- MODE -----
+// --- MODALITÀ ---
 export function setMode(newMode) {
-  if (["hy", "book", "free"].includes(newMode)) {
-    state.mode = newMode;
-  }
+  if (["hy", "book", "free"].includes(newMode)) state.mode = newMode;
 }
-
 export function getMode() {
   return state.mode;
 }
 
-// ----- VOICE -----
+// --- VOCE ---
 export function setVoiceEngine(engineName) {
-  // puoi ampliarlo: alloy, coral, verse, fable, onyx, nova...
   const allowed = ["alloy", "coral", "verse", "fable", "onyx", "nova"];
-  if (allowed.includes(engineName)) {
-    state.voiceEngine = engineName;
-  }
+  if (allowed.includes(engineName)) state.voiceEngine = engineName;
 }
-
 export function getVoiceEngine() {
   return state.voiceEngine;
 }
 
-// ----- LANG -----
+// --- LINGUA ---
 export function setLang(newLang) {
-  state.lang = newLang;
+  const allowed = ["it", "en", "ru"];
+  if (allowed.includes(newLang)) state.lang = newLang;
 }
-
 export function getLang() {
   return state.lang;
 }
 
-// ----- SUMMARY -----
+// --- STATO / RESOCONTO ---
 export function getStateSummary() {
   return [
     "🧠 Stato di IRIS",
     `• Versione: ${state.version}`,
     `• Modalità: ${state.mode}`,
     `• Voce: ${state.voiceEngine} 🎤`,
-    `• Lingua: ${state.lang}`,
+    `• Lingua: ${state.lang} 🌍`,
     `• Pesi: ❤️ ${state.weights.heart} – ✨ ${state.weights.soul} – 💎 ${state.weights.vision}`,
   ].join("\n");
 }
 
-// per eventuali letture esterne
 export function getFullState() {
   return { ...state };
 }
