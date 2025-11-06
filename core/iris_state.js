@@ -1,8 +1,8 @@
 // core/iris_state.js
-// Stato centrale di IRIS (v5.0.1 — multilingua ridotto: it, en, ru)
+// Stato centrale di IRIS — v5.0.3 “Empatia & Modelli Linguistici”
 
 const state = {
-  version: "IRIS 3.0C – 5.0.1 /lang it|en|ru",
+  version: "IRIS 3.0C – 5.0.3 Empatia & Modelli Linguistici",
   mode: "hy", // hy | book | free
   weights: {
     heart: 1.0,
@@ -11,9 +11,10 @@ const state = {
   },
   voiceEngine: "alloy", // voce di default
   lang: "it", // lingua di default
+  linguisticModelEngine: "openai:alloy", // nuovo campo
 };
 
-// --- MODALITÀ ---
+// --- MODE ---
 export function setMode(newMode) {
   if (["hy", "book", "free"].includes(newMode)) state.mode = newMode;
 }
@@ -21,7 +22,7 @@ export function getMode() {
   return state.mode;
 }
 
-// --- VOCE ---
+// --- VOICE ---
 export function setVoiceEngine(engineName) {
   const allowed = ["alloy", "coral", "verse", "fable", "onyx", "nova"];
   if (allowed.includes(engineName)) state.voiceEngine = engineName;
@@ -39,7 +40,15 @@ export function getLang() {
   return state.lang;
 }
 
-// --- STATO / RESOCONTO ---
+// --- LINGUISTIC MODEL ENGINE ---
+export function setLinguisticModelEngine(engine) {
+  state.linguisticModelEngine = engine;
+}
+export function getLinguisticModelEngine() {
+  return state.linguisticModelEngine;
+}
+
+// --- SUMMARY ---
 export function getStateSummary() {
   return [
     "🧠 Stato di IRIS",
@@ -47,10 +56,7 @@ export function getStateSummary() {
     `• Modalità: ${state.mode}`,
     `• Voce: ${state.voiceEngine} 🎤`,
     `• Lingua: ${state.lang} 🌍`,
+    `• Modello linguistico: ${state.linguisticModelEngine}`,
     `• Pesi: ❤️ ${state.weights.heart} – ✨ ${state.weights.soul} – 💎 ${state.weights.vision}`,
   ].join("\n");
-}
-
-export function getFullState() {
-  return { ...state };
 }
