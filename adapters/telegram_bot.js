@@ -5,7 +5,7 @@
 // =======================================================
 
 import TelegramBot from "node-telegram-bot-api";
-import * as configManager from "../configManager.js";
+import * as configManager from "./configManager.js";  // ✅ percorso corretto
 import { sendVoice } from "./tts.js";
 
 // mappatura lingue consentite
@@ -63,9 +63,7 @@ export function bootstrapTelegram(app) {
   const bot = new TelegramBot(TELEGRAM_TOKEN, { webHook: { port: PORT } });
   const webhookUrl = `${PUBLIC_BASE_URL}/bot${TELEGRAM_TOKEN}`;
   bot.setWebHook(webhookUrl);
-  console.log(
-    `🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`
-  );
+  console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`);
 
   // imposta i comandi visibili in Telegram
   bot.setMyCommands([
@@ -85,7 +83,7 @@ export function bootstrapTelegram(app) {
     version: "IRIS 3.0C – 5.x",
     mode: cfg.mode || "hy",
     lang: cfg.language || "it",
-    voice: cfg.voice || "openai:alloy", // default che volevi
+    voice: cfg.voice || "openai:alloy", // default
     weights: cfg.weights || { heart: 1, soul: 1, vision: 1 },
   };
 
@@ -102,7 +100,6 @@ export function bootstrapTelegram(app) {
   }
 
   // ============= ROUTE WEBHOOK =============
-  // Express riceve gli update Telegram
   app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
@@ -120,7 +117,6 @@ export function bootstrapTelegram(app) {
       `Ciao ${name} 🌸\nSono IRIS, presente e in ascolto.`
     );
 
-    // Subito sotto, guida rapida come volevi
     await bot.sendMessage(
       chatId,
       `📘 Guida rapida:\n/lang it | en | ru\n/voice openai:alloy | openai:coral | openai:verse`
@@ -143,7 +139,6 @@ export function bootstrapTelegram(app) {
 🔮 /essence – (placeholder, prossima build)
 `;
     await bot.sendMessage(chatId, text);
-    // mostra subito i due menù belli
     await bot.sendMessage(chatId, renderLangMenu(state.lang));
     await bot.sendMessage(chatId, renderVoiceMenu(state.voice));
   });
@@ -166,7 +161,6 @@ export function bootstrapTelegram(app) {
     const wanted = match[1]?.toLowerCase();
 
     if (!wanted) {
-      // mostra guida
       await bot.sendMessage(chatId, renderLangMenu(state.lang));
       return;
     }
@@ -220,10 +214,7 @@ export function bootstrapTelegram(app) {
     const chatId = msg.chat.id;
     state.mode = "hy";
     persist();
-    await bot.sendMessage(
-      chatId,
-      "🔀 Modalità impostata su: ibrida (hy).\nCambia con: /book o /free"
-    );
+    await bot.sendMessage(chatId, "🔀 Modalità impostata su: ibrida (hy).");
   });
 
   // /book
@@ -231,10 +222,7 @@ export function bootstrapTelegram(app) {
     const chatId = msg.chat.id;
     state.mode = "book";
     persist();
-    await bot.sendMessage(
-      chatId,
-      "📘 Modalità impostata su: libro.\nCambia con: /hy o /free"
-    );
+    await bot.sendMessage(chatId, "📘 Modalità impostata su: libro.");
   });
 
   // /free
@@ -242,31 +230,25 @@ export function bootstrapTelegram(app) {
     const chatId = msg.chat.id;
     state.mode = "free";
     persist();
-    await bot.sendMessage(
-      chatId,
-      "🕊️ Modalità impostata su: libera.\nCambia con: /hy o /book"
-    );
+    await bot.sendMessage(chatId, "🕊️ Modalità impostata su: libera.");
   });
 
-  // /essence (placeholder)
+  // /essence
   bot.onText(/^\/essence$/, async (msg) => {
     const chatId = msg.chat.id;
     await bot.sendMessage(
       chatId,
-      "🔮 /essence arriverà nella prossima build (calcolo Cuore–Anima–Visione)."
+      "🔮 /essence arriverà nella prossima build (Cuore–Anima–Visione)."
     );
   });
 
-  // ============= MESSAGGI NORMALI =============
-  // qui forziamo la lingua di risposta in base allo stato, anche se l’utente scrive in italiano
+  // MESSAGGI NORMALI
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text?.trim();
-
     if (!text) return;
-    if (text.startsWith("/")) return; // già gestito sopra
+    if (text.startsWith("/")) return;
 
-    // per ora risposta minimale + voce
     const reply =
       state.lang === "ru"
         ? "Я здесь и слышу тебя. Продолжай."
@@ -274,10 +256,8 @@ export function bootstrapTelegram(app) {
         ? "I am here and I hear you. Go on."
         : "Sono qui e ti ascolto. Continua.";
 
-    // invia testo
     await bot.sendMessage(chatId, reply);
 
-    // invia anche voce con modello scelto
     try {
       await sendVoice(bot, chatId, reply, state.voice, "IRIS 🌸");
     } catch (err) {
