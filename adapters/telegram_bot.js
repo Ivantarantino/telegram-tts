@@ -1,11 +1,11 @@
 // =====================================================
-// adapters/telegram_bot.js — IRIS 3.0G Telegram Adapter
+// adapters/telegram_bot.js — IRIS 3.0C · Build 4.9.2
 // =====================================================
 
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import { handleRAG } from "./ragSearch.js";
-import { textToSpeech } from "../core/iris_voice_core.js";
+import { textToSpeech } from "./tts.js"; // 🔥 ripristinato come nella 4.9.2
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) throw new Error("❌ TELEGRAM_BOT_TOKEN non definito in .env");
@@ -26,9 +26,8 @@ bot.on("message", async (msg) => {
     // 🔍 Esecuzione RAG con salvataggio memoria
     const answer = await handleRAG(chatId, text);
 
-    // 🔊 Generazione vocale
+    // 🔊 Generazione vocale (usa tts.js)
     const voiceFile = await textToSpeech(answer);
-
     if (voiceFile) {
       await bot.sendVoice(chatId, voiceFile);
       fs.unlinkSync(voiceFile);
