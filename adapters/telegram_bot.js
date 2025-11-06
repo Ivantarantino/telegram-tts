@@ -1,4 +1,6 @@
 // adapters/telegram_bot.js
+// IRIS 5.0.7 — Bellezza 4.9.2 restaurata 🌸
+
 import TelegramBot from "node-telegram-bot-api";
 import { sendVoice } from "./tts.js";
 import {
@@ -33,7 +35,7 @@ export async function bootstrapTelegram(app) {
   });
 
   // -----------------------------
-  // COMANDI
+  // COMANDI BASE
   // -----------------------------
 
   // /start
@@ -41,7 +43,7 @@ export async function bootstrapTelegram(app) {
     const chatId = msg.chat.id;
     const text = `Ciao ${msg.from.first_name} 🌸\nSono IRIS, presente e in ascolto.`;
     await bot.sendMessage(chatId, text);
-    await sendVoice(bot, chatId, "Ciao, sono IRIS. Ti ascolto con presenza.");
+    await sendVoice(bot, chatId, "Ciao, sono IRIS. Ti ascolto con presenza.", "IRIS 🌸");
   });
 
   // /help
@@ -72,7 +74,9 @@ export async function bootstrapTelegram(app) {
     );
   });
 
-  // 🌍 /lang
+  // -----------------------------
+  // 🌍 /lang — versione 4.9.2 style
+  // -----------------------------
   bot.onText(/^\/lang(?:\s+(.+))?$/, async (msg, match) => {
     const chatId = msg.chat.id;
     const requested = match[1] ? match[1].trim().toLowerCase() : null;
@@ -80,13 +84,10 @@ export async function bootstrapTelegram(app) {
     const current = getLang();
 
     if (!requested) {
-      const list =
-        "🌍 *Lingua IRIS*\n\n" +
-        (current === "it" ? "• IT ✅\n" : "• IT\n") +
-        (current === "en" ? "• EN ✅\n" : "• EN\n") +
-        (current === "ru" ? "• RU ✅\n" : "• RU") +
-        "\n\n📖 *Guida:*\nScrivi `/lang it` oppure `/lang en` o `/lang ru` per cambiare lingua.";
-      await bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
+      const text =
+        `🌍 *Lingua attuale:* ${current.toUpperCase()}\n\n` +
+        "✏️ *Cambia con:*\n/lang it | en | ru";
+      await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
       return;
     }
 
@@ -105,10 +106,13 @@ export async function bootstrapTelegram(app) {
     await bot.sendMessage(chatId, msgText);
   });
 
-  // 🎙️ /voice
+  // -----------------------------
+  // 🎙️ /voice — versione 4.9.2 style
+  // -----------------------------
   bot.onText(/^\/voice(?:\s+(.+))?$/, async (msg, match) => {
     const chatId = msg.chat.id;
     const requested = match[1] ? match[1].trim().toLowerCase() : null;
+
     const allowed = [
       "openai:alloy",
       "openai:coral",
@@ -117,18 +121,13 @@ export async function bootstrapTelegram(app) {
       "telegram:tts",
       "bark:neural",
     ];
-    const current = getVoiceEngine();
 
+    const current = getVoiceEngine();
     if (!requested) {
       const text =
-        "🎙️ *Modelli vocali disponibili*\n\n" +
-        allowed
-          .map((v) => {
-            const short = v.split(":")[1] || v;
-            return short === current ? `• ${v} ✅` : `• ${v}`;
-          })
-          .join("\n") +
-        "\n\n📖 *Guida:*\nScrivi ad esempio `/voice openai:verse` o `/voice telegram:tts` per cambiare voce.";
+        `🎙️ *Voce attuale:* ${current}\n\n` +
+        "✏️ *Cambia con:*\n" +
+        "/voice openai:alloy | openai:coral | openai:verse | google:standard | telegram:tts | bark:neural";
       await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
       return;
     }
@@ -147,10 +146,12 @@ export async function bootstrapTelegram(app) {
     setLinguisticModelEngine(requested);
 
     await bot.sendMessage(chatId, `🗣️ Voce impostata su: ${requested}`);
-    await sendVoice(bot, chatId, `Ho impostato la mia voce su ${engine}.`);
+    await sendVoice(bot, chatId, `Ho impostato la mia voce su ${engine}.`, "IRIS 🌸");
   });
 
-  // modalità
+  // -----------------------------
+  // MODALITÀ
+  // -----------------------------
   bot.onText(/^\/hy$/, async (msg) => {
     setMode("hy");
     await bot.sendMessage(msg.chat.id, "🔀 Modalità impostata su: ibrida (hy).");
@@ -164,13 +165,15 @@ export async function bootstrapTelegram(app) {
     await bot.sendMessage(msg.chat.id, "🕊️ Modalità impostata su: libera.");
   });
 
-  // messaggi normali
+  // -----------------------------
+  // MESSAGGI NORMALI
+  // -----------------------------
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
     if (text && text.startsWith("/")) return;
     const reply = await irisHeartRespond(text || "", msg.from?.first_name || "Amico");
     await bot.sendMessage(chatId, reply);
-    await sendVoice(bot, chatId, reply);
+    await sendVoice(bot, chatId, reply, "IRIS 🌸");
   });
 }
