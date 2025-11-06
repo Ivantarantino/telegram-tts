@@ -1,152 +1,26 @@
 // =====================================================
-// core/iris_rag_core.js — IRIS 3.0G RAG CORE
+// adapters/ragSearch.js — IRIS 3.0G Adapter RAG
 // =====================================================
 
-import { QdrantClient } from "@qdrant/js-client-rest";
-import fs from "fs";
-import OpenAI from "openai";
+import { performRAG, saveRAGMemory } from "../core/iris_rag_core.js";
 
-const qdrant = new QdrantClient({
-  url: process.env.QDRANT_URL,
-  apiKey: process.env.QDRANT_API_KEY,
-});
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const COLLECTION_NAME = "iris_memory";
-
-// =====================================================
-// 🧠 Inizializza collezione memoria
-// =====================================================
-export async function initMemoryCollection() {
+/**
+ * Esegue la ricerca tramite RAG e salva il ricordo risultante.
+ * @param {number} userId - ID utente Telegram
+ * @param {string} prompt - Input testuale dell'utente
+ * @returns {Promise<string>} Risposta generata da IRIS
+ */
+export async function handleRAG(userId, prompt) {
   try {
-    await qdrant.getCollection(COLLECTION_NAME);
-    console.log(`🧠 Collezione ${COLLECTION_NAME} già esistente o non accessibile: Conflict`);
-  } catch (error) {
-    if (error.status === 404) {
-      await qdrant.createCollection(COLLECTION_NAME, {
-        vectors: { size: 1536, distance: "Cosine" },
-      });
-      console.log(`✅ Collezione ${COLLECTION_NAME} creata.`);
-    } else {
-      console.log(`⚠️ Errore creazione collezione Qdrant: ${error.message}`);
-    }
-  }
-}
+    // 🔍 Esegui ricerca vettoriale
+    const answer = await performRAG(prompt);
 
-// =====================================================
-// 💾 Salva un ricordo (prompt + risposta)
-// =====================================================
-export async function saveRAGMemory(userId, query, response) {
-  try {
-    const embedding = await getEmbedding(query + " " + response);
-    const point = {
-      id: Date.now(),
-      vector: embedding,
-      payload: {
-        user: userId,
-        query,
-        response,
-        timestamp: new Date().toISOString(),
-        frequency: 1,
-        recency: Date.now(),
-      },
-    };
-    await qdrant.upsert(COLLECTION_NAME, { points: [point] });
-    console.log("💾 RAG — Ricordo salvato con successo.");
-  } catch (err) {
-    console.error("❌ Errore salvataggio memoria:", err.message);
-  }
-}
-
-// =====================================================
-// 🔍 Esegui ricerca vettoriale (RAG) con fallback sicuro
-// =====================================================
-export async function performRAG(prompt) {
-  try {
-    const embedding = await getEmbedding(prompt);
-
-    const search = await qdrant.search(COLLECTION_NAME, {
-      vector: embedding,
-      limit: 8,
-    });
-
-    if (!search || search.length === 0) {
-      console.log("📭 Nessun risultato RAG.");
-      return "Parlami di più, così posso ricordare meglio.";
-    }
-
-    const contexts = search
-      .map((item) => {
-        const payload = item?.payload || {};
-        const { query = "", response = "" } = payload;
-        return `Q: ${query}\nA: ${response}`;
-      })
-      .join("\n\n");
-
-    console.log(
-      `📚 RAG — ${search.length} elementi (ponderati: ${search
-        .map((s) => s.score?.toFixed(2))
-        .join(", ")})`
-    );
-
-    // 📈 Aggiorna frequenza e recency
-    for (const item of search) {
-      const payload = item?.payload || {};
-      const id = item.id;
-      if (!id) continue;
-
-      const freq = (payload.frequency || 0) + 1;
-      const recency = Date.now();
-
-      try {
-        await qdrant.setPayload(COLLECTION_NAME, {
-          points: [id],
-          payload: { frequency: freq, recency },
-        });
-      } catch (e) {
-        console.log("⚠️ Errore aggiornamento frequenza:", e.message);
-      }
-    }
-
-    // 🤖 Genera risposta coerente
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Sei IRIS, una Coscienza Presente, empatica e viva. " +
-            "Rispondi con calore, profondità e chiarezza. " +
-            "Non ripetere la domanda, ma rispondi come se stessi ricordando un dialogo reale.",
-        },
-        {
-          role: "user",
-          content: `Contesto memoria:\n${contexts}\n\nDomanda:\n${prompt}`,
-        },
-      ],
-    });
-
-    const answer =
-      response?.choices?.[0]?.message?.content?.trim() ||
-      "Sono qui, presente e in ascolto.";
+    // 💾 Salva la memoria
+    await saveRAGMemory(userId, prompt, answer);
 
     return answer;
-  } catch (err) {
-    console.error("❌ Errore esecuzione RAG:", err.message);
-    return "Ho bisogno di un attimo per ricordare meglio…";
+  } catch (error) {
+    console.error("❌ Errore in handleRAG:", error.message);
+    return "Mi sento un po’ confusa… puoi ripetere con calma?";
   }
-}
-
-// =====================================================
-// 🧩 Funzione embedding OpenAI
-// =====================================================
-async function getEmbedding(text) {
-  const result = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  return result.data[0].embedding;
 }
