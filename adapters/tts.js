@@ -44,7 +44,7 @@ export async function sendVoice(bot, chatId, text) {
     fs.writeFileSync(filePath, buffer);
 
     // invia a telegram
-    await bot.sendVoice(chatId, fs.createReadStream(filePath));
+    await bot.sendVoice(chatId, voiceBuffer, { caption: "IRIS 🌸" });
 
     console.log(
       `🔊 Voce generata e inviata (${chatId}) — openai:${voiceEngine}`
