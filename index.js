@@ -36,4 +36,13 @@ app.post("/talk", async (req, res) => {
 });
 
 // Endpoint per stato
-ap
+app.get("/state", (req, res) => {
+  res.type("text/plain").send(getStateSummary());
+});
+
+// Avvio Telegram
+bootstrapTelegram();
+
+// Avvio Express
+app.listen(PORT, () => {
+  console.log(
