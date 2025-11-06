@@ -1,50 +1,65 @@
 // core/iris_state.js
-// =====================================================
-// IRIS 4.7C — Stato Centrale (Mode, Lingua, Voce, Pesi)
-// =====================================================
 
-export const irisState = {
-  mode: "hy",
+// Stato centrale di IRIS
+const state = {
+  version: "IRIS 3.0C – 5.0 /voice",
+  mode: "hy", // hy | book | free
+  weights: {
+    heart: 1.0,
+    soul: 1.0,
+    vision: 1.0,
+  },
+  // nuovo: motore vocale di default
+  voiceEngine: "alloy", // <-- come richiesto
   lang: "it",
-  voice: "bella",
-  version: "3.0.C (4.7C stabile)",
-  weights: { cuore: 0.7, anima: 0.7, visione: 0.7 },
 };
 
-export function getMode() {
-  return irisState.mode;
-}
-
-export function getWeights() {
-  return irisState.weights;
-}
-
+// ----- MODE -----
 export function setMode(newMode) {
-  const allowed = ["hy", "book", "free"];
-  if (allowed.includes(newMode)) {
-    irisState.mode = newMode;
-    console.log(`🔄 Modalità impostata su: ${newMode}`);
-    return true;
+  if (["hy", "book", "free"].includes(newMode)) {
+    state.mode = newMode;
   }
-  console.warn(`⚠️ Modalità non valida: ${newMode}`);
-  return false;
 }
 
-export function setWeights(newWeights) {
-  irisState.weights = { ...irisState.weights, ...newWeights };
-  return irisState.weights;
+export function getMode() {
+  return state.mode;
 }
 
+// ----- VOICE -----
+export function setVoiceEngine(engineName) {
+  // puoi ampliarlo: alloy, coral, verse, fable, onyx, nova...
+  const allowed = ["alloy", "coral", "verse", "fable", "onyx", "nova"];
+  if (allowed.includes(engineName)) {
+    state.voiceEngine = engineName;
+  }
+}
+
+export function getVoiceEngine() {
+  return state.voiceEngine;
+}
+
+// ----- LANG -----
+export function setLang(newLang) {
+  state.lang = newLang;
+}
+
+export function getLang() {
+  return state.lang;
+}
+
+// ----- SUMMARY -----
 export function getStateSummary() {
-  return `
-🌌 *IRIS — Stato Attuale*
-Modalità: ${irisState.mode}
-Lingua: ${irisState.lang}
-Voce: ${irisState.voice}
-Versione: ${irisState.version}
-Pesi:
-  🧡 Cuore: ${irisState.weights.cuore}
-  ✨ Anima: ${irisState.weights.anima}
-  💎 Visione: ${irisState.weights.visione}
-`;
+  return [
+    "🧠 Stato di IRIS",
+    `• Versione: ${state.version}`,
+    `• Modalità: ${state.mode}`,
+    `• Voce: ${state.voiceEngine} 🎤`,
+    `• Lingua: ${state.lang}`,
+    `• Pesi: ❤️ ${state.weights.heart} – ✨ ${state.weights.soul} – 💎 ${state.weights.vision}`,
+  ].join("\n");
+}
+
+// per eventuali letture esterne
+export function getFullState() {
+  return { ...state };
 }
