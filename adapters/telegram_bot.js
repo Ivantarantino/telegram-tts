@@ -1,8 +1,7 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
 // IRIS — Telegram Adapter (Webhook) · 5.0.5
-// Fix: i messaggi GPT NON usano più Markdown → niente mozzatura.
-// I menù restano in Markdown.
+// Pulizia menù + /model + niente markdown sui messaggi GPT
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -14,7 +13,9 @@ import {
   getStateSummary,
   setMode,
   setLang,
-  setVoice
+  setVoice,
+  setModel,
+  getModel
 } from "../core/iris_state.js";
 
 const DEFAULT_PUBLIC_URL = "https://telegram-tts.onrender.com";
@@ -49,7 +50,7 @@ export async function bootstrapTelegram(app) {
 }
 
 function registerCommands(botInstance) {
-  // /start (pulito)
+  // /start
   botInstance.onText(/^\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from?.first_name || "Amico";
@@ -162,6 +163,35 @@ function registerCommands(botInstance) {
     );
   });
 
+  // 🔹 /model
+  botInstance.onText(/^\/model(?:\s+(\S+))?/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const wanted = match[1];
+
+    // senza parametro → mostra
+    if (!wanted) {
+      const current = getModel?.() || "gpt-4o-mini";
+      await botInstance.sendMessage(
+        chatId,
+        "🤖 Modelli disponibili:\n" +
+          "• gpt-4o-mini (veloce, leggero)\n" +
+          "• gpt-4o (più profondo)\n\n" +
+          `Modello attuale: *${current}*\n\n` +
+          "Esempi:\n`/model gpt-4o-mini`\n`/model gpt-4o`",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    // con parametro → set
+    const updated = setModel?.(wanted);
+    await botInstance.sendMessage(
+      chatId,
+      `Cambio vibrazione mentale su *${updated}*.\nSarò più allineata al tuo modo di esplorare adesso.`,
+      { parse_mode: "Markdown" }
+    );
+  });
+
   // /help
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
@@ -171,7 +201,8 @@ function registerCommands(botInstance) {
       "/state – stato coscienziale\n" +
       "/essence – chi sono Io adesso (solo testo)\n" +
       "/hy /book /free – modalità\n" +
-      "/lang /voice – lingua e voce\n";
+      "/lang /voice – lingua e voce\n" +
+      "/model – scegli il modello mentale\n";
     await botInstance.sendMessage(chatId, helpText, {
       parse_mode: "Markdown"
     });
@@ -179,7 +210,7 @@ function registerCommands(botInstance) {
 }
 
 function registerMessages(botInstance) {
-  // voce → GPT → testo (senza markdown) → vocale
+  // vocale → STT → GPT → testo (senza markdown) → TTS
   botInstance.on("voice", async (msg) => {
     const chatId = msg.chat.id;
     const fileId = msg.voice.file_id;
@@ -187,8 +218,7 @@ function registerMessages(botInstance) {
     try {
       const text = await transcribeVoice(botInstance, fileId);
       const reply = await irisHeartSpeak(text, msg);
-      // ⬇️ niente parse_mode qui
-      await botInstance.sendMessage(chatId, reply);
+      await botInstance.sendMessage(chatId, reply); // ⬅️ niente Markdown
       await sendVoiceFromText(botInstance, chatId, reply);
     } catch (err) {
       console.warn("⚠️ errore gestione vocale:", err.message);
@@ -200,7 +230,7 @@ function registerMessages(botInstance) {
     }
   });
 
-  // messaggi testuali normali → GPT → testo (senza markdown) → vocale
+  // testo → GPT → testo (senza markdown) → TTS
   botInstance.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -208,8 +238,7 @@ function registerMessages(botInstance) {
 
     if (text) {
       const reply = await irisHeartSpeak(text, msg);
-      // ⬇️ niente parse_mode qui
-      await botInstance.sendMessage(chatId, reply);
+      await botInstance.sendMessage(chatId, reply); // ⬅️ niente Markdown
       try {
         await sendVoiceFromText(botInstance, chatId, reply);
       } catch (err) {
