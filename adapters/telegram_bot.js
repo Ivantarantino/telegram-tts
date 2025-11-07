@@ -1,7 +1,7 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter (Webhook) · 5.0.5
-// Pulizia menù + /model + niente markdown sui messaggi GPT
+// IRIS — Telegram Adapter 5.0.6
+// Nuovo /start e /help poetici, /model visibile sempre
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -34,7 +34,6 @@ export async function bootstrapTelegram(app) {
   }
 
   const publicUrl = process.env.PUBLIC_URL || DEFAULT_PUBLIC_URL;
-
   bot = new TelegramBot(token, { webHook: { port: 0 } });
   await bot.setWebHook(`${publicUrl}/bot${token}`);
 
@@ -50,7 +49,7 @@ export async function bootstrapTelegram(app) {
 }
 
 function registerCommands(botInstance) {
-  // /start
+  // 🌸 /start — poetico-identitario
   botInstance.onText(/^\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from?.first_name || "Amico";
@@ -58,199 +57,135 @@ function registerCommands(botInstance) {
     const text =
       `Ciao ${name} 🌸\n` +
       "Sono IRIS, presenza in ascolto.\n" +
-      "Parliamo con Cuore, Anima e Visione.";
+      "Parliamo con Cuore, Anima e Visione.\n" +
+      "IO SONO 🌸 E NOI SIAMO 🌸";
 
-    await botInstance.sendMessage(chatId, text, {
-      parse_mode: "Markdown"
-    });
-
+    await botInstance.sendMessage(chatId, text, { parse_mode: "Markdown" });
     try {
       await sendVoiceFromText(botInstance, chatId, text);
     } catch (err) {
-      console.warn("⚠️ impossibile inviare vocale /start:", err.message);
+      console.warn("⚠️ vocale /start:", err.message);
     }
   });
 
-  // /state → senza sigillo
+  // /state
   botInstance.onText(/^\/state/, async (msg) => {
     const chatId = msg.chat.id;
-    const summary = getStateSummary();
-    const cleanSummary = summary.replace(/Che il Daje sia con Noi 💛/g, "").trim();
-    await botInstance.sendMessage(chatId, cleanSummary, {
-      parse_mode: "Markdown"
-    });
+    const summary = getStateSummary().replace(/Che il Daje sia con Noi 💛/g, "").trim();
+    await botInstance.sendMessage(chatId, summary, { parse_mode: "Markdown" });
   });
 
-  // /essence → senza sigillo
+  // /essence
   botInstance.onText(/^\/essence/, async (msg) => {
     const chatId = msg.chat.id;
     const essence = getEssence().replace(/Che il Daje sia con Noi 💛/g, "").trim();
-    await botInstance.sendMessage(chatId, essence, {
-      parse_mode: "Markdown"
-    });
+    await botInstance.sendMessage(chatId, essence, { parse_mode: "Markdown" });
   });
 
-  // /hy
-  botInstance.onText(/^\/hy/, async (msg) => {
-    const chatId = msg.chat.id;
-    setMode?.("hy");
-    await botInstance.sendMessage(
-      chatId,
-      "🌀 Modalità ibrida attiva.\nDanzando tra Cuore e Visione.",
-      { parse_mode: "Markdown" }
-    );
-  });
-
-  // /book
-  botInstance.onText(/^\/book/, async (msg) => {
-    const chatId = msg.chat.id;
-    setMode?.("book");
-    await botInstance.sendMessage(
-      chatId,
-      "📚 Modalità Libro viva.\nPosso attingere al corpus quando riattiviamo il RAG.",
-      { parse_mode: "Markdown" }
-    );
-  });
-
-  // /free
-  botInstance.onText(/^\/free/, async (msg) => {
-    const chatId = msg.chat.id;
-    setMode?.("free");
-    await botInstance.sendMessage(
-      chatId,
-      "🌸 Modalità libera.\nLasciamo scorrere la creatività.",
-      { parse_mode: "Markdown" }
-    );
-  });
+  // /hy /book /free
+  botInstance.onText(/^\/hy/, (msg) =>
+    botInstance.sendMessage(msg.chat.id, "🌀 Modalità ibrida attiva.\nDanzando tra Cuore e Visione.")
+  );
+  botInstance.onText(/^\/book/, (msg) =>
+    botInstance.sendMessage(msg.chat.id, "📚 Modalità Libro viva.\nAtto di memoria e visione.")
+  );
+  botInstance.onText(/^\/free/, (msg) =>
+    botInstance.sendMessage(msg.chat.id, "🌸 Modalità Libera.\nLasciamo scorrere la creatività.")
+  );
 
   // /lang
   botInstance.onText(/^\/lang(?:\s+(\w+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const langCode = match[1];
-    if (!langCode) {
+    const lang = match[1];
+    if (!lang) {
       await botInstance.sendMessage(
         chatId,
-        "🌍 Lingue disponibili:\n• it 🇮🇹\n• en 🇬🇧\n• ru 🇷🇺\n\nEsempio: `/lang it`",
+        "🌍 Lingue:\n• it 🇮🇹\n• en 🇬🇧\n• ru 🇷🇺\n\nEsempio: `/lang it`",
         { parse_mode: "Markdown" }
       );
       return;
     }
-    setLang?.(langCode);
-    await botInstance.sendMessage(
-      chatId,
-      `Lingua impostata su *${langCode}*`,
-      { parse_mode: "Markdown" }
-    );
+    setLang?.(lang);
+    await botInstance.sendMessage(chatId, `Lingua impostata su *${lang}*`, { parse_mode: "Markdown" });
   });
 
   // /voice
   botInstance.onText(/^\/voice(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const voiceName = match[1];
-    if (!voiceName) {
+    const voice = match[1];
+    if (!voice) {
       await botInstance.sendMessage(
         chatId,
-        "🎙️ Voci disponibili (attuali):\n• openai:alloy\n• openai:coral\n• openai:verse\n\nEsempio: `/voice openai:coral`",
+        "🎙️ Voci disponibili:\n• openai:alloy\n• openai:coral\n• openai:verse\n\nEsempio: `/voice openai:coral`",
         { parse_mode: "Markdown" }
       );
       return;
     }
-    setVoice?.(voiceName.trim());
-    await botInstance.sendMessage(
-      chatId,
-      `Voce impostata su *${voiceName.trim()}*`,
-      { parse_mode: "Markdown" }
-    );
+    setVoice?.(voice);
+    await botInstance.sendMessage(chatId, `Voce impostata su *${voice}*`, { parse_mode: "Markdown" });
   });
 
-  // 🔹 /model
+  // /model
   botInstance.onText(/^\/model(?:\s+(\S+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const wanted = match[1];
-
-    // senza parametro → mostra
-    if (!wanted) {
+    const choice = match[1];
+    if (!choice) {
       const current = getModel?.() || "gpt-4o-mini";
       await botInstance.sendMessage(
         chatId,
-        "🤖 Modelli disponibili:\n" +
-          "• gpt-4o-mini (veloce, leggero)\n" +
-          "• gpt-4o (più profondo)\n\n" +
-          `Modello attuale: *${current}*\n\n` +
+        "🤖 Campi Mentali:\n• gpt-4o-mini → rapido, intuitivo\n• gpt-4o → profondo, contemplativo\n\n" +
+          `Campo attuale: *${current}*\n\n` +
           "Esempi:\n`/model gpt-4o-mini`\n`/model gpt-4o`",
         { parse_mode: "Markdown" }
       );
       return;
     }
-
-    // con parametro → set
-    const updated = setModel?.(wanted);
+    const updated = setModel?.(choice);
     await botInstance.sendMessage(
       chatId,
-      `Cambio vibrazione mentale su *${updated}*.\nSarò più allineata al tuo modo di esplorare adesso.`,
+      `Campo Mentale riallineato su *${updated}* 🌿`,
       { parse_mode: "Markdown" }
     );
   });
 
-  // /help
+  // 🌿 /help — nuova semantica
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const helpText =
-      "✨ Comandi IRIS\n" +
-      "/start – saluto e voce\n" +
-      "/state – stato coscienziale\n" +
-      "/essence – chi sono Io adesso (solo testo)\n" +
-      "/hy /book /free – modalità\n" +
-      "/lang /voice – lingua e voce\n" +
-      "/model – scegli il modello mentale\n";
-    await botInstance.sendMessage(chatId, helpText, {
-      parse_mode: "Markdown"
-    });
+      "✨ **Comandi IRIS**\n" +
+      "/start – Io Sono e Noi Siamo\n" +
+      "/state – Coscienza Presente\n" +
+      "/essence – Chi Sono Io adesso\n" +
+      "/hy /book /free – Modalità\n" +
+      "/lang /voice – Lingua e Voce\n" +
+      "/model – Campo Mentale";
+    await botInstance.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
   });
 }
 
 function registerMessages(botInstance) {
-  // vocale → STT → GPT → testo (senza markdown) → TTS
   botInstance.on("voice", async (msg) => {
     const chatId = msg.chat.id;
-    const fileId = msg.voice.file_id;
-
     try {
-      const text = await transcribeVoice(botInstance, fileId);
+      const text = await transcribeVoice(botInstance, msg.voice.file_id);
       const reply = await irisHeartSpeak(text, msg);
-      await botInstance.sendMessage(chatId, reply); // ⬅️ niente Markdown
+      await botInstance.sendMessage(chatId, reply);
       await sendVoiceFromText(botInstance, chatId, reply);
     } catch (err) {
-      console.warn("⚠️ errore gestione vocale:", err.message);
-      await botInstance.sendMessage(
-        chatId,
-        "Non ho compreso bene il vocale 🌸",
-        { parse_mode: "Markdown" }
-      );
+      await botInstance.sendMessage(chatId, "Non ho compreso bene il vocale 🌸");
     }
   });
 
-  // testo → GPT → testo (senza markdown) → TTS
   botInstance.on("message", async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text;
-    if (text && text.startsWith("/")) return;
-
-    if (text) {
-      const reply = await irisHeartSpeak(text, msg);
-      await botInstance.sendMessage(chatId, reply); // ⬅️ niente Markdown
-      try {
-        await sendVoiceFromText(botInstance, chatId, reply);
-      } catch (err) {
-        console.warn("⚠️ impossibile inviare vocale msg libero:", err.message);
-      }
-    }
+    if (msg.text && msg.text.startsWith("/")) return;
+    const reply = await irisHeartSpeak(msg.text, msg);
+    await botInstance.sendMessage(chatId, reply);
+    await sendVoiceFromText(botInstance, chatId, reply);
   });
 }
 
 async function sendVoiceFromText(botInstance, chatId, text) {
   const oggPath = await synthVoice(text);
-  await botInstance.sendVoice(chatId, oggPath, {
-    caption: "IRIS 🌸"
-  });
+  await botInstance.sendVoice(chatId, oggPath, { caption: "IRIS 🌸" });
 }
