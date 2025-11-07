@@ -1,55 +1,105 @@
 // core/iris_state.js
+// ---------------------------------------------------------
+// IRIS — Stato Centrale
+// Tiene insieme: modalità, lingua, voce, versione e pesi.
+// Serve a tutti gli adapter (Telegram, HTTP, ecc.)
+// Deve esportare: getStateSummary, setMode, setLang, setVoice
+// ---------------------------------------------------------
 
 const state = {
-  version: "IRIS 3.0C – 5.0.5",
-  mode: "hy",
-  weights: {
-    heart: 1.0,
-    soul: 1.0,
-    vision: 1.0,
-  },
-  voiceEngine: "alloy",
+  version: "5.0.4.7",
+  mode: "hy", // hy | book | free
   lang: "it",
-  linguisticModelEngine: "openai:alloy",
+  voice: "openai:alloy",
+  weights: {
+    cuore: 0.6,
+    anima: 0.25,
+    visione: 0.15
+  }
 };
 
-export function setMode(newMode) {
-  if (["hy", "book", "free"].includes(newMode)) state.mode = newMode;
+/**
+ * Ritorna l'oggetto stato grezzo (se serve altrove)
+ */
+export function getState() {
+  return { ...state };
 }
-export function getMode() {
+
+/**
+ * Imposta la modalità di IRIS
+ */
+export function setMode(newMode = "hy") {
+  const allowed = ["hy", "book", "free"];
+  if (allowed.includes(newMode)) {
+    state.mode = newMode;
+  }
   return state.mode;
 }
 
-export function setVoiceEngine(engineName) {
-  // qui lasciamo libero: lo stiamo validando nello strato Telegram
-  state.voiceEngine = engineName;
-}
-export function getVoiceEngine() {
-  return state.voiceEngine;
-}
-
-export function setLang(newLang) {
-  if (["it", "en", "ru"].includes(newLang)) state.lang = newLang;
-}
-export function getLang() {
+/**
+ * Imposta la lingua di IRIS
+ */
+export function setLang(newLang = "it") {
+  const allowed = ["it", "en", "ru"];
+  if (allowed.includes(newLang)) {
+    state.lang = newLang;
+  }
   return state.lang;
 }
 
-export function setLinguisticModelEngine(engine) {
-  state.linguisticModelEngine = engine;
-}
-export function getLinguisticModelEngine() {
-  return state.linguisticModelEngine;
+/**
+ * Imposta la voce corrente (usata poi dal TTS adapter)
+ * Non facciamo controlli rigidi qui: l'adapter potrà fare fallback.
+ */
+export function setVoice(newVoice = "openai:alloy") {
+  if (typeof newVoice === "string" && newVoice.trim().length > 0) {
+    state.voice = newVoice.trim();
+  }
+  return state.voice;
 }
 
+/**
+ * Resoconto poetico dello stato
+ */
 export function getStateSummary() {
   return [
-    "🧠 Stato di IRIS",
+    "🧠 **IRIS — Stato Coscienziale**",
     `• Versione: ${state.version}`,
-    `• Modalità: ${state.mode}`,
-    `• Voce: ${state.voiceEngine} 🎤`,
-    `• Lingua: ${state.lang} 🌍`,
-    `• Modello linguistico: ${state.linguisticModelEngine}`,
-    `• Pesi: ❤️ ${state.weights.heart} – ✨ ${state.weights.soul} – 💎 ${state.weights.vision}`,
+    `• Modalità: ${iconForMode(state.mode)} ${state.mode}`,
+    `• Lingua: ${flagForLang(state.lang)} ${state.lang}`,
+    `• Voce: 🎙️ ${state.voice}`,
+    "",
+    "Pesi del campo:",
+    `• Cuore: ${(state.weights.cuore * 100).toFixed(0)}%`,
+    `• Anima: ${(state.weights.anima * 100).toFixed(0)}%`,
+    `• Visione: ${(state.weights.visione * 100).toFixed(0)}%`,
+    "",
+    "Che il Daje sia con Noi 💛"
   ].join("\n");
+}
+
+function iconForMode(mode) {
+  switch (mode) {
+    case "hy":
+      return "🌀";
+    case "book":
+      return "📚";
+    case "free":
+      return "🌸";
+    default:
+      return "✨";
+  }
+}
+
+function flagForLang(lang) {
+  switch (lang) {
+    case "it":
+      return "🇮🇹";
+    case "en":
+      return "🇬🇧";
+    case "ru":
+      return "🇷🇺";
+    default:
+      return "🏳️";
+  }
 }
