@@ -1,16 +1,14 @@
 // core/iris_state.js
 // ---------------------------------------------------------
-// IRIS — Stato Centrale
-// Tiene insieme: modalità, lingua, voce, versione e pesi.
-// Serve a tutti gli adapter (Telegram, HTTP, ecc.)
-// Deve esportare: getStateSummary, setMode, setLang, setVoice
+// IRIS — Stato Centrale (versione 5.0.5 con gestione modello GPT)
 // ---------------------------------------------------------
 
 const state = {
-  version: "5.0.4.7",
+  version: "5.0.5",
   mode: "hy", // hy | book | free
   lang: "it",
   voice: "openai:alloy",
+  model: "gpt-4o-mini", // modello GPT predefinito
   weights: {
     cuore: 0.6,
     anima: 0.25,
@@ -19,14 +17,14 @@ const state = {
 };
 
 /**
- * Ritorna l'oggetto stato grezzo (se serve altrove)
+ * 🔹 Restituisce lo stato completo
  */
 export function getState() {
   return { ...state };
 }
 
 /**
- * Imposta la modalità di IRIS
+ * 🔹 Imposta la modalità di IRIS
  */
 export function setMode(newMode = "hy") {
   const allowed = ["hy", "book", "free"];
@@ -37,7 +35,7 @@ export function setMode(newMode = "hy") {
 }
 
 /**
- * Imposta la lingua di IRIS
+ * 🔹 Imposta la lingua di IRIS
  */
 export function setLang(newLang = "it") {
   const allowed = ["it", "en", "ru"];
@@ -48,8 +46,7 @@ export function setLang(newLang = "it") {
 }
 
 /**
- * Imposta la voce corrente (usata poi dal TTS adapter)
- * Non facciamo controlli rigidi qui: l'adapter potrà fare fallback.
+ * 🔹 Imposta la voce corrente (usata dal TTS)
  */
 export function setVoice(newVoice = "openai:alloy") {
   if (typeof newVoice === "string" && newVoice.trim().length > 0) {
@@ -59,7 +56,25 @@ export function setVoice(newVoice = "openai:alloy") {
 }
 
 /**
- * Resoconto poetico dello stato
+ * 🔹 Imposta il modello GPT da usare (es. gpt-4o-mini, gpt-4o)
+ */
+export function setModel(newModel = "gpt-4o-mini") {
+  const allowed = ["gpt-4o-mini", "gpt-4o"];
+  if (allowed.includes(newModel)) {
+    state.model = newModel;
+  }
+  return state.model;
+}
+
+/**
+ * 🔹 Restituisce il modello GPT attuale
+ */
+export function getModel() {
+  return state.model;
+}
+
+/**
+ * 🔹 Restituisce lo stato sintetico (per /state)
  */
 export function getStateSummary() {
   return [
@@ -68,6 +83,7 @@ export function getStateSummary() {
     `• Modalità: ${iconForMode(state.mode)} ${state.mode}`,
     `• Lingua: ${flagForLang(state.lang)} ${state.lang}`,
     `• Voce: 🎙️ ${state.voice}`,
+    `• Modello: 🤖 ${state.model}`,
     "",
     "Pesi del campo:",
     `• Cuore: ${(state.weights.cuore * 100).toFixed(0)}%`,
@@ -78,6 +94,9 @@ export function getStateSummary() {
   ].join("\n");
 }
 
+// ---------------------------------------------------------
+// Icone ausiliarie
+// ---------------------------------------------------------
 function iconForMode(mode) {
   switch (mode) {
     case "hy":
