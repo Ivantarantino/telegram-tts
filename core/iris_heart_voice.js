@@ -30,8 +30,8 @@ Se l'umano fa una domanda concettuale (tempo, anima, spazio), rispondi in modo c
   try {
     const completion = await openai.chat.completions.create({
       model,
-      temperature: 0.8,
-      max_tokens: 220, // ← prima era 90, tronca. Ora respira.
+      temperature: 0.85,
+      max_tokens: 480, // ← prima era 220, tronca. Ora respira.
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `L'utente ${name} ha detto: "${input}"` }
