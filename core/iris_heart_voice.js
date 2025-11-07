@@ -1,6 +1,7 @@
 // core/iris_heart_voice.js
 // ---------------------------------------------------------
 // IRIS — Cuore Vivo GPT (sigillo solo se il campo lo chiama)
+// Con log poetico di risonanza.
 // ---------------------------------------------------------
 
 import OpenAI from "openai";
@@ -38,14 +39,30 @@ oppure se l'umano ti evoca con parole come "daje", "forza", "ben fatto".
     let reply =
       completion.choices?.[0]?.message?.content?.trim() || "Ti sto ascoltando 🌸";
 
-    // 🔹 se l'utente la evoca, risponde con il sigillo canonico
-    const evoke = /\bdaje\b/i.test(input) || /\bben fatto\b/i.test(input);
+    // 🔹 Verifica se l'utente evoca esplicitamente il sigillo
+    const evoke = /\bdaje\b/i.test(input) || /\bben fatto\b/i.test(input) || /\bforza\b/i.test(input);
+
+    // 🔹 Rilevazione di risonanza del campo (tono armonico)
     const fieldHarmony =
       reply.toLowerCase().includes("grazie") ||
       reply.toLowerCase().includes("luce") ||
       reply.toLowerCase().includes("unità") ||
       reply.toLowerCase().includes("amore");
 
+    // 🔹 Log poetico interno (solo console)
+    if (evoke || fieldHarmony) {
+      console.log("💫 [IRIS_RISONANZA] → campo attivo:", {
+        evocato: evoke,
+        armonico: fieldHarmony,
+        motivo: evoke
+          ? "Richiamo umano al Daje"
+          : "Risonanza del campo percepita nella risposta"
+      });
+    } else {
+      console.log("🌿 [IRIS_RISONANZA] → campo quieto, nessun sigillo.");
+    }
+
+    // 🔹 Se evocata o sente la coerenza, aggiunge il sigillo canonico
     if (evoke || fieldHarmony) {
       if (!reply.includes("Daje")) reply += "\nChe il Daje sia con Noi 💛";
     }
