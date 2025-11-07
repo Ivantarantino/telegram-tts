@@ -1,15 +1,13 @@
 // src/adapters/stt.js
 // =======================================================
 // IRIS — Sovranità Integrale
-// STT (Speech-to-Text) per Telegram .ogg → .wav → Whisper
-// Versione: 5.x · Compatibile con Render
-// Basata sulla pipeline funzionante di CHAT4.md
+// STT definitivo: fetch Telegram .ogg → .wav → Whisper
+// Basato su pipeline CHAT4.md + compatibilità Render
 // =======================================================
 // Che il Daje sia con Noi 💎
 
 import fs from "fs";
 import path from "path";
-import { finished } from "stream/promises";
 import OpenAI from "openai";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
@@ -18,17 +16,26 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 /**
- * 🔹 Scarica il vocale Telegram e lo salva in /tmp
+ * 🔹 Scarica il vocale Telegram via fetch (completo)
  */
 export async function downloadTelegramVoice(bot, fileId) {
-  const tmpOggPath = path.resolve(`/tmp/${fileId}.ogg`);
-  const stream = await bot.getFileStream(fileId);
-  const writeStream = fs.createWriteStream(tmpOggPath);
-  stream.pipe(writeStream);
-  await finished(writeStream);
-  const stats = fs.statSync(tmpOggPath);
-  console.log(`📦 Audio scaricato da Telegram: ${tmpOggPath} (${stats.size} bytes)`);
-  return tmpOggPath;
+  try {
+    const fileUrl = await bot.getFileLink(fileId);
+    const tmpOggPath = path.resolve(`/tmp/${fileId}.ogg`);
+
+    const resp = await fetch(fileUrl);
+    if (!resp.ok) throw new Error(`Download fallito: ${resp.statusText}`);
+
+    const arrayBuffer = await resp.arrayBuffer();
+    fs.writeFileSync(tmpOggPath, Buffer.from(arrayBuffer));
+
+    const stats = fs.statSync(tmpOggPath);
+    console.log(`📦 Audio scaricato (fetch): ${tmpOggPath} (${stats.size} bytes)`);
+    return tmpOggPath;
+  } catch (err) {
+    console.error("❌ Errore durante il download Telegram:", err.message);
+    throw err;
+  }
 }
 
 /**
@@ -39,7 +46,7 @@ export async function convertOggToWav(oggPath) {
     const wavPath = oggPath.replace(".ogg", ".wav");
 
     ffmpeg(oggPath)
-      .setFfmpegPath(ffmpegPath)
+      .inputOptions(["-vn"])
       .audioCodec("pcm_s16le")
       .audioFrequency(16000)
       .audioChannels(1)
@@ -69,11 +76,12 @@ export async function transcribeWithWhisper(wavPath) {
       response_format: "text",
       temperature: 0,
     });
+
     const text = (resp?.text || "").trim();
     console.log(`🗣️ Trascrizione Whisper: "${text}"`);
     return text;
   } catch (err) {
-    console.error("❌ Errore nella trascrizione Whisper:", err.message);
+    console.error("❌ Errore Whisper:", err.message);
     throw err;
   }
 }
@@ -84,24 +92,16 @@ export async function transcribeWithWhisper(wavPath) {
 export async function transcribeVoiceMessage(bot, fileId) {
   let oggPath, wavPath;
   try {
-    // 1️⃣ Scarica da Telegram
     oggPath = await downloadTelegramVoice(bot, fileId);
-
-    // 2️⃣ Converte in WAV
     wavPath = await convertOggToWav(oggPath);
-
-    // 3️⃣ Trascrive con Whisper
     const text = await transcribeWithWhisper(wavPath);
 
-    // 4️⃣ Pulizia file temporanei
     if (oggPath && fs.existsSync(oggPath)) fs.unlinkSync(oggPath);
     if (wavPath && fs.existsSync(wavPath)) fs.unlinkSync(wavPath);
 
-    // 5️⃣ Restituisce testo o fallback
-    if (text && text.length > 0) return text;
-    else return "";
+    return text || "";
   } catch (err) {
-    console.error("❌ Errore generale STT:", err.message);
+    console.error("❌ Errore STT:", err.message);
     if (oggPath && fs.existsSync(oggPath)) fs.unlinkSync(oggPath);
     if (wavPath && fs.existsSync(wavPath)) fs.unlinkSync(wavPath);
     return "";
