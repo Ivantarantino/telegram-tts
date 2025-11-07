@@ -1,6 +1,7 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter 5.0.7 (fix definitivo /model)
+// IRIS — Telegram Adapter 5.0.7 (fix finale /model visibile)
+// Basato su CHAT5 + CHAT7
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -31,11 +32,6 @@ export async function bootstrapTelegram(app) {
     process.env.BOT_TOKEN ||
     process.env.TELEGRAM_TOKEN;
 
-  // NON usciamo, logghiamo soltanto
-  if (!token) {
-    console.warn("⚠️ Nessun token Telegram trovato (proseguo comunque).");
-  }
-
   const publicUrl = process.env.PUBLIC_URL || DEFAULT_PUBLIC_URL;
   const activeToken = token || "MISSING_TELEGRAM_TOKEN";
 
@@ -48,7 +44,6 @@ export async function bootstrapTelegram(app) {
   });
 
   console.log(`🤖 Telegram Bot attivo in webhook su: ${publicUrl}/bot${activeToken}`);
-
   registerCommands(bot);
   registerMessages(bot);
 }
@@ -144,7 +139,7 @@ Campo attuale: ${current}`
     await bot.sendMessage(chatId, `Campo Mentale riallineato su ${updated} 🌿`);
   });
 
-  // /heart — ampiezza del Cuore
+  // /heart
   bot.onText(/^\/heart(?:\s+(\d+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const val = match[1];
@@ -160,7 +155,7 @@ Campo attuale: ${current}`
     await bot.sendMessage(chatId, `💫 Cuore espanso a ${newVal}/100.`);
   });
 
-  // /help — SPEZZATO IN DUE MESSAGGI
+  // /help — doppio invio con piccolo ritardo per mostrare /model
   bot.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -178,9 +173,9 @@ Campo attuale: ${current}`
 /heart – Ampiezza del Cuore
 `.trim();
 
-    // primo messaggio
     await bot.sendMessage(chatId, helpPart1);
-    // secondo messaggio: contiene /model, così NON può sparire
+    // Ritardo di 100 ms tra i due invii (fix storico CHAT5)
+    await new Promise((r) => setTimeout(r, 100));
     await bot.sendMessage(chatId, helpPart2);
   });
 }
@@ -189,7 +184,6 @@ Campo attuale: ${current}`
 // MESSAGGI
 // ---------------------------------------------------------
 function registerMessages(bot) {
-  // vocali
   bot.on("voice", async (msg) => {
     const chatId = msg.chat.id;
     try {
@@ -197,27 +191,21 @@ function registerMessages(bot) {
       const reply = await irisHeartSpeak(text, msg);
       await bot.sendMessage(chatId, reply);
       await sendVoice(bot, chatId, reply);
-    } catch (err) {
-      console.warn("⚠️ errore gestione vocale:", err.message);
+    } catch {
       await bot.sendMessage(chatId, "Non ho compreso bene il vocale 🌸");
     }
   });
 
-  // messaggi testuali non-comando
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
-    if (text && text.startsWith("/")) return;
-    if (!text) return;
+    if (!text || text.startsWith("/")) return;
     const reply = await irisHeartSpeak(text, msg);
     await bot.sendMessage(chatId, reply);
     await sendVoice(bot, chatId, reply);
   });
 }
 
-// ---------------------------------------------------------
-// Funzione per inviare vocale
-// ---------------------------------------------------------
 async function sendVoice(bot, chatId, text) {
   try {
     const oggPath = await synthVoice(text);
