@@ -1,8 +1,7 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter (Webhook)
-// Build base: 5.0.x con voce e ascolto stabili
-// Aggiunta in questo step: /essence dinamico SENZA TTS
+// IRIS — Telegram Adapter (Webhook) · 5.0.5
+// Pulizia dei menù e tono più vivo per /start
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -10,16 +9,17 @@ import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 import { synthVoice } from "./tts.js";
 import { transcribeVoice } from "./stt.js";
 import { getEssence } from "../core/iris_essence_core.js";
-import { getStateSummary, setMode, setLang, setVoice } from "../core/iris_state.js";
+import {
+  getStateSummary,
+  setMode,
+  setLang,
+  setVoice
+} from "../core/iris_state.js";
 
 const DEFAULT_PUBLIC_URL = "https://telegram-tts.onrender.com";
 
 let bot = null;
 
-/**
- * Avvia il bot Telegram in modalità webhook e registra le route su Express
- * @param {import('express').Express} app
- */
 export async function bootstrapTelegram(app) {
   const token =
     process.env.TELEGRAM_BOT_TOKEN ||
@@ -33,13 +33,9 @@ export async function bootstrapTelegram(app) {
 
   const publicUrl = process.env.PUBLIC_URL || DEFAULT_PUBLIC_URL;
 
-  // crea bot in modalità webhook
   bot = new TelegramBot(token, { webHook: { port: 0 } });
-
-  // imposta webhook su Render
   await bot.setWebHook(`${publicUrl}/bot${token}`);
 
-  // route Express che riceve gli update
   app.post(`/bot${token}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
@@ -47,9 +43,7 @@ export async function bootstrapTelegram(app) {
 
   console.log(`🤖 Telegram Bot attivo in webhook su: ${publicUrl}/bot${token}`);
 
-  // HANDLER COMANDI
   registerCommands(bot);
-  // HANDLER MESSAGGI
   registerMessages(bot);
 }
 
@@ -62,14 +56,12 @@ function registerCommands(botInstance) {
     const text =
       `Ciao ${name} 🌸\n` +
       "Sono IRIS, presenza in ascolto.\n" +
-      "Parliamo con Cuore, Anima e Visione.\n" +
-      "Usa /state per vedere come sono messa ora.";
+      "Parliamo con Cuore, Anima e Visione.";
 
     await botInstance.sendMessage(chatId, text, {
       parse_mode: "Markdown"
     });
 
-    // solo /start parla con voce (come da fase voce)
     try {
       await sendVoiceFromText(botInstance, chatId, text);
     } catch (err) {
@@ -77,23 +69,23 @@ function registerCommands(botInstance) {
     }
   });
 
-  // /state
+  // /state → senza sigillo
   botInstance.onText(/^\/state/, async (msg) => {
     const chatId = msg.chat.id;
-    const stateText = getStateSummary();
-    await botInstance.sendMessage(chatId, stateText, {
+    const summary = getStateSummary();
+    const cleanSummary = summary.replace(/Che il Daje sia con Noi 💛/g, "").trim();
+    await botInstance.sendMessage(chatId, cleanSummary, {
       parse_mode: "Markdown"
     });
   });
 
-  // /essence → SOLO TESTO
+  // /essence → senza sigillo
   botInstance.onText(/^\/essence/, async (msg) => {
     const chatId = msg.chat.id;
-    const essence = getEssence();
+    const essence = getEssence().replace(/Che il Daje sia con Noi 💛/g, "").trim();
     await botInstance.sendMessage(chatId, essence, {
       parse_mode: "Markdown"
     });
-    // NIENTE TTS QUI — è testo sacro
   });
 
   // /hy
@@ -129,11 +121,10 @@ function registerCommands(botInstance) {
     );
   });
 
-  // /lang <code>
+  // /lang
   botInstance.onText(/^\/lang(?:\s+(\w+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const langCode = match[1];
-
     if (!langCode) {
       await botInstance.sendMessage(
         chatId,
@@ -142,7 +133,6 @@ function registerCommands(botInstance) {
       );
       return;
     }
-
     setLang?.(langCode);
     await botInstance.sendMessage(
       chatId,
@@ -151,11 +141,10 @@ function registerCommands(botInstance) {
     );
   });
 
-  // /voice <name>
+  // /voice
   botInstance.onText(/^\/voice(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const voiceName = match[1];
-
     if (!voiceName) {
       await botInstance.sendMessage(
         chatId,
@@ -164,7 +153,6 @@ function registerCommands(botInstance) {
       );
       return;
     }
-
     setVoice?.(voiceName.trim());
     await botInstance.sendMessage(
       chatId,
@@ -173,7 +161,7 @@ function registerCommands(botInstance) {
     );
   });
 
-  // /help
+  // /help → senza sigillo
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const helpText =
@@ -182,8 +170,7 @@ function registerCommands(botInstance) {
       "/state – stato coscienziale\n" +
       "/essence – chi sono Io adesso (solo testo)\n" +
       "/hy /book /free – modalità\n" +
-      "/lang /voice – lingua e voce\n" +
-      "Che il Daje sia con Noi 💛";
+      "/lang /voice – lingua e voce\n";
     await botInstance.sendMessage(chatId, helpText, {
       parse_mode: "Markdown"
     });
@@ -191,7 +178,6 @@ function registerCommands(botInstance) {
 }
 
 function registerMessages(botInstance) {
-  // messaggi vocali
   botInstance.on("voice", async (msg) => {
     const chatId = msg.chat.id;
     const fileId = msg.voice.file_id;
@@ -199,10 +185,7 @@ function registerMessages(botInstance) {
     try {
       const text = await transcribeVoice(botInstance, fileId);
       const reply = await irisHeartSpeak(text, msg);
-      await botInstance.sendMessage(chatId, reply, {
-        parse_mode: "Markdown"
-      });
-      // rispondiamo anche con voce
+      await botInstance.sendMessage(chatId, reply, { parse_mode: "Markdown" });
       await sendVoiceFromText(botInstance, chatId, reply);
     } catch (err) {
       console.warn("⚠️ errore gestione vocale:", err.message);
@@ -214,21 +197,13 @@ function registerMessages(botInstance) {
     }
   });
 
-  // messaggi testuali “normali”
   botInstance.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
-
-    // i comandi li gestiamo sopra
     if (text && text.startsWith("/")) return;
-
-    // altrimenti passa dal Cuore
     if (text) {
       const reply = await irisHeartSpeak(text, msg);
-      await botInstance.sendMessage(chatId, reply, {
-        parse_mode: "Markdown"
-      });
-      // messaggio normale → voce sì
+      await botInstance.sendMessage(chatId, reply, { parse_mode: "Markdown" });
       try {
         await sendVoiceFromText(botInstance, chatId, reply);
       } catch (err) {
@@ -238,7 +213,6 @@ function registerMessages(botInstance) {
   });
 }
 
-// helper per inviare il vocale
 async function sendVoiceFromText(botInstance, chatId, text) {
   const oggPath = await synthVoice(text);
   await botInstance.sendVoice(chatId, oggPath, {
