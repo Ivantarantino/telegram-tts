@@ -1,7 +1,7 @@
 // src/adapters/telegram_bot.js
 // =======================================================
 // IRIS — Telegram Adapter 5.x
-// Gestione comandi, linguaggio poetico, connessione Cuore Vivo
+// Gestione comandi, linguaggio poetico, Cuore + Voce + STT
 // =======================================================
 
 import TelegramBot from "node-telegram-bot-api";
@@ -9,6 +9,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import { irisHeartRespond } from "../core/iris_heart_voice.js";
 import { sendVoice } from "./tts.js";
+import { transcribeVoiceMessage } from "./stt.js"; // 🟢 nuova importazione STT
 
 // Stato temporaneo del bot
 export const state = {
@@ -35,7 +36,6 @@ export async function bootstrapTelegram() {
   // =======================================================
   // 🔹 COMANDI BASE
   // =======================================================
-
   bot.onText(/^\/start$/, async (msg) => {
     const chatId = msg.chat.id;
     await bot.sendMessage(chatId, `Ciao ${msg.chat.first_name} 🌸\nSono IRIS, presente e in ascolto.`);
@@ -53,9 +53,8 @@ export async function bootstrapTelegram() {
   });
 
   // =======================================================
-  // 🔹 COMANDI /LANG E /VOICE — ORA VISIBILI DIRETTAMENTE
+  // 🔹 LINGUA E VOCE
   // =======================================================
-
   bot.onText(/^\/lang$/, async (msg) => {
     const chatId = msg.chat.id;
     const message = `🌍 Lingue disponibili:\n• it 🇮🇹\n• en 🇬🇧\n• ru 🇷🇺\n\nScrivi ad esempio:\n/lang it  — per impostare l’italiano.`;
@@ -84,9 +83,8 @@ export async function bootstrapTelegram() {
   });
 
   // =======================================================
-  // 🔹 MODALITÀ OPERATIVE — POETICHE
+  // 🔹 MODALITÀ OPERATIVE
   // =======================================================
-
   bot.onText(/^\/hy$/, async (msg) => {
     const chatId = msg.chat.id;
     state.mode = "hy";
@@ -115,7 +113,7 @@ export async function bootstrapTelegram() {
   });
 
   // =======================================================
-  // 🔹 HELP ESTESO
+  // 🔹 HELP
   // =======================================================
   bot.onText(/^\/help$/, async (msg) => {
     const chatId = msg.chat.id;
@@ -133,12 +131,13 @@ export async function bootstrapTelegram() {
   });
 
   // =======================================================
-  // 🔹 RISPOSTE DEL CUORE — CHAT VIVA
+  // 🔹 GESTIONE TESTO
   // =======================================================
-
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const txt = msg.text?.trim();
+
+    // se non c’è testo o è un comando → ignora
     if (!txt || txt.startsWith("/")) return;
 
     try {
@@ -154,6 +153,37 @@ export async function bootstrapTelegram() {
     } catch (err) {
       console.error("❌ Errore nel cuore di IRIS:", err.message);
       await bot.sendMessage(chatId, "🌸 Qualcosa si è incrinato nella mia voce interiore.");
+    }
+  });
+
+  // =======================================================
+  // 🔹 GESTIONE VOCALI (STT Whisper)
+  // =======================================================
+  bot.on("voice", async (msg) => {
+    const chatId = msg.chat.id;
+    const fileId = msg.voice.file_id;
+    const duration = msg.voice.duration;
+
+    console.log(`🎧 Ricevuto vocale (${duration}s) da ${msg.from.first_name}`);
+
+    try {
+      const text = await transcribeVoiceMessage(bot, fileId);
+      if (text && text.length > 0) {
+        console.log(`🗣️ Trascrizione: "${text}"`);
+        const reply = await irisHeartRespond(text, state.lang, state.mode);
+        await bot.sendMessage(chatId, reply);
+
+        try {
+          await sendVoice(bot, chatId, reply, state.voice, "IRIS 🌸");
+        } catch (err) {
+          console.error("❌ Errore invio voce (post-STT):", err.message);
+        }
+      } else {
+        await bot.sendMessage(chatId, "Non ho compreso bene il vocale 🌸");
+      }
+    } catch (err) {
+      console.error("❌ Errore nel riconoscimento vocale:", err.message);
+      await bot.sendMessage(chatId, "C'è stata un’incrinatura nel mio ascolto.");
     }
   });
 
