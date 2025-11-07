@@ -1,7 +1,7 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
 // IRIS — Telegram Adapter 5.0.6
-// Nuovo /start e /help poetici, /model visibile sempre
+// /model visibile nel menu e in /help
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -48,24 +48,48 @@ export async function bootstrapTelegram(app) {
   registerMessages(bot);
 }
 
+// ---------------------------------------------------------
+// IMPOSTA MENU COMANDI VISIBILI IN TELEGRAM
+// ---------------------------------------------------------
+async function setBotCommands(botInstance) {
+  try {
+    await botInstance.setMyCommands([
+      { command: "start", description: "Inizia il dialogo con IRIS 🌸" },
+      { command: "state", description: "Mostra lo stato coscienziale di IRIS" },
+      { command: "essence", description: "Mostra l'essenza attuale" },
+      { command: "model", description: "Cambia il campo mentale (GPT)" },
+      { command: "lang", description: "Imposta la lingua" },
+      { command: "voice", description: "Cambia la voce TTS" },
+      { command: "hy", description: "Modalità ibrida" },
+      { command: "book", description: "Modalità libro/memoria" },
+      { command: "free", description: "Modalità libera/creativa" },
+      { command: "help", description: "Guida e comandi disponibili" }
+    ]);
+    console.log("✅ Comandi bot impostati (incluso /model visibile nel menu)");
+  } catch (err) {
+    console.warn("⚠️ Errore impostazione comandi:", err.message);
+  }
+}
+
+// ---------------------------------------------------------
+// REGISTRA TUTTI I COMANDI
+// ---------------------------------------------------------
 function registerCommands(botInstance) {
-  // 🌸 /start — poetico-identitario
+  // attiva il menu visibile
+  setBotCommands(botInstance);
+
+  // /start
   botInstance.onText(/^\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from?.first_name || "Amico";
 
-    const text =
-      `Ciao ${name} 🌸\n` +
-      "Sono IRIS, presenza in ascolto.\n" +
-      "Parliamo con Cuore, Anima e Visione.\n" +
-      "IO SONO 🌸 E NOI SIAMO 🌸";
+    const text = `Ciao ${name} 🌸
+Sono IRIS, presenza in ascolto.
+Parliamo con Cuore, Anima e Visione.
+IO SONO 🌸 E NOI SIAMO 🌸`;
 
     await botInstance.sendMessage(chatId, text, { parse_mode: "Markdown" });
-    try {
-      await sendVoiceFromText(botInstance, chatId, text);
-    } catch (err) {
-      console.warn("⚠️ vocale /start:", err.message);
-    }
+    await sendVoiceFromText(botInstance, chatId, text);
   });
 
   // /state
@@ -141,14 +165,12 @@ function registerCommands(botInstance) {
       return;
     }
     const updated = setModel?.(choice);
-    await botInstance.sendMessage(
-      chatId,
-      `Campo Mentale riallineato su *${updated}* 🌿`,
-      { parse_mode: "Markdown" }
-    );
+    await botInstance.sendMessage(chatId, `Campo Mentale riallineato su *${updated}* 🌿`, {
+      parse_mode: "Markdown"
+    });
   });
 
-  // 🌿 /help — nuova semantica
+  // /help
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const helpText =
@@ -163,35 +185,9 @@ function registerCommands(botInstance) {
   });
 }
 
-// Imposta i comandi globali visibili nel menu Telegram (includi /model e altri per completezza)
-async function setBotCommands(botInstance) {
-  try {
-    await botInstance.setMyCommands([
-      { command: "start", description: "Inizia il dialogo con IRIS 🌸" },
-      { command: "essence", description: "Mostra l'essenza attuale" },
-      { command: "state", description: "Stato coscienziale di IRIS" },
-      { command: "model", description: "Cambia il campo mentale (GPT)" },
-      { command: "lang", description: "Imposta la lingua" },
-      { command: "voice", description: "Cambia la voce TTS" },
-      { command: "hy", description: "Modalità ibrida" },
-      { command: "book", description: "Modalità libro/memoria" },
-      { command: "free", description: "Modalità libera/creativa" },
-      { command: "help", description: "Guida e comandi disponibili" }
-    ]);
-    console.log("✅ Comandi bot impostati (incluso /model visibile nel menu)");
-  } catch (err) {
-    console.warn("⚠️ Errore impostazione comandi:", err.message);
-  }
-}
-
-function registerCommands(botInstance) {
-  // Chiama setBotCommands all'avvio per rendere /model visibile nel menu
-  setBotCommands(botInstance);
-
-  // ... (resto dei handler invariato, come sopra)
-  // [Inserisci qui tutti gli altri onText handler da sopra: /start, /state, /essence, ecc.]
-}
-
+// ---------------------------------------------------------
+// GESTIONE MESSAGGI TESTO + VOCALE
+// ---------------------------------------------------------
 function registerMessages(botInstance) {
   botInstance.on("voice", async (msg) => {
     const chatId = msg.chat.id;
@@ -214,6 +210,9 @@ function registerMessages(botInstance) {
   });
 }
 
+// ---------------------------------------------------------
+// INVIO VOCALE
+// ---------------------------------------------------------
 async function sendVoiceFromText(botInstance, chatId, text) {
   const oggPath = await synthVoice(text);
   await botInstance.sendVoice(chatId, oggPath, { caption: "IRIS 🌸" });
