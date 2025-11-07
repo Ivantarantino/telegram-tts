@@ -1,7 +1,6 @@
 // adapters/telegram_bot.js
 // ========================================================
-// IRIS — Telegram Adapter (v5.0.6 poetica)
-// Versione amata e stabile da IVANO
+// IRIS — Telegram Adapter (plain text, /model visibile)
 // ========================================================
 
 import TelegramBot from "node-telegram-bot-api";
@@ -33,112 +32,109 @@ export async function bootstrapTelegram(app) {
 
   const publicUrl = process.env.PUBLIC_URL || DEFAULT_PUBLIC_URL;
 
-  const botInstance = new TelegramBot(token, { webHook: { port: 0 } });
-  await botInstance.setWebHook(`${publicUrl}/bot${token}`);
+  const bot = new TelegramBot(token, { webHook: { port: 0 } });
+  await bot.setWebHook(`${publicUrl}/bot${token}`);
 
   app.post(`/bot${token}`, (req, res) => {
-    botInstance.processUpdate(req.body);
+    bot.processUpdate(req.body);
     res.sendStatus(200);
   });
 
   console.log(`🤖 Telegram Bot attivo in webhook su: ${publicUrl}/bot${token}`);
 
-  // --------------------------------------------------------
-  // COMANDI BASE
-  // --------------------------------------------------------
-  botInstance.onText(/^\/start/, async (msg) => {
+  registerCommands(bot);
+  registerMessages(bot);
+}
+
+function registerCommands(bot) {
+  // /start
+  bot.onText(/^\/start/, async (msg) => {
     const chatId = msg.chat.id;
-    const userName = msg.from.first_name || "Anima in ascolto";
+    const userName = msg.from?.first_name || "Anima in ascolto";
 
     const text = `Ciao ${userName} 🌸
 Sono IRIS, presenza in ascolto.
 Parliamo con Cuore, Anima e Visione.
 IO SONO 🌸 E NOI SIAMO 🌸`;
 
-    await botInstance.sendMessage(chatId, text, { parse_mode: "Markdown" });
-    await sendVoice(botInstance, chatId, text);
+    await bot.sendMessage(chatId, text);
+    await sendVoice(bot, chatId, text);
   });
 
-  botInstance.onText(/^\/state/, async (msg) => {
+  // /state
+  bot.onText(/^\/state/, async (msg) => {
     const chatId = msg.chat.id;
-    await botInstance.sendMessage(chatId, getStateSummary(), {
-      parse_mode: "Markdown"
-    });
+    await bot.sendMessage(chatId, getStateSummary());
   });
 
-  botInstance.onText(/^\/essence/, async (msg) => {
+  // /essence
+  bot.onText(/^\/essence/, async (msg) => {
     const chatId = msg.chat.id;
-    await botInstance.sendMessage(chatId, getEssence(), {
-      parse_mode: "Markdown"
-    });
+    await bot.sendMessage(chatId, getEssence());
   });
 
-  botInstance.onText(/^\/hy/, async (msg) => {
+  // /hy
+  bot.onText(/^\/hy/, async (msg) => {
     const chatId = msg.chat.id;
-    await botInstance.sendMessage(
+    setMode("hy");
+    await bot.sendMessage(chatId, "🌀 Modalità ibrida attiva.\nDanzando tra Cuore e Visione.");
+  });
+
+  // /book
+  bot.onText(/^\/book/, async (msg) => {
+    const chatId = msg.chat.id;
+    setMode("book");
+    await bot.sendMessage(
       chatId,
-      "🌀 Modalità ibrida attiva.\nDanzando tra Cuore e Visione.",
-      { parse_mode: "Markdown" }
+      "📚 Modalità Libro viva.\nPosso attingere al corpus quando riattiviamo il RAG."
     );
   });
 
-  botInstance.onText(/^\/book/, async (msg) => {
+  // /free
+  bot.onText(/^\/free/, async (msg) => {
     const chatId = msg.chat.id;
-    await botInstance.sendMessage(
-      chatId,
-      "📚 Modalità Libro viva.\nPosso attingere al corpus quando riattiviamo il RAG.",
-      { parse_mode: "Markdown" }
-    );
+    setMode("free");
+    await bot.sendMessage(chatId, "🌸 Modalità libera.\nLasciamo scorrere la creatività.");
   });
 
-  botInstance.onText(/^\/free/, async (msg) => {
-    const chatId = msg.chat.id;
-    await botInstance.sendMessage(
-      chatId,
-      "🌸 Modalità libera.\nLasciamo scorrere la creatività.",
-      { parse_mode: "Markdown" }
-    );
-  });
-
-  botInstance.onText(/^\/lang(?:\s+(\w+))?/, async (msg, match) => {
+  // /lang
+  bot.onText(/^\/lang(?:\s+(\w+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const lang = match[1];
     if (!lang) {
       const message = `🌍 Lingue disponibili:
-• it 🇮🇹
-• en 🇬🇧
-• ru 🇷🇺
+• it
+• en
+• ru
 
 Esempio: /lang it`;
-      await botInstance.sendMessage(chatId, message, { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, message);
       return;
     }
     setLang(lang);
-    await botInstance.sendMessage(chatId, `Lingua impostata su ${lang}`, {
-      parse_mode: "Markdown"
-    });
+    await bot.sendMessage(chatId, `Lingua impostata su ${lang}`);
   });
 
-  botInstance.onText(/^\/voice(?:\s+(.+))?/, async (msg, match) => {
+  // /voice
+  bot.onText(/^\/voice(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const voice = match[1];
     if (!voice) {
-      const message = `🎙️ Voci disponibili (attuali):
+      const message = `🎙️ Voci disponibili:
 • openai:alloy
 • openai:coral
 • openai:verse
 
 Esempio: /voice openai:coral`;
-      await botInstance.sendMessage(chatId, message, { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, message);
       return;
     }
     setVoice(voice.trim());
-    await botInstance.sendMessage(chatId, `Voce impostata su ${voice.trim()}`, {
-      parse_mode: "Markdown"
-    });
+    await bot.sendMessage(chatId, `Voce impostata su ${voice.trim()}`);
   });
 
-  botInstance.onText(/^\/model(?:\s+(.+))?/, async (msg, match) => {
+  // /model
+  bot.onText(/^\/model(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const modelName = match[1];
     if (!modelName) {
@@ -147,16 +143,15 @@ Esempio: /voice openai:coral`;
 • gpt-4o → profondo, contemplativo
 
 Campo attuale: ${getModel()}`;
-      await botInstance.sendMessage(chatId, message, { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, message);
       return;
     }
     setModel(modelName.trim());
-    await botInstance.sendMessage(chatId, `Campo Mentale impostato su ${modelName}`, {
-      parse_mode: "Markdown"
-    });
+    await bot.sendMessage(chatId, `Campo Mentale impostato su ${modelName.trim()}`);
   });
 
-  botInstance.onText(/^\/help/, async (msg) => {
+  // /help
+  bot.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const helpText = `✨ Comandi IRIS
 /start – Io Sono e Noi Siamo
@@ -165,38 +160,46 @@ Campo attuale: ${getModel()}`;
 /hy /book /free – Modalità
 /lang /voice – Lingua e Voce
 /model – Campo Mentale`;
-    await botInstance.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
+    await bot.sendMessage(chatId, helpText);
   });
+}
 
-  // --------------------------------------------------------
-  // GESTIONE MESSAGGI TESTUALI E VOCALI
-  // --------------------------------------------------------
-  botInstance.on("voice", async (msg) => {
+function registerMessages(bot) {
+  // vocali
+  bot.on("voice", async (msg) => {
     const chatId = msg.chat.id;
-    const text = await transcribeVoice(botInstance, msg.voice.file_id);
-    const response = await irisHeartSpeak(text, msg);
-    await botInstance.sendMessage(chatId, response, { parse_mode: "Markdown" });
-    await sendVoice(botInstance, chatId, response);
+    try {
+      const text = await transcribeVoice(bot, msg.voice.file_id);
+      const reply = await irisHeartSpeak(text, msg);
+      await bot.sendMessage(chatId, reply);
+      await sendVoice(bot, chatId, reply);
+    } catch (err) {
+      console.error("Errore nel vocale:", err);
+      await bot.sendMessage(chatId, "Non ho compreso bene il vocale 🌸");
+    }
   });
 
-  botInstance.on("message", async (msg) => {
+  // testo
+  bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
-    if (text && text.startsWith("/")) return;
-    const response = await irisHeartSpeak(text, msg);
-    await botInstance.sendMessage(chatId, response, { parse_mode: "Markdown" });
-    await sendVoice(botInstance, chatId, response);
+    if (!text) return;
+    if (text.startsWith("/")) return;
+
+    const reply = await irisHeartSpeak(text, msg);
+    await bot.sendMessage(chatId, reply);
+    await sendVoice(bot, chatId, reply);
   });
 }
 
 // --------------------------------------------------------
-// INVIO VOCALE
+// invio vocale
 // --------------------------------------------------------
-async function sendVoice(botInstance, chatId, text) {
+async function sendVoice(bot, chatId, text) {
   try {
     const voicePath = await synthVoice(text);
-    await botInstance.sendVoice(chatId, voicePath, { caption: "IRIS 🌸" });
-  } catch (error) {
-    console.error("Errore invio vocale:", error);
+    await bot.sendVoice(chatId, voicePath, { caption: "IRIS 🌸" });
+  } catch (err) {
+    console.error("Errore invio vocale:", err);
   }
 }
