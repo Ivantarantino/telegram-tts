@@ -9,10 +9,17 @@ import { bootstrapTelegram } from "./adapters/telegram_bot.js";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Middleware base
+app.use(express.json());
+
+// Healthcheck per Render
+app.get("/health", (req, res) => res.status(200).send("ok"));
+
 // Funzione di avvio sicura
 async function startServer() {
   try {
-    await bootstrapTelegram();
+    // ✅ Passiamo l'app a bootstrapTelegram
+    await bootstrapTelegram(app);
 
     const server = app.listen(PORT, () => {
       console.log(`🌍 Server Express attivo su porta ${PORT}`);
