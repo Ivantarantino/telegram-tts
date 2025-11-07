@@ -1,7 +1,6 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter 5.0.7 (Fix /model invisibile)
-// Versione fedele alla build funzionante di CHAT7
+// IRIS — Telegram Adapter 5.0.7 (fix definitivo /model)
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -32,6 +31,7 @@ export async function bootstrapTelegram(app) {
     process.env.BOT_TOKEN ||
     process.env.TELEGRAM_TOKEN;
 
+  // NON usciamo, logghiamo soltanto
   if (!token) {
     console.warn("⚠️ Nessun token Telegram trovato (proseguo comunque).");
   }
@@ -144,7 +144,7 @@ Campo attuale: ${current}`
     await bot.sendMessage(chatId, `Campo Mentale riallineato su ${updated} 🌿`);
   });
 
-  // /heart — Ampiezza del Cuore
+  // /heart — ampiezza del Cuore
   bot.onText(/^\/heart(?:\s+(\d+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const val = match[1];
@@ -160,20 +160,28 @@ Campo attuale: ${current}`
     await bot.sendMessage(chatId, `💫 Cuore espanso a ${newVal}/100.`);
   });
 
-  // /help — SENZA parse_mode per evitare troncamento di /model
+  // /help — SPEZZATO IN DUE MESSAGGI
   bot.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
-    const helpText = `
+
+    const helpPart1 = `
 ✨ Comandi IRIS
 /start – Io Sono e Noi Siamo
 /state – Coscienza Presente
 /essence – Chi Sono Io adesso
 /hy /book /free – Modalità
 /lang /voice – Lingua e Voce
+`.trim();
+
+    const helpPart2 = `
 /model – Campo Mentale
 /heart – Ampiezza del Cuore
 `.trim();
-    await bot.sendMessage(chatId, helpText); // no parse_mode
+
+    // primo messaggio
+    await bot.sendMessage(chatId, helpPart1);
+    // secondo messaggio: contiene /model, così NON può sparire
+    await bot.sendMessage(chatId, helpPart2);
   });
 }
 
@@ -208,7 +216,7 @@ function registerMessages(bot) {
 }
 
 // ---------------------------------------------------------
-// Funzione per generare vocale da testo
+// Funzione per inviare vocale
 // ---------------------------------------------------------
 async function sendVoice(bot, chatId, text) {
   try {
