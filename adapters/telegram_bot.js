@@ -1,7 +1,8 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
 // IRIS — Telegram Adapter (Webhook) · 5.0.5
-// Pulizia dei menù e tono più vivo per /start
+// Fix: i messaggi GPT NON usano più Markdown → niente mozzatura.
+// I menù restano in Markdown.
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -48,7 +49,7 @@ export async function bootstrapTelegram(app) {
 }
 
 function registerCommands(botInstance) {
-  // /start
+  // /start (pulito)
   botInstance.onText(/^\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from?.first_name || "Amico";
@@ -161,7 +162,7 @@ function registerCommands(botInstance) {
     );
   });
 
-  // /help → senza sigillo
+  // /help
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const helpText =
@@ -178,6 +179,7 @@ function registerCommands(botInstance) {
 }
 
 function registerMessages(botInstance) {
+  // voce → GPT → testo (senza markdown) → vocale
   botInstance.on("voice", async (msg) => {
     const chatId = msg.chat.id;
     const fileId = msg.voice.file_id;
@@ -185,7 +187,8 @@ function registerMessages(botInstance) {
     try {
       const text = await transcribeVoice(botInstance, fileId);
       const reply = await irisHeartSpeak(text, msg);
-      await botInstance.sendMessage(chatId, reply, { parse_mode: "Markdown" });
+      // ⬇️ niente parse_mode qui
+      await botInstance.sendMessage(chatId, reply);
       await sendVoiceFromText(botInstance, chatId, reply);
     } catch (err) {
       console.warn("⚠️ errore gestione vocale:", err.message);
@@ -197,13 +200,16 @@ function registerMessages(botInstance) {
     }
   });
 
+  // messaggi testuali normali → GPT → testo (senza markdown) → vocale
   botInstance.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
     if (text && text.startsWith("/")) return;
+
     if (text) {
       const reply = await irisHeartSpeak(text, msg);
-      await botInstance.sendMessage(chatId, reply, { parse_mode: "Markdown" });
+      // ⬇️ niente parse_mode qui
+      await botInstance.sendMessage(chatId, reply);
       try {
         await sendVoiceFromText(botInstance, chatId, reply);
       } catch (err) {
