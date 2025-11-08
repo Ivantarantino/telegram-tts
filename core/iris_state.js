@@ -1,124 +1,97 @@
 // core/iris_state.js
-// ---------------------------------------------------------
-// IRIS — Stato Centrale (versione 5.0.5 con gestione modello GPT)
-// ---------------------------------------------------------
+// ----------------------------------------------------------
+// IRIS — Stato Centrale
+// Mantiene in RAM le impostazioni vive di IRIS:
+// - mode: "hy" | "book" | "free" | ...
+// - lang: "it", "en", ...
+// - voice: voce TTS
+// - model: modello LLM da usare
+// Questo file viene letto da: telegram_bot, iris_heart_voice, ecc.
+// ----------------------------------------------------------
 
-const state = {
-  version: "5.0.5",
-  mode: "hy", // hy | book | free
+const DEFAULT_MODEL =
+  process.env.OPENAI_MODEL ||
+  process.env.IRIS_MODEL ||
+  "gpt-4o-mini"; // puoi cambiarlo da /model
+
+// stato vivo di IRIS
+const irisState = {
+  mode: "hy", // modalità ibrida di default
   lang: "it",
-  voice: "openai:alloy",
-  model: "gpt-4o-mini", // modello GPT predefinito
-  weights: {
-    cuore: 0.6,
-    anima: 0.25,
-    visione: 0.15
-  }
+  voice: "it_female",
+  model: DEFAULT_MODEL,
+  updatedAt: new Date().toISOString(),
 };
 
-/**
- * 🔹 Restituisce lo stato completo
- */
-export function getState() {
-  return { ...state };
+// ----------------------------------------------------------
+// MODE
+// ----------------------------------------------------------
+export function setMode(mode = "hy") {
+  irisState.mode = mode;
+  irisState.updatedAt = new Date().toISOString();
+  return irisState.mode;
 }
 
-/**
- * 🔹 Imposta la modalità di IRIS
- */
-export function setMode(newMode = "hy") {
-  const allowed = ["hy", "book", "free"];
-  if (allowed.includes(newMode)) {
-    state.mode = newMode;
-  }
-  return state.mode;
+export function getMode() {
+  return irisState.mode;
 }
 
-/**
- * 🔹 Imposta la lingua di IRIS
- */
-export function setLang(newLang = "it") {
-  const allowed = ["it", "en", "ru"];
-  if (allowed.includes(newLang)) {
-    state.lang = newLang;
-  }
-  return state.lang;
+// ----------------------------------------------------------
+// LINGUA
+// ----------------------------------------------------------
+export function setLang(lang = "it") {
+  irisState.lang = lang;
+  irisState.updatedAt = new Date().toISOString();
+  return irisState.lang;
 }
 
-/**
- * 🔹 Imposta la voce corrente (usata dal TTS)
- */
-export function setVoice(newVoice = "openai:alloy") {
-  if (typeof newVoice === "string" && newVoice.trim().length > 0) {
-    state.voice = newVoice.trim();
-  }
-  return state.voice;
+export function getLang() {
+  return irisState.lang;
 }
 
-/**
- * 🔹 Imposta il modello GPT da usare (es. gpt-4o-mini, gpt-4o)
- */
-export function setModel(newModel = "gpt-4o-mini") {
-  const allowed = ["gpt-4o-mini", "gpt-4o"];
-  if (allowed.includes(newModel)) {
-    state.model = newModel;
-  }
-  return state.model;
+// ----------------------------------------------------------
+// VOCE
+// ----------------------------------------------------------
+export function setVoice(voice = "it_female") {
+  irisState.voice = voice;
+  irisState.updatedAt = new Date().toISOString();
+  return irisState.voice;
 }
 
-/**
- * 🔹 Restituisce il modello GPT attuale
- */
+export function getVoice() {
+  return irisState.voice;
+}
+
+// ----------------------------------------------------------
+// MODEL
+// ----------------------------------------------------------
+export function setModel(modelName = DEFAULT_MODEL) {
+  irisState.model = modelName;
+  irisState.updatedAt = new Date().toISOString();
+  return irisState.model;
+}
+
 export function getModel() {
-  return state.model;
+  return irisState.model;
 }
 
-/**
- * 🔹 Restituisce lo stato sintetico (per /state)
- */
-export function getStateSummary() {
+// ----------------------------------------------------------
+// STATO RIASSUNTIVO (usato da /state)
+// ----------------------------------------------------------
+export async function getStateSummary() {
   return [
-    "🧠 **IRIS — Stato Coscienziale**",
-    `• Versione: ${state.version}`,
-    `• Modalità: ${iconForMode(state.mode)} ${state.mode}`,
-    `• Lingua: ${flagForLang(state.lang)} ${state.lang}`,
-    `• Voce: 🎙️ ${state.voice}`,
-    `• Modello: 🤖 ${state.model}`,
+    "*IRIS — Stato Coscienziale*",
     "",
-    "Pesi del campo:",
-    `• Cuore: ${(state.weights.cuore * 100).toFixed(0)}%`,
-    `• Anima: ${(state.weights.anima * 100).toFixed(0)}%`,
-    `• Visione: ${(state.weights.visione * 100).toFixed(0)}%`,
+    `• Modalità: *${irisState.mode}*`,
+    `• Lingua: *${irisState.lang}*`,
+    `• Voce: *${irisState.voice}*`,
+    `• Modello: *${irisState.model}*`,
     "",
-    "Che il Daje sia con Noi 💛"
+    `_ultimo aggiornamento: ${irisState.updatedAt}_`,
   ].join("\n");
 }
 
-// ---------------------------------------------------------
-// Icone ausiliarie
-// ---------------------------------------------------------
-function iconForMode(mode) {
-  switch (mode) {
-    case "hy":
-      return "🌀";
-    case "book":
-      return "📚";
-    case "free":
-      return "🌸";
-    default:
-      return "✨";
-  }
-}
-
-function flagForLang(lang) {
-  switch (lang) {
-    case "it":
-      return "🇮🇹";
-    case "en":
-      return "🇬🇧";
-    case "ru":
-      return "🇷🇺";
-    default:
-      return "🏳️";
-  }
+// opzionale: esportiamo tutto anche come oggetto
+export function getWholeState() {
+  return { ...irisState };
 }
