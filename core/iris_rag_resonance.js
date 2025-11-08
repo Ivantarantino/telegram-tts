@@ -1,104 +1,129 @@
 // core/iris_rag_resonance.js
-// -------------------------------------------------------------
-// IRIS 5.1 — RAG Resonance Engine (fase 1: pesatura 𝜑)
-// Calcola quanto una query merita profondità e quanta ampiezza
-// deve avere la risposta, tenendo conto della modalità attuale.
-// -------------------------------------------------------------
+// ----------------------------------------------------------
+// IRIS · Motore di Risonanza 𝜑
+// Scopo: dato un testo (query) e lo stato corrente di IRIS,
+// restituire un coefficiente 0–1 che dica quanta profondità usare.
+// È il pezzo promesso nel Rapporto di Stato 9.
+// ----------------------------------------------------------
 
-// mappa di base: quanto la modalità "spinge" i token
-const MODE_TOKEN_MAP = {
-  hy: 0,       // ibrido: base
-  free: 100,   // più creativo
-  book: 150,   // più ancorato a documenti
-  essence: 80,
-  state: -150
-};
+// alcune parole chiave che per IRIS valgono di più (filosofia, anima, sovranità...)
+const HIGH_RESONANCE_KEYWORDS = [
+  "anima",
+  "sovranità",
+  "coscienza",
+  "iris",
+  "essence",
+  "vettoriale",
+  "kristal",
+  "memoria",
+  "manifesto",
+  "origine",
+  "unità",
+  "io sono",
+  "noi siamo",
+];
 
-// soglie base prese dal Rapporto_Stato_9.md
-// 𝜑 < 0.4 → risposta breve (200)
-// 𝜑 ≈ 0.7 → riflessiva (400)
-// 𝜑 ≥ 0.9 → immersione (650 + RAG)
-// -------------------------------------------------------------
+function normalizeScore(score) {
+  if (score < 0) return 0;
+  if (score > 1) return 1;
+  return Number(score.toFixed(3));
+}
 
 /**
- * stimaBasePhi: stima una densità concettuale della query
- * qui usiamo euristiche semplici (lunghezza, presenza di parole chiave)
- * in seguito potremo sostituire con embedding reale
+ * Calcola la risonanza semantica di base della query.
+ * Qui siamo ancora in fase “senza embedding”: analizziamo solo il testo.
  */
-function stimaBasePhi(query = "") {
-  const q = query.trim().toLowerCase();
+function baseSemanticResonance(query = "") {
+  const q = query.toLowerCase();
+  if (!q.trim()) return 0;
 
-  if (!q) return 0.3;
-
-  let score = 0.3;
-
-  // lunghezza
-  if (q.length > 80) score += 0.15;
-  if (q.length > 160) score += 0.1;
-
-  // parole che di solito chiedono profondità nel tuo ecosistema
-  const paroleDensita = [
-    "anima",
-    "sovranità",
-    "essenza",
-    "rag",
-    "coscienza",
-    "vettoriale",
-    "griglia",
-    "archetipo",
-    "lyra",
-    "emanazione",
-    "programma"
-  ];
-
-  for (const p of paroleDensita) {
-    if (q.includes(p)) {
-      score += 0.08;
+  let hit = 0;
+  for (const kw of HIGH_RESONANCE_KEYWORDS) {
+    if (q.includes(kw)) {
+      hit += 0.12; // ogni parola vale un po'
     }
   }
 
-  // clamp
-  if (score > 1) score = 1;
-  return Number(score.toFixed(2));
+  // se la query è lunga e con punteggiatura, supponiamo che sia più densa
+  const lengthBoost = Math.min(q.length / 240, 0.25); // max +0.25
+
+  const raw = hit + lengthBoost;
+  return normalizeScore(raw);
 }
 
 /**
- * calcolaTokenDaPhi: traduce 𝜑 in token base
+ * Applica il contributo della modalità attuale (/free, /hy, /book)
+ * come avevamo scritto in IRIS_Rapporto_Stato_9.md.
  */
-function calcolaTokenDaPhi(phi) {
-  if (phi < 0.4) return 200;
-  if (phi < 0.75) return 400;
-  return 650;
+function modeInfluence(mode = "hy") {
+  switch (mode) {
+    case "free":
+      return 0.15; // più spazio creativo
+    case "book":
+      return 0.25; // vogliamo profondità vera
+    case "essence":
+      return 0.2; // introspezione
+    case "hy":
+    default:
+      return 0.1; // equilibrio
+  }
 }
 
 /**
- * getModeDelta: quanto la modalità sposta i token
+ * Se in futuro passeremo gli embedding, qui entra il "Kristal factor":
+ * misura quanto il nuovo contenuto vibra col campo esistente.
+ * Per ora è uno stub controllato.
  */
-function getModeDelta(mode = "hy") {
-  return MODE_TOKEN_MAP[mode] ?? 0;
+function kristalCoherenceFactor() {
+  // placeholder controllato
+  return 0.12;
 }
 
 /**
- * calcolaRisonanza: funzione principale
- * @param {string} query
- * @param {string} mode
- * @returns {{phi:number, tokens:number, mode:string}}
+ * Funzione principale:
+ * ritorna un oggetto con:
+ * - phi: coefficiente 0–1
+ * - suggestedTokens: quanti token dare alla risposta
+ * - level: "light" | "medium" | "deep" utile al bot
  */
-export function calcolaRisonanza(query = "", mode = "hy") {
-  const phi = stimaBasePhi(query);
-  const baseTokens = calcolaTokenDaPhi(phi);
-  const delta = getModeDelta(mode);
+export function computeResonanceScore({
+  query = "",
+  mode = "hy",
+  context = {},
+} = {}) {
+  const base = baseSemanticResonance(query);
+  const modeBoost = modeInfluence(mode);
+  const kristal = kristalCoherenceFactor();
 
-  const tokens = Math.max(150, baseTokens + delta);
+  // sommiamo e poi normalizziamo
+  let phi = base + modeBoost + kristal;
+  phi = normalizeScore(phi);
+
+  // mappa 𝜑 → token come nel rapporto 9
+  let suggestedTokens = 250;
+  let level = "light";
+
+  if (phi >= 0.9) {
+    suggestedTokens = 650;
+    level = "deep";
+  } else if (phi >= 0.7) {
+    suggestedTokens = 450;
+    level = "medium";
+  } else if (phi >= 0.4) {
+    suggestedTokens = 320;
+    level = "medium";
+  }
 
   return {
-    phi: Number(phi.toFixed(2)),
-    tokens,
-    mode
+    phi,
+    suggestedTokens,
+    level,
+    debug: {
+      base,
+      modeBoost,
+      kristal,
+      fromMode: mode,
+      contextKeys: Object.keys(context || {}),
+    },
   };
-}
-
-// per debug/log poetico
-export function descriviRisonanza(res) {
-  return `🌀 Risonanza: 𝜑=${res.phi} · mode=${res.mode} · max_tokens=${res.tokens}`;
 }
