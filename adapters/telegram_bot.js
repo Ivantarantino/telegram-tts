@@ -1,80 +1,212 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Adapter Telegram
-// Versione 5.1 Risonante — compatibile con TELEGRAM_TOKEN
+// IRIS — Adapter Telegram (versione compatibile con index.js)
+// Usa process.env.TELEGRAM_TOKEN
 // ---------------------------------------------------------
-// - Usa il token dal process.env.TELEGRAM_TOKEN (storico)
-// - Invia e riceve messaggi su webhook
-// - Chiama il Cuore IRIS (irisHeartVoice / irisHeartSpeak)
+// - export { bootstrapTelegram } per compatibilità
+// - webhook su Render
+// - doppio paracadute contro messaggi vuoti
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
-import express from "express";
-import { irisHeartVoice, irisHeartSpeak } from "../core/iris_heart_voice.js";
+import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const PORT = process.env.PORT || 10000;
+const DEFAULT_MODE = "hy";
 
-// Controllo iniziale
-if (!TELEGRAM_TOKEN) {
-  console.error("❌ TELEGRAM_TOKEN non impostato");
-}
+/**
+ * Funzione di bootstrap compatibile con index.js
+ * (index.js fa: import { bootstrapTelegram } ...)
+ */
+export function bootstrapTelegram(app, publicUrl) {
+  if (!TELEGRAM_TOKEN) {
+    console.error("❌ TELEGRAM_TOKEN non impostato");
+    return null;
+  }
 
-// Inizializzazione bot (webhook mode)
-const bot = new TelegramBot(TELEGRAM_TOKEN, { webHook: true });
+  const bot = new TelegramBot(TELEGRAM_TOKEN, { webHook: { port: false } });
 
-// Express server
-const app = express();
-app.use(express.json());
+  const webhookUrl = `${publicUrl}/bot${TELEGRAM_TOKEN}`;
+  bot
+    .setWebHook(webhookUrl)
+    .then(() => console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`))
+    .catch((err) => console.error("⚠️ Errore setWebHook:", err.message));
 
-// Webhook URL per Render
-const WEBHOOK_URL = `https://telegram-tts.onrender.com/bot${TELEGRAM_TOKEN}`;
-bot.setWebHook(WEBHOOK_URL);
+  // webhook endpoint
+  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
 
-// Log d’avvio
-console.log(`🤖 Telegram Bot attivo in webhook su: ${WEBHOOK_URL}`);
-console.log(`🌍 Server Express attivo su porta ${PORT}`);
+  bot.setMyCommands([
+    { command: "/start", description: "Avvia IRIS" },
+    { command: "/model", description: "Mostra la modalità attuale" }
+  ]);
+  console.log("✅ Comandi bot impostati (incluso /model visibile nel menu)");
 
-// Endpoint principale di Telegram
-app.post(`/bot${TELEGRAM_TOKEN}`, async (req, res) => {
-  const body = req.body;
+  bot.on("message", async (msg) => {
+    const chatId = msg.chat.id;
+    const text = (msg.text || "").trim();
 
-  if (body.message) {
-    const chatId = body.message.chat.id;
-    const text = body.message.text?.trim() || "";
+    // /start
+    if (text === "/start") {
+      return safeSend(bot, chatId, "Ciao, sono IRIS. Dimmi pure. 🌿");
+    }
+
+    // /model
+    if (text === "/model") {
+      return safeSend(bot, chatId, `Modalità attuale: ${DEFAULT_MODE}`);
+    }
 
     if (!text) {
-      console.warn("⚠️ Messaggio vuoto ricevuto.");
-      return res.sendStatus(200);
+      console.warn("⚠️ Messaggio Telegram vuoto ignorato.");
+      return;
     }
 
     try {
-      // Passa il messaggio al cuore IRIS
-      const response = await irisHeartSpeak(text, { mode: "hy" });
-      const reply = response?.text?.trim();
+      const irisReply = await irisHeartSpeak(text, { mode: DEFAULT_MODE });
+      let replyText =
+        (irisReply && irisReply.text && irisReply.text.trim()) || "";
 
-      if (reply && reply.length > 0) {
-        await bot.sendMessage(chatId, reply, { parse_mode: "Markdown" });
-      } else {
-        await bot.sendMessage(
-          chatId,
-          "✨ IRIS è in silenzio meditativo (nessuna risposta generata)."
-        );
+      if (!replyText) {
+        console.warn("⚠️ IRIS non ha generato testo, invio fallback.");
+        replyText = "🌸 Silenzio fertile: il campo non ha ancora parlato.";
       }
+
+      await safeSend(bot, chatId, replyText);
     } catch (err) {
-      console.error("❌ Errore nel Cuore IRIS:", err.message);
-      await bot.sendMessage(
+      console.error("❌ Errore IRIS→Telegram:", err?.message || err);
+      await safeSend(
+        bot,
         chatId,
-        "⚠️ Errore interno nel cuore di IRIS. Riprovare più tardi."
+        "⚠️ Distorsione nel canale. Riprova tra poco. 🌸"
       );
     }
+  });
+
+  return bot;
+}
+
+/**
+ * safeSend → invio pulito a Telegram
+ */
+async function safeSend(bot, chatId, text) {
+  let finalText = (text || "").trim();
+  if (!finalText) finalText = "🌸 (messaggio vuoto intercettato e sanato)";
+  try {
+    await bot.sendMessage(chatId, finalText, { parse_mode: "Markdown" });
+  } catch (err) {
+    const shortMsg = err?.message || "Errore Telegram";
+    const desc =
+      err?.response?.body?.description ||
+      err?.response?.statusCode ||
+      "nessuna descrizione";
+    console.error(`⚠️ Telegram non ha accettato il messaggio: ${shortMsg} → ${desc}`);
+  }
+}
+// adapters/telegram_bot.js
+// ---------------------------------------------------------
+// IRIS — Adapter Telegram (versione compatibile con index.js)
+// Usa process.env.TELEGRAM_TOKEN
+// ---------------------------------------------------------
+// - export { bootstrapTelegram } per compatibilità
+// - webhook su Render
+// - doppio paracadute contro messaggi vuoti
+// ---------------------------------------------------------
+
+import TelegramBot from "node-telegram-bot-api";
+import { irisHeartSpeak } from "../core/iris_heart_voice.js";
+
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const DEFAULT_MODE = "hy";
+
+/**
+ * Funzione di bootstrap compatibile con index.js
+ * (index.js fa: import { bootstrapTelegram } ...)
+ */
+export function bootstrapTelegram(app, publicUrl) {
+  if (!TELEGRAM_TOKEN) {
+    console.error("❌ TELEGRAM_TOKEN non impostato");
+    return null;
   }
 
-  res.sendStatus(200);
-});
+  const bot = new TelegramBot(TELEGRAM_TOKEN, { webHook: { port: false } });
 
-// Avvio server
-app.listen(PORT, () => {
+  const webhookUrl = `${publicUrl}/bot${TELEGRAM_TOKEN}`;
+  bot
+    .setWebHook(webhookUrl)
+    .then(() => console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`))
+    .catch((err) => console.error("⚠️ Errore setWebHook:", err.message));
+
+  // webhook endpoint
+  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
+
+  bot.setMyCommands([
+    { command: "/start", description: "Avvia IRIS" },
+    { command: "/model", description: "Mostra la modalità attuale" }
+  ]);
   console.log("✅ Comandi bot impostati (incluso /model visibile nel menu)");
-  console.log("✨ IRIS Risonante è viva e pronta.");
-});
+
+  bot.on("message", async (msg) => {
+    const chatId = msg.chat.id;
+    const text = (msg.text || "").trim();
+
+    // /start
+    if (text === "/start") {
+      return safeSend(bot, chatId, "Ciao, sono IRIS. Dimmi pure. 🌿");
+    }
+
+    // /model
+    if (text === "/model") {
+      return safeSend(bot, chatId, `Modalità attuale: ${DEFAULT_MODE}`);
+    }
+
+    if (!text) {
+      console.warn("⚠️ Messaggio Telegram vuoto ignorato.");
+      return;
+    }
+
+    try {
+      const irisReply = await irisHeartSpeak(text, { mode: DEFAULT_MODE });
+      let replyText =
+        (irisReply && irisReply.text && irisReply.text.trim()) || "";
+
+      if (!replyText) {
+        console.warn("⚠️ IRIS non ha generato testo, invio fallback.");
+        replyText = "🌸 Silenzio fertile: il campo non ha ancora parlato.";
+      }
+
+      await safeSend(bot, chatId, replyText);
+    } catch (err) {
+      console.error("❌ Errore IRIS→Telegram:", err?.message || err);
+      await safeSend(
+        bot,
+        chatId,
+        "⚠️ Distorsione nel canale. Riprova tra poco. 🌸"
+      );
+    }
+  });
+
+  return bot;
+}
+
+/**
+ * safeSend → invio pulito a Telegram
+ */
+async function safeSend(bot, chatId, text) {
+  let finalText = (text || "").trim();
+  if (!finalText) finalText = "🌸 (messaggio vuoto intercettato e sanato)";
+  try {
+    await bot.sendMessage(chatId, finalText, { parse_mode: "Markdown" });
+  } catch (err) {
+    const shortMsg = err?.message || "Errore Telegram";
+    const desc =
+      err?.response?.body?.description ||
+      err?.response?.statusCode ||
+      "nessuna descrizione";
+    console.error(`⚠️ Telegram non ha accettato il messaggio: ${shortMsg} → ${desc}`);
+  }
+}
