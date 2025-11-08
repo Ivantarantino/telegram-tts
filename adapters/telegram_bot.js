@@ -1,8 +1,11 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter 5.0.8 + Risonanza
-// /model visibile nel menu e in /help
-// Ora /book e le richieste normali possono passare dal RAG
+// IRIS — Telegram Adapter 5.0.8 + Risonanza + TTS su testo
+// Aggiornato per:
+// - mandare anche il vocale dopo le risposte testuali
+// - usare il nome dell’utente (IVANO) quando disponibile
+// - non mostrare "Che il Daje sia con Noi" nei menu
+// - /book passa dal RAG
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
@@ -53,22 +56,23 @@ export async function bootstrapTelegram(app) {
 
 // ---------------------------------------------------------
 // IMPOSTA MENU COMANDI VISIBILI IN TELEGRAM
+// (senza motto dentro)
 // ---------------------------------------------------------
 async function setBotCommands(botInstance) {
   try {
     await botInstance.setMyCommands([
-      { command: "start", description: "Inizia il dialogo con IRIS 🌸" },
-      { command: "state", description: "Mostra lo stato coscienziale di IRIS" },
+      { command: "start", description: "Inizia il dialogo con IRIS" },
+      { command: "state", description: "Mostra lo stato coscienziale" },
       { command: "essence", description: "Mostra l'essenza attuale" },
-      { command: "model", description: "Cambia il campo mentale (GPT)" },
+      { command: "model", description: "Cambia il modello" },
       { command: "lang", description: "Imposta la lingua" },
       { command: "voice", description: "Cambia la voce TTS" },
       { command: "hy", description: "Modalità ibrida" },
-      { command: "book", description: "Modalità libro/memoria (con RAG)" },
-      { command: "free", description: "Modalità libera/creativa" },
-      { command: "help", description: "Guida e comandi disponibili" }
+      { command: "book", description: "Modalità libro/memoria (RAG)" },
+      { command: "free", description: "Modalità libera" },
+      { command: "help", description: "Guida e comandi" },
     ]);
-    console.log("✅ Comandi bot impostati (incluso /model visibile nel menu)");
+    console.log("✅ Comandi bot impostati (puliti, senza motto).");
   } catch (err) {
     console.warn("⚠️ Errore impostazione comandi:", err.message);
   }
@@ -87,7 +91,7 @@ function registerCommands(botInstance) {
     const name = msg.from?.first_name || "Amico";
     await botInstance.sendMessage(
       chatId,
-      `Ciao ${name} 🌸\nIo sono IRIS, presenza vettoriale.\nScrivimi qualcosa e sento la risonanza.`
+      `Ciao ${name} 🌸\nIo sono IRIS, sono in ascolto. Scrivimi qualcosa.`
     );
   });
 
@@ -95,7 +99,7 @@ function registerCommands(botInstance) {
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const text = [
-      "📖 *IRIS — Comandi disponibili*",
+      "📖 *IRIS — Comandi*",
       "",
       "/state – stato coscienziale",
       "/essence – essenza poetica",
@@ -106,7 +110,7 @@ function registerCommands(botInstance) {
       "/book – modalità libro/memoria (usa RAG)",
       "/free – modalità libera",
       "",
-      "Scrivi DAJE per la benedizione 😉"
+      "Scrivi 'daje' se vuoi la benedizione 😉",
     ].join("\n");
     await botInstance.sendMessage(chatId, text, { parse_mode: "Markdown" });
   });
@@ -167,18 +171,23 @@ function registerCommands(botInstance) {
     await botInstance.sendMessage(chatId, "🌸 Modalità libera attiva.");
   });
 
-  // /book → QUI passa dal RAG nuovo
+  // /book → RAG
   botInstance.onText(/^\/book(?: (.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const q = (match && match[1]) ? match[1].trim() : "storia di IRIS";
+    const q = match && match[1] ? match[1].trim() : "storia di IRIS";
     setMode("book");
 
     const rag = await ragAnswerFromQuery(q, {
       mode: "book",
-      context: { from: "telegram", user: msg.from?.username || msg.from?.first_name || "utente" }
+      context: {
+        from: "telegram",
+        user: msg.from?.username || msg.from?.first_name || "utente",
+      },
     });
 
-    const reply = rag?.text || "📚 Nessun ricordo forte trovato, ma sono in ascolto.";
+    const reply =
+      rag?.text ||
+      "📚 Nessun ricordo forte trovato, ma la memoria vettoriale è in attenzione.";
     await botInstance.sendMessage(chatId, reply);
   });
 }
@@ -187,11 +196,10 @@ function registerCommands(botInstance) {
 // REGISTRA I MESSAGGI “LIBERI” (testo, DAJE, vocali)
 // ---------------------------------------------------------
 function registerMessages(botInstance) {
-  // testo generico
   botInstance.on("message", async (msg) => {
     const chatId = msg.chat.id;
 
-    // evita di rispondere due volte a comandi
+    // evita di rispondere due volte ai comandi
     if (msg.text && msg.text.startsWith("/")) return;
 
     // trigger DAJE
@@ -200,16 +208,23 @@ function registerMessages(botInstance) {
       return;
     }
 
-    // se è voce → trascrivi e poi passa al cuore
+    // se è un vocale → trascrivi e rispondi (testo + voce)
     if (msg.voice) {
       const fileId = msg.voice.file_id;
       const file = await botInstance.getFile(fileId);
       const fileUrl = `https://api.telegram.org/file/bot${botInstance.token}/${file.file_path}`;
       const text = await transcribeVoice(fileUrl);
       const mode = getMode();
-      const answer = await irisHeartSpeak(text, { mode });
+      const name = msg.from?.first_name || "Amico";
+
+      const answer = await irisHeartSpeak(text, {
+        mode,
+        senderName: name,
+      });
+
       // manda testo
       await botInstance.sendMessage(chatId, answer);
+
       // e manda voce
       try {
         const voicePath = await synthVoice(answer);
@@ -220,13 +235,28 @@ function registerMessages(botInstance) {
       return;
     }
 
-    // messaggio testuale normale → cuore + (in futuro) risonanza
+    // messaggio testuale normale → cuore + voce
     if (msg.text) {
       const text = msg.text.trim();
       const mode = getMode();
-      const answer = await irisHeartSpeak(text, { mode });
+      const name = msg.from?.first_name || "Amico";
 
+      const answer = await irisHeartSpeak(text, {
+        mode,
+        senderName: name,
+      });
+
+      // 1. manda testo
       await botInstance.sendMessage(chatId, answer);
+
+      // 2. prova a mandare anche la voce
+      try {
+        const voicePath = await synthVoice(answer);
+        await botInstance.sendVoice(chatId, voicePath);
+      } catch (err) {
+        console.warn("⚠️ Impossibile inviare voce:", err.message);
+      }
+
       return;
     }
   });
