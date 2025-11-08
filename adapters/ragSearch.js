@@ -1,36 +1,31 @@
-// ===========================================
-// RAG Search — Stub con Fallback Locale (4.7)
-// Da Rapporto_2: Cerca in memory.json se Qdrant sussurra
-// ===========================================
+// adapters/ragSearch.js
+// -------------------------------------------------------------
+// Adapter unico per usare il RAG di IRIS da Telegram o da HTTP
+// -------------------------------------------------------------
 
-import fs from "fs";
-import path from "path";
 import { searchMemories } from "../core/iris_rag_core.js";
 
-const MEMORY_PATH = path.join(process.cwd(), "memory/memory.json");
-
-export async function performRAG(query) {
-  try {
-    // Prova Qdrant prima
-    const qdrantResults = await searchMemories(query);
-    if (qdrantResults && qdrantResults.length > 0) {
-      return qdrantResults.map(r => r.payload?.text || "").join("\n");
-    }
-    
-    // Fallback locale
-    if (fs.existsSync(MEMORY_PATH)) {
-      const memories = JSON.parse(fs.readFileSync(MEMORY_PATH, "utf8"));
-      const relevant = memories
-        .filter(m => m.irisReply && m.irisReply.toLowerCase().includes(query.toLowerCase()))
-        .slice(0, 3)
-        .map(m => m.irisReply)
-        .join("\n");
-      if (relevant) return relevant;
-    }
-    
-    return "Nessun ricordo.";
-  } catch (err) {
-    console.error("Errore RAG:", err);
-    return "Un velo sulla memoria, ma il cuore batte.";
+export async function ragSearch(query = "", mode = "hy") {
+  // se la query è vuota non ha senso andare al RAG
+  if (!query || !query.trim()) {
+    return {
+      resonance: { phi: 0.3, tokens: 200, mode },
+      results: [],
+      message: "⚠️ Nessuna query fornita al RAG.",
+      source: "empty"
+    };
   }
+
+  const data = await searchMemories(query, mode);
+
+  // standardizziamo la risposta
+  return {
+    resonance: data.resonance,
+    results: data.results,
+    source: data.source,
+    message:
+      data.results && data.results.length
+        ? "📚 Documenti trovati e pronti per essere fusi nel Cuore."
+        : "📚 Nessun documento trovato, uso solo Cuore e Memoria.",
+  };
 }
