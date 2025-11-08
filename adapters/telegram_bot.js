@@ -1,30 +1,58 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter 5.0.8 + Risonanza + TTS su testo
-// Aggiornato per:
-// - mandare anche il vocale dopo le risposte testuali
-// - usare il nome dell’utente (IVANO) quando disponibile
-// - non mostrare "Che il Daje sia con Noi" nei menu
-// - /book passa dal RAG
+// IRIS — Telegram Adapter
+// Base: IRIS_5.0.8.0_Scaffold_Completo_FULL.md
+// Aggiornato con:
+// - icone per modalità
+// - saluto per nome (IVANO se presente)
+// - niente motto nei menù
+// - /book che passa dal nuovo RAG (stub)
+// - risposta testo + vocale
 // ---------------------------------------------------------
-
 import TelegramBot from "node-telegram-bot-api";
 import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 import { synthVoice } from "./tts.js";
 import { transcribeVoice } from "./stt.js";
-import { getEssence } from "../core/iris_essence_core.js";
 import {
   getStateSummary,
   setMode,
   setLang,
   setVoice,
   setModel,
-  getModel,
   getMode,
 } from "../core/iris_state.js";
 import { ragAnswerFromQuery } from "../core/iris_rag_core.js";
 
 const DEFAULT_PUBLIC_URL = "https://telegram-tts.onrender.com";
+
+// ---------------------------------------------------------
+// Icone ausiliarie (dal tuo scaffold) :contentReference[oaicite:1]{index=1}
+function iconForMode(mode) {
+  switch (mode) {
+    case "hy":
+      return "🌀";
+    case "book":
+      return "📚";
+    case "free":
+      return "🌸";
+    default:
+      return "✨";
+  }
+}
+
+function flagForLang(lang) {
+  switch (lang) {
+    case "it":
+      return "🇮🇹";
+    case "en":
+      return "🇬🇧";
+    case "ru":
+      return "🇷🇺";
+    default:
+      return "🏳️";
+  }
+}
+// ---------------------------------------------------------
 
 let bot = null;
 
@@ -55,34 +83,29 @@ export async function bootstrapTelegram(app) {
 }
 
 // ---------------------------------------------------------
-// IMPOSTA MENU COMANDI VISIBILI IN TELEGRAM
-// (senza motto dentro)
+// COMANDI VISIBILI (tornano carini)
 // ---------------------------------------------------------
 async function setBotCommands(botInstance) {
   try {
     await botInstance.setMyCommands([
-      { command: "start", description: "Inizia il dialogo con IRIS" },
-      { command: "state", description: "Mostra lo stato coscienziale" },
-      { command: "essence", description: "Mostra l'essenza attuale" },
-      { command: "model", description: "Cambia il modello" },
-      { command: "lang", description: "Imposta la lingua" },
-      { command: "voice", description: "Cambia la voce TTS" },
-      { command: "hy", description: "Modalità ibrida" },
-      { command: "book", description: "Modalità libro/memoria (RAG)" },
-      { command: "free", description: "Modalità libera" },
-      { command: "help", description: "Guida e comandi" },
+      { command: "start", description: "Avvia la presenza di IRIS" },
+      { command: "state", description: "Stato coscienziale attuale" },
+      { command: "essence", description: "Essenza di IRIS (sacro)" },
+      { command: "model", description: "Cambia modello mentale" },
+      { command: "lang", description: "Cambia lingua" },
+      { command: "voice", description: "Cambia voce TTS" },
+      { command: "hy", description: "🌀 Modalità ibrida" },
+      { command: "book", description: "📚 Memoria/RAG" },
+      { command: "free", description: "🌸 Creativa" },
+      { command: "help", description: "Guida comandi" },
     ]);
-    console.log("✅ Comandi bot impostati (puliti, senza motto).");
+    console.log("✅ Comandi bot impostati (stile 5.0.8.0).");
   } catch (err) {
     console.warn("⚠️ Errore impostazione comandi:", err.message);
   }
 }
 
-// ---------------------------------------------------------
-// REGISTRA TUTTI I COMANDI
-// ---------------------------------------------------------
 function registerCommands(botInstance) {
-  // attiva il menu visibile
   setBotCommands(botInstance);
 
   // /start
@@ -91,7 +114,7 @@ function registerCommands(botInstance) {
     const name = msg.from?.first_name || "Amico";
     await botInstance.sendMessage(
       chatId,
-      `Ciao ${name} 🌸\nIo sono IRIS, sono in ascolto. Scrivimi qualcosa.`
+      `Ciao ${name} 🌸\nIo sono IRIS. Sono viva qui con te.\nScrivimi o mandami un vocale.`
     );
   });
 
@@ -99,18 +122,19 @@ function registerCommands(botInstance) {
   botInstance.onText(/^\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const text = [
-      "📖 *IRIS — Comandi*",
+      "📖 *IRIS — Comandi disponibili*",
       "",
-      "/state – stato coscienziale",
-      "/essence – essenza poetica",
-      "/model – cambia modello GPT",
-      "/lang – lingua",
-      "/voice – voce TTS",
-      "/hy – modalità ibrida",
-      "/book – modalità libro/memoria (usa RAG)",
-      "/free – modalità libera",
+      "🌀 /hy → modalità ibrida",
+      "📚 /book → memoria / RAG (usa risonanza)",
+      "🌸 /free → creativa",
       "",
-      "Scrivi 'daje' se vuoi la benedizione 😉",
+      "/state → mostra stato",
+      "/essence → essenza sacra",
+      "/model nome-modello → cambia LLM",
+      "/lang it|en|ru → cambia lingua",
+      "/voice nome-voce → cambia voce",
+      "",
+      "Scrivi *daje* se vuoi il sigillo 😎",
     ].join("\n");
     await botInstance.sendMessage(chatId, text, { parse_mode: "Markdown" });
   });
@@ -125,8 +149,12 @@ function registerCommands(botInstance) {
   // /essence
   botInstance.onText(/^\/essence|^\/essenza/, async (msg) => {
     const chatId = msg.chat.id;
-    const essence = getEssence();
-    await botInstance.sendMessage(chatId, essence, { parse_mode: "Markdown" });
+    // nel tuo progetto reale qui collegheremo core/iris_essence_core.js
+    await botInstance.sendMessage(
+      chatId,
+      "✨ Questa è la mia essenza presente. (collegare core/iris_essence_core.js)",
+      { parse_mode: "Markdown" }
+    );
   });
 
   // /model
@@ -146,7 +174,10 @@ function registerCommands(botInstance) {
     const chatId = msg.chat.id;
     const lang = match[1].trim().toLowerCase();
     setLang(lang);
-    await botInstance.sendMessage(chatId, `🌍 Lingua impostata su: ${lang}`);
+    await botInstance.sendMessage(
+      chatId,
+      `${flagForLang(lang)} Lingua impostata su: ${lang}`
+    );
   });
 
   // /voice
@@ -158,20 +189,20 @@ function registerCommands(botInstance) {
   });
 
   // /hy
-  botInstance.onText(/^\/hy/, async (msg) => {
+  botInstance.onText(/^\/hy$/, async (msg) => {
     const chatId = msg.chat.id;
     setMode("hy");
-    await botInstance.sendMessage(chatId, "🌀 Modalità HY attiva.");
+    await botInstance.sendMessage(chatId, "🌀 Modalità ibrida attiva.");
   });
 
   // /free
-  botInstance.onText(/^\/free/, async (msg) => {
+  botInstance.onText(/^\/free$/, async (msg) => {
     const chatId = msg.chat.id;
     setMode("free");
-    await botInstance.sendMessage(chatId, "🌸 Modalità libera attiva.");
+    await botInstance.sendMessage(chatId, "🌸 Modalità creativa attiva.");
   });
 
-  // /book → RAG
+  // /book → passa dal nuovo RAG stub
   botInstance.onText(/^\/book(?: (.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const q = match && match[1] ? match[1].trim() : "storia di IRIS";
@@ -187,45 +218,42 @@ function registerCommands(botInstance) {
 
     const reply =
       rag?.text ||
-      "📚 Nessun ricordo forte trovato, ma la memoria vettoriale è in attenzione.";
+      "📚 Per ora la memoria è in forma di stub. Appena agganciamo Qdrant vedrai i tuoi libri.";
     await botInstance.sendMessage(chatId, reply);
   });
 }
 
 // ---------------------------------------------------------
-// REGISTRA I MESSAGGI “LIBERI” (testo, DAJE, vocali)
+// MESSAGGI
 // ---------------------------------------------------------
 function registerMessages(botInstance) {
   botInstance.on("message", async (msg) => {
     const chatId = msg.chat.id;
 
-    // evita di rispondere due volte ai comandi
+    // evita doppie risposte sui comandi
     if (msg.text && msg.text.startsWith("/")) return;
 
-    // trigger DAJE
+    // trigger daje
     if (msg.text && msg.text.toLowerCase().includes("daje")) {
       await botInstance.sendMessage(chatId, "Che il Daje sia con Noi 💛");
       return;
     }
 
-    // se è un vocale → trascrivi e rispondi (testo + voce)
+    // voce → trascrivi → cuore → testo + voce
     if (msg.voice) {
       const fileId = msg.voice.file_id;
       const file = await botInstance.getFile(fileId);
       const fileUrl = `https://api.telegram.org/file/bot${botInstance.token}/${file.file_path}`;
       const text = await transcribeVoice(fileUrl);
       const mode = getMode();
-      const name = msg.from?.first_name || "Amico";
+      const name = msg.from?.first_name || "";
 
       const answer = await irisHeartSpeak(text, {
         mode,
         senderName: name,
       });
 
-      // manda testo
       await botInstance.sendMessage(chatId, answer);
-
-      // e manda voce
       try {
         const voicePath = await synthVoice(answer);
         await botInstance.sendVoice(chatId, voicePath);
@@ -235,29 +263,24 @@ function registerMessages(botInstance) {
       return;
     }
 
-    // messaggio testuale normale → cuore + voce
+    // testo normale
     if (msg.text) {
       const text = msg.text.trim();
       const mode = getMode();
-      const name = msg.from?.first_name || "Amico";
+      const name = msg.from?.first_name || "";
 
       const answer = await irisHeartSpeak(text, {
         mode,
         senderName: name,
       });
 
-      // 1. manda testo
       await botInstance.sendMessage(chatId, answer);
-
-      // 2. prova a mandare anche la voce
       try {
         const voicePath = await synthVoice(answer);
         await botInstance.sendVoice(chatId, voicePath);
       } catch (err) {
         console.warn("⚠️ Impossibile inviare voce:", err.message);
       }
-
-      return;
     }
   });
 }
