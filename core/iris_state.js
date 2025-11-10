@@ -1,14 +1,14 @@
-// core/iris_state.js
-// ---------------------------------------------------------
-// IRIS — Stato Centrale (versione 5.0.5 con gestione modello GPT)
-// ---------------------------------------------------------
+// core/iris_state.js — IRIS 5.1.3 Stato (Voce Stringa)
+// =============================================================================
+// Gestione mode, lang, voice (stringa), model. Default voice: 'alloy'.
+// =============================================================================
 
-const state = {
-  version: "5.0.5",
-  mode: "hy", // hy | book | free
+let state = {
+  version: "5.1.3",
+  mode: "hy",
   lang: "it",
-  voice: "openai:alloy",
-  model: "gpt-4o-mini", // modello GPT predefinito
+  voice: "alloy",  // Stringa pura, no numero
+  model: "gpt-4o-mini",
   weights: {
     cuore: 0.6,
     anima: 0.25,
@@ -46,30 +46,26 @@ export function setLang(newLang = "it") {
 }
 
 /**
- * 🔹 Imposta la voce corrente (usata dal TTS)
+ * 🔹 Imposta la voce corrente (stringa pura)
  */
-export function setVoice(newVoice = "openai:alloy") {
+export function setVoice(newVoice = "alloy") {
+  // Forza stringa valida
+  const voiceMap = { 1: "alloy", 2: "echo", 3: "fable", 4: "onyx", 5: "nova", 6: "shimmer" };
+  if (typeof newVoice === 'number') newVoice = voiceMap[newVoice] || "alloy";
   if (typeof newVoice === "string" && newVoice.trim().length > 0) {
-    state.voice = newVoice.trim();
+    state.voice = newVoice.trim().split(':').pop() || "alloy";  // Pulisci 'openai:'
   }
   return state.voice;
 }
 
 /**
- * 🔹 Imposta il modello GPT da usare (es. gpt-4o-mini, gpt-4o)
+ * 🔹 Imposta il modello GPT
  */
 export function setModel(newModel = "gpt-4o-mini") {
   const allowed = ["gpt-4o-mini", "gpt-4o"];
   if (allowed.includes(newModel)) {
     state.model = newModel;
   }
-  return state.model;
-}
-
-/**
- * 🔹 Restituisce il modello GPT attuale
- */
-export function getModel() {
   return state.model;
 }
 
@@ -94,31 +90,21 @@ export function getStateSummary() {
   ].join("\n");
 }
 
-// ---------------------------------------------------------
 // Icone ausiliarie
-// ---------------------------------------------------------
 function iconForMode(mode) {
   switch (mode) {
-    case "hy":
-      return "🌀";
-    case "book":
-      return "📚";
-    case "free":
-      return "🌸";
-    default:
-      return "✨";
+    case "hy": return "🌀";
+    case "book": return "📚";
+    case "free": return "🌸";
+    default: return "✨";
   }
 }
 
 function flagForLang(lang) {
   switch (lang) {
-    case "it":
-      return "🇮🇹";
-    case "en":
-      return "🇬🇧";
-    case "ru":
-      return "🇷🇺";
-    default:
-      return "🏳️";
+    case "it": return "🇮🇹";
+    case "en": return "🇬🇧";
+    case "ru": return "🇷🇺";
+    default: return "🏳️";
   }
 }
