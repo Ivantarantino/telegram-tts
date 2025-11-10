@@ -1,6 +1,6 @@
 // core/iris_rag_core.js — IRIS 5.1 RAG Core (Qdrant + Fallback JSON)
 // =============================================================================
-// Gestisce init collection e searchMemories. Integra φ da iris_rag_resonance.js.
+// Gestisce init collection e searchMemories. Check input vuoto per evitare 400.
 // =============================================================================
 
 import { QdrantClient } from '@qdrant/js-client-rest';
@@ -29,13 +29,22 @@ async function initQdrant() {
   }
 }
 
-// Embed text con OpenAI
+// Embed text con OpenAI — Check input
 async function embedText(text) {
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: text
-  });
-  return response.data[0].embedding;
+  if (!text || text.trim() === '') {
+    console.log('🧹 Input vuoto per embedding: salto.');
+    return null;  // O vettore zero, ma qui skip
+  }
+  try {
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: text.trim()
+    });
+    return response.data[0].embedding;
+  } catch (err) {
+    console.error('❌ Errore embedding:', err.message);
+    return null;
+  }
 }
 
 // Init memoria (Qdrant o JSON)
@@ -50,10 +59,15 @@ export async function initMemoryCollection() {
   }
 }
 
-// Search memories (con topK=5, restituisce testi + scores)
+// Search memories (con topK=5, restituisce testi + scores) — Skip se query vuota
 export async function searchMemories(query, { mode = 'hy', topK = 5 } = {}) {
+  if (!query || query.trim() === '') {
+    console.log('🧹 Query vuota per search: restituisco [].');
+    return [];
+  }
   try {
     const queryEmbedding = await embedText(query);
+    if (!queryEmbedding) return [];  // Skip se embedding fallito
     
     if (qdrantClient) {
       // Qdrant search
@@ -70,15 +84,21 @@ export async function searchMemories(query, { mode = 'hy', topK = 5 } = {}) {
       const history = JSON.parse(fs.readFileSync(MEMORY_PATH, 'utf8'));
       if (history.length === 0) return [];
       
-      // Embed tutti i testi storici (cache se possibile, ma stub semplice)
-      const embeddings = await Promise.all(history.map(h => embedText(h.irisReply || h.userText)));
-      const scores = embeddings.map((emb, i) => ({
+      // Embed solo testi validi
+      const validHistory = history.filter(h => h.irisReply || h.userText);
+      if (validHistory.length === 0) return [];
+      
+      const embeddings = await Promise.all(validHistory.map(h => embedText(h.irisReply || h.userText)));
+      const validEmbeds = embeddings.filter(e => e !== null);
+      if (validEmbeds.length === 0) return [];
+      
+      const scores = validEmbeds.map((emb, i) => ({
         cosine: cosineSimilarity(queryEmbedding, emb),
         index: i
       })).sort((a, b) => b.cosine - a.cosine).slice(0, topK);
       
       return scores.map(s => ({
-        text: history[s.index].irisReply || history[s.index].userText,
+        text: validHistory[s.index].irisReply || validHistory[s.index].userText,
         score: s.cosine
       }));
     }
@@ -93,12 +113,18 @@ function cosineSimilarity(vecA, vecB) {
   const dot = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
   const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
   const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-  return dot / (magA * magB);
+  return dot / (magA * magB || 1);  // Evita div/0
 }
 
-// Salva nuova memoria (post-interazione)
+// Salva nuova memoria (post-interazione) — Skip se vuoto
 export async function saveMemory(userText, irisReply, weight = 0.5) {
+  if (!userText || !irisReply || userText.trim() === '' || irisReply.trim() === '') {
+    console.log('🧹 Memoria vuota: non salvata.');
+    return;
+  }
   const embedding = await embedText(`${userText} | ${irisReply}`);
+  if (!embedding) return;
+  
   const payload = { text: `${userText} | ${irisReply}`, weight };
   
   if (qdrantClient) {
