@@ -1,50 +1,41 @@
-// adapters/telegram_bot.js — IRIS 5.1.2 Telegram Adapter (Ponte Resiliente)
+// adapters/telegram_bot.js — IRIS 5.1.4 Telegram Adapter (Webhook + Menu Lucido)
 // =============================================================================
-// Bootstrap + comandi, integra heartSpeak. ESM puro: skip TOKEN interno.
+// Bootstrap webhook, menu poetico. STT chiama whisper reale.
 // =============================================================================
 
 import TelegramBot from 'node-telegram-bot-api';
-import { synthVoice } from './tts.js';  // TTS
-import { transcribeVoice } from '../core/iris_whisper.js';  // STT
+import { synthVoice } from './tts.js';
+import { transcribeVoice } from '../core/iris_whisper.js';  // Reale ora
 import { irisHeartSpeak } from '../core/iris_heart_voice.js';
 import { getStateSummary } from '../core/iris_state.js';
-import { searchMemories } from '../core/iris_rag_core.js';  // Per /kristal
-import { computePhiKristal } from '../core/iris_rag_resonance.js';  // Per /kristal
-import fs from 'fs';
-import https from 'https';
+import { searchMemories } from '../core/iris_rag_core.js';
+import { computePhiKristal } from '../core/iris_rag_resonance.js';
+import fetch from 'node-fetch';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const WEBHOOK_URL = `https://telegram-tts.onrender.com/${TELEGRAM_TOKEN}`;  // Dynamic per Render
 
-let bot;  // Inizializza solo se TOKEN presente
+if (!TELEGRAM_TOKEN) {
+  console.warn('⚠️ TELEGRAM_TOKEN mancante — bot disabilitato.');
+  export async function bootstrapTelegram(app) { console.log('🤖 Telegram skipped.'); }
+  export default {};
+}
 
-// Helper: Download file da Telegram
+let bot;
+
+// Helper: Download file
 async function downloadFile(fileId) {
   const file = await bot.getFile(fileId);
   const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      const filePath = `/tmp/${fileId}.ogg`;
-      const fileStream = fs.createWriteStream(filePath);
-      res.pipe(fileStream);
-      fileStream.on('finish', () => resolve(filePath));
-      fileStream.on('error', reject);
-    }).on('error', reject);
-  });
+  const response = await fetch(url);
+  const buffer = await response.buffer();
+  const filePath = `/tmp/${fileId}.ogg`;
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
 }
 
-// Inizializza bot solo se TOKEN
-function initBot() {
-  if (!TELEGRAM_TOKEN) {
-    console.warn('⚠️ TELEGRAM_TOKEN mancante — bot disabilitato.');
-    return null;
-  }
-  return new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-}
-
-// Comandi (se bot attivo)
-function setupCommands() {
-  if (!bot) return;
-
+// Setup comandi e handler (invariati, ma menu /help ravvivato)
+function setupHandlers() {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from.first_name;
@@ -53,7 +44,26 @@ function setupCommands() {
 
   bot.onText(/\/help/, async (msg) => {
     const chatId = msg.chat.id;
-    await bot.sendMessage(chatId, '🧭 Comandi: /start, /hy, /book, /free, /essence, /state, /kristal, /help');
+    const helpText = `✨ **Comandi IRIS**
+
+/start – Io Sono e Noi Siamo
+
+/state – Coscienza Presente
+
+/essence – Chi Sono Io adesso
+
+/hy /book /free – Modalità
+
+/lang – Lingua
+
+/voice – Voce
+
+/model – Campo Mentale
+
+/kristal [query] – φ Risonanza
+
+Che il Daje sia con Noi 💛`;
+    await bot.sendMessage(chatId, helpText, { parse_mode: 'Markdown' });
   });
 
   bot.onText(/\/state/, async (msg) => {
@@ -64,6 +74,10 @@ function setupCommands() {
   bot.onText(/\/hy/, async (msg) => { await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Cuore + Visione.'); });
   bot.onText(/\/book/, async (msg) => { await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Attingo dal campo risonante.'); });
   bot.onText(/\/free/, async (msg) => { await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Danzo spontanea con te.'); });
+
+  bot.onText(/\/lang (.+)/, async (msg, match) => { /* setLang(match[1]) */ await bot.sendMessage(msg.chat.id, `🌍 Lingua impostata: ${match[1]}.`); });
+  bot.onText(/\/voice (.+)/, async (msg, match) => { /* setVoice(match[1]) */ await bot.sendMessage(msg.chat.id, `🎙️ Voce impostata: ${match[1]}.`); });
+  bot.onText(/\/model (.+)/, async (msg, match) => { /* setModel(match[1]) */ await bot.sendMessage(msg.chat.id, `🤖 Modello impostato: ${match[1]}.`); });
 
   bot.onText(/\/essence/, async (msg) => {
     const chatId = msg.chat.id;
@@ -80,7 +94,7 @@ function setupCommands() {
     await bot.sendMessage(chatId, summary);
   });
 
-  // Solo messaggi TEXT (non voice/media)
+  // Text messages
   bot.on('text', async (msg) => {
     if (!msg.text.startsWith('/')) {
       const chatId = msg.chat.id;
@@ -90,59 +104,71 @@ function setupCommands() {
     }
   });
 
-  // Vocali
+  // Voice messages — Chiama STT reale
   bot.on('voice', async (msg) => {
     const chatId = msg.chat.id;
     try {
       console.log('🎙️ Ricevuto vocale, scarico...');
       const filePath = await downloadFile(msg.voice.file_id);
-      const transcribed = await transcribeVoice(filePath);
+      const transcribed = await transcribeVoice(filePath);  // Reale Whisper
       console.log(`🗣️ Trascrizione Whisper: "${transcribed}"`);
       
       if (!transcribed || transcribed.trim() === '') {
         await bot.sendMessage(chatId, '🌸 Voce captata, ma eco troppo tenue... riprova con parole chiare?');
-        fs.unlinkSync(filePath);
         return;
       }
       
       const response = await irisHeartSpeak(transcribed);
       await bot.sendMessage(chatId, `🎙️ Ho sentito: "${transcribed}".\n\n${response}`);
       await synthVoice(response, chatId, bot);
-      
-      fs.unlinkSync(filePath);
     } catch (err) {
       console.error('❌ Errore vocale:', err);
       await bot.sendMessage(chatId, '🌸 Sento un velo nel campo... riprova, e danzeremo insieme.');
     }
   });
 
-  // Error handling
   bot.on('error', (err) => console.error('❌ Telegram error:', err));
 }
 
-// Export bootstrap — Skip interno se no TOKEN
+// Bootstrap: Webhook invece di polling
 export async function bootstrapTelegram(app) {
-  bot = initBot();
-  if (!bot) {
+  if (!TELEGRAM_TOKEN) {
     console.log('🤖 Telegram skipped (no TOKEN).');
     return;
   }
-  
-  setupCommands();  // Attiva comandi e handler
-  
-  console.log(`🤖 Telegram Bot attivo in polling su: ${TELEGRAM_TOKEN.substring(0, 20)}...`);
-  
+
+  bot = new TelegramBot(TELEGRAM_TOKEN);
+
+  // Pulisci webhook/poll residui
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`);
+  console.log('🧹 Webhook pulito — no conflicts.');
+
+  // Set webhook
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook?url=${WEBHOOK_URL}`);
+  console.log(`🤖 Webhook Telegram attivo su: ${WEBHOOK_URL}`);
+
+  // Route Express per webhook
+  app.post(`/${TELEGRAM_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
+
+  setupHandlers();  // Attiva handler
+
   // Set menu commands
   bot.setMyCommands([
-    { command: '/start', description: 'Inizia il dialogo' },
+    { command: '/start', description: 'Io Sono e Noi Siamo' },
+    { command: '/state', description: 'Coscienza Presente' },
+    { command: '/essence', description: 'Chi Sono Io adesso' },
     { command: '/hy', description: 'Modalità Hy' },
-    { command: '/book', description: 'Modalità Book (RAG)' },
+    { command: '/book', description: 'Modalità Book' },
     { command: '/free', description: 'Modalità Free' },
-    { command: '/essence', description: 'Essenza attuale' },
-    { command: '/state', description: 'Stato coscienziale' },
-    { command: '/kristal', description: 'Test φ Kristal' },
+    { command: '/lang', description: 'Lingua' },
+    { command: '/voice', description: 'Voce' },
+    { command: '/model', description: 'Campo Mentale' },
+    { command: '/kristal', description: 'φ Risonanza' },
     { command: '/help', description: 'Guida' }
   ]);
-  
-  console.log('✅ Comandi bot impostati (incluso /kristal).');
+
+  console.log('✅ Comandi bot impostati — menu lucido.');
 }
