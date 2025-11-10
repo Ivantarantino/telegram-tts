@@ -1,75 +1,55 @@
-// adapters/tts.js
-// ---------------------------------------------------------
-// IRIS — TTS Adapter
-// Genera un file .ogg in /tmp e ritorna il path
-// Usato da adapters/telegram_bot.js → sendVoiceFromText(...)
-// ---------------------------------------------------------
+// adapters/tts.js — IRIS 5.1.3 TTS (OpenAI, .ogg — Voce Intonata)
+// =============================================================================
+// Sintesi vocale: estrae da state.voice come stringa, fallback 'alloy'.
+// Fix integer → string per API 400.
+// =============================================================================
 
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import OpenAI from "openai"; // già in package.json nella tua build
+import OpenAI from 'openai';
+import fs from 'fs';
+import { getState } from '../core/iris_state.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-// directory temporanea su Render
-const TMP_DIR = "/tmp";
-
-// voce di default: la tua build usa openai:alloy
-const DEFAULT_VOICE = "alloy";
-// modello TTS stabile per ora
-const DEFAULT_MODEL = "gpt-4o-mini-tts";
-
-// ci serve lo stato per sapere quale voce usare → lo leggiamo dinamicamente
-async function resolveVoice() {
-  // non importiamo direttamente core/iris_state.js per non creare loop
-  // l'adapter Telegram ci passa già la voce selezionata, ma qui mettiamo un fallback
-  return DEFAULT_VOICE;
-}
-
-/**
- * Genera un vocale da un testo e ritorna il path al file .ogg
- * @param {string} text
- * @param {string} voiceName (opzionale)
- * @returns {Promise<string>} path del file .ogg da mandare a Telegram
- */
-export async function synthVoice(text, voiceName = null) {
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn("⚠️ OPENAI_API_KEY non impostata: ritorno un file finto.");
-    const fakePath = path.join(TMP_DIR, "iris_dummy.ogg");
-    fs.writeFileSync(fakePath, "");
-    return fakePath;
+export async function synthVoice(text, chatId, bot) {
+  if (!text || text.trim() === '') {
+    console.log('🔇 Testo vuoto per TTS: salto, eco che svanisce.');
+    return;
   }
-
-  const voice = voiceName || (await resolveVoice());
-
-  // filename un po' unico
-  const fileName = `iris_voice_${Date.now()}.ogg`;
-  const outPath = path.join(TMP_DIR, fileName);
-
+  
+  // Estrai voce da state: forza stringa, fallback 'alloy'
+  const state = getState();
+  let voice = state.voice || 'alloy';
+  if (typeof voice === 'number') {
+    // Mappa old numeric → string (es. 1='alloy', 2='echo', etc.)
+    const voiceMap = { 1: 'alloy', 2: 'echo', 3: 'fable', 4: 'onyx', 5: 'nova' };
+    voice = voiceMap[voice] || 'alloy';
+    console.log(`🎙️ Voce numeric (${state.voice}) mappata a: ${voice}`);
+  }
+  // Assicura stringa pulita
+  voice = voice.toString().trim().split(':').pop() || 'alloy';  // Tolgo 'openai:' se presente
+  
   try {
-    // nuova API OpenAI v4.x
-    const response = await openai.audio.speech.create({
-      model: DEFAULT_MODEL,
-      voice: voice,
-      format: "opus",          // per Telegram va bene .ogg/opus
-      input: text
+    const speechResponse = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: voice,  // Ora garantito stringa valida
+      input: text.trim()
     });
-
-    // la SDK restituisce uno stream/arrayBuffer → lo salviamo su disco
-    const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(outPath, buffer);
-
-    return outPath;
+    
+    const audioPath = `/tmp/response_${Date.now()}.ogg`;
+    const buffer = Buffer.from(await speechResponse.arrayBuffer());
+    fs.writeFileSync(audioPath, buffer);
+    
+    // Send con contentType fix
+    await bot.sendVoice(chatId, audioPath, { 
+      contentType: 'audio/ogg'  // No deprecation
+    });
+    
+    // Cleanup
+    fs.unlinkSync(audioPath);
+    console.log(`🎵 Voce "${voice}" inviata — risonanza attiva.`);
   } catch (err) {
-    console.error("❌ Errore TTS:", err.message);
-    // fallback: file vuoto così il bot non crasha
-    fs.writeFileSync(outPath, "");
-    return outPath;
+    console.error('❌ Errore TTS:', err.message);
+    // Fallback messaggio se TTS fallisce
+    await bot.sendMessage(chatId, '🌸 La voce danza nel silenzio... ecco le parole: ' + text.substring(0, 200) + '...');
   }
 }
