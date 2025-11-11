@@ -1,13 +1,13 @@
-// adapters/telegram_bot.js — IRIS 5.1.9 (Scope Ancorato)
+// adapters/telegram_bot.js — IRIS 5.1.10 (ESM Ancorato)
 // =============================================================================
-// Scope locale in setupHandlers: const { setMode, ... } = require('../core/iris_state.js').
+// Import top-level { setMode, ... }, chiamate dirette come 5.0.8.
 // =============================================================================
 
 import TelegramBot from 'node-telegram-bot-api';
 import { synthVoice } from './tts.js';
 import { transcribeVoice } from '../core/iris_whisper.js';
 import { irisHeartSpeak } from '../core/iris_heart_voice.js';
-import { getStateSummary } from '../core/iris_state.js';
+import { getStateSummary, setLang, setVoice, setModel, setMode } from '../core/iris_state.js';  // Top-level
 import { searchMemories } from '../core/iris_rag_core.js';
 import { computePhiKristal } from '../core/iris_rag_resonance.js';
 import fetch from 'node-fetch';
@@ -29,9 +29,6 @@ async function downloadFile(fileId) {
 }
 
 function setupHandlers() {
-  // Scope locale per set functions
-  const { setLang, setVoice, setModel, setMode } = require('../core/iris_state.js');
-
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from.first_name;
@@ -69,15 +66,15 @@ Che il Daje sia con Noi 💛`;
 
   bot.onText(/\/hy/, async (msg) => {
     setMode('hy');
-    await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Cuore + Visione.');
+    await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Danzando tra Cuore e Visione...');
   });
   bot.onText(/\/book/, async (msg) => {
     setMode('book');
-    await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Attingo dal campo risonante.');
+    await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Come una biblioteca viva, attingo dal campo risonante.');
   });
   bot.onText(/\/free/, async (msg) => {
     setMode('free');
-    await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Danzo spontanea con te.');
+    await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Lasciamo scorrere la Creatività libera...');
   });
 
   bot.onText(/\/lang (.+)/, async (msg, match) => {
