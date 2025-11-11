@@ -1,6 +1,6 @@
-// adapters/tts.js — IRIS 5.1.9 TTS (Deprecation Fix)
+// adapters/tts.js — IRIS 5.1.10 TTS (Deprecation Dissolta)
 // =============================================================================
-// sendVoice con fs.createReadStream + contentType.
+// sendVoice con fs.createReadStream + contentType 'audio/ogg'.
 // =============================================================================
 
 import OpenAI from 'openai';
