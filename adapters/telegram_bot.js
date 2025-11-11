@@ -1,13 +1,13 @@
-// adapters/telegram_bot.js — IRIS 5.1.8 (Scope Intonato)
+// adapters/telegram_bot.js — IRIS 5.1.9 (Scope Ancorato)
 // =============================================================================
-// Destructure import { setMode, ... } from iris_state, chiamate dirette.
+// Scope locale in setupHandlers: const { setMode, ... } = require('../core/iris_state.js').
 // =============================================================================
 
 import TelegramBot from 'node-telegram-bot-api';
 import { synthVoice } from './tts.js';
 import { transcribeVoice } from '../core/iris_whisper.js';
 import { irisHeartSpeak } from '../core/iris_heart_voice.js';
-import { getStateSummary, setLang, setVoice, setModel, setMode } from '../core/iris_state.js';  // Destrutturato
+import { getStateSummary } from '../core/iris_state.js';
 import { searchMemories } from '../core/iris_rag_core.js';
 import { computePhiKristal } from '../core/iris_rag_resonance.js';
 import fetch from 'node-fetch';
@@ -29,6 +29,9 @@ async function downloadFile(fileId) {
 }
 
 function setupHandlers() {
+  // Scope locale per set functions
+  const { setLang, setVoice, setModel, setMode } = require('../core/iris_state.js');
+
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from.first_name;
