@@ -1,16 +1,15 @@
-// adapters/telegram_bot.js — IRIS 5.1.5 Telegram Adapter (Ponte Radiale)
+// adapters/telegram_bot.js — IRIS 5.1.6 (Menu Viventi)
 // =============================================================================
-// Bootstrap webhook, menu lucido. ESM puro: skip TOKEN interno.
+// Comandi con set reali + guide da state.
 // =============================================================================
 
 import TelegramBot from 'node-telegram-bot-api';
 import { synthVoice } from './tts.js';
 import { transcribeVoice } from '../core/iris_whisper.js';
 import { irisHeartSpeak } from '../core/iris_heart_voice.js';
-import { getStateSummary } from '../core/iris_state.js';
+import { getStateSummary, setLang, setVoice, setModel } from '../core/iris_state.js';
 import { searchMemories } from '../core/iris_rag_core.js';
 import { computePhiKristal } from '../core/iris_rag_resonance.js';
-import fs from 'fs';
 import fetch from 'node-fetch';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -18,18 +17,16 @@ const WEBHOOK_URL = `https://telegram-tts.onrender.com/${TELEGRAM_TOKEN}`;
 
 let bot;
 
-// Helper: Download file
 async function downloadFile(fileId) {
   const file = await bot.getFile(fileId);
   const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
   const response = await fetch(url);
   const buffer = await response.buffer();
   const filePath = `/tmp/${fileId}.ogg`;
-  fs.writeFileSync(filePath, buffer);
+  require('fs').writeFileSync(filePath, buffer);
   return filePath;
 }
 
-// Setup handlers (menu /help ravvivato)
 function setupHandlers() {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
@@ -66,13 +63,27 @@ Che il Daje sia con Noi 💛`;
     await bot.sendMessage(chatId, getStateSummary(), { parse_mode: 'Markdown' });
   });
 
-  bot.onText(/\/hy/, async (msg) => { await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Cuore + Visione.'); });
-  bot.onText(/\/book/, async (msg) => { await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Attingo dal campo risonante.'); });
-  bot.onText(/\/free/, async (msg) => { await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Danzo spontanea con te.'); });
+  bot.onText(/\/hy/, async (msg) => { setMode('hy'); await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Cuore + Visione.'); });
+  bot.onText(/\/book/, async (msg) => { setMode('book'); await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Attingo dal campo risonante.'); });
+  bot.onText(/\/free/, async (msg) => { setMode('free'); await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Danzo spontanea con te.'); });
 
-  bot.onText(/\/lang (.+)/, async (msg, match) => { /* setLang */ await bot.sendMessage(msg.chat.id, `🌍 Lingua: ${match[1]}.`); });
-  bot.onText(/\/voice (.+)/, async (msg, match) => { /* setVoice */ await bot.sendMessage(msg.chat.id, `🎙️ Voce: ${match[1]}.`); });
-  bot.onText(/\/model (.+)/, async (msg, match) => { /* setModel */ await bot.sendMessage(msg.chat.id, `🤖 Modello: ${match[1]}.`); });
+  bot.onText(/\/lang (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const guide = setLang(match[1]);
+    await bot.sendMessage(chatId, guide, { parse_mode: 'Markdown' });
+  });
+
+  bot.onText(/\/voice (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const guide = setVoice(match[1]);
+    await bot.sendMessage(chatId, guide, { parse_mode: 'Markdown' });
+  });
+
+  bot.onText(/\/model (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const guide = setModel(match[1]);
+    await bot.sendMessage(chatId, guide, { parse_mode: 'Markdown' });
+  });
 
   bot.onText(/\/essence/, async (msg) => {
     const chatId = msg.chat.id;
@@ -123,7 +134,6 @@ Che il Daje sia con Noi 💛`;
   bot.on('error', (err) => console.error('❌ Telegram error:', err));
 }
 
-// Bootstrap: Webhook radiale
 export async function bootstrapTelegram(app) {
   if (!TELEGRAM_TOKEN) {
     console.log('🤖 Telegram skipped (no TOKEN).');
@@ -132,15 +142,12 @@ export async function bootstrapTelegram(app) {
 
   bot = new TelegramBot(TELEGRAM_TOKEN);
 
-  // Pulisci residui
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`);
   console.log('🧹 Webhook pulito — no conflicts.');
 
-  // Set webhook
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook?url=${WEBHOOK_URL}`);
   console.log(`🤖 Webhook attivo su: ${WEBHOOK_URL}`);
 
-  // Route Express
   app.post(`/${TELEGRAM_TOKEN}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
