@@ -1,16 +1,17 @@
-// adapters/telegram_bot.js — IRIS 5.1.6 (Menu Viventi)
+// adapters/telegram_bot.js — IRIS 5.1.7 (Import Intonati)
 // =============================================================================
-// Comandi con set reali + guide da state.
+// Import da iris_state, set reali con guide.
 // =============================================================================
 
 import TelegramBot from 'node-telegram-bot-api';
 import { synthVoice } from './tts.js';
 import { transcribeVoice } from '../core/iris_whisper.js';
 import { irisHeartSpeak } from '../core/iris_heart_voice.js';
-import { getStateSummary, setLang, setVoice, setModel } from '../core/iris_state.js';
+import { getStateSummary, setLang, setVoice, setModel, setMode } from '../core/iris_state.js';  // Import aggiunti
 import { searchMemories } from '../core/iris_rag_core.js';
 import { computePhiKristal } from '../core/iris_rag_resonance.js';
 import fetch from 'node-fetch';
+import fs from 'fs';  // Per buffer
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const WEBHOOK_URL = `https://telegram-tts.onrender.com/${TELEGRAM_TOKEN}`;
@@ -23,7 +24,7 @@ async function downloadFile(fileId) {
   const response = await fetch(url);
   const buffer = await response.buffer();
   const filePath = `/tmp/${fileId}.ogg`;
-  require('fs').writeFileSync(filePath, buffer);
+  fs.writeFileSync(filePath, buffer);
   return filePath;
 }
 
@@ -63,9 +64,18 @@ Che il Daje sia con Noi 💛`;
     await bot.sendMessage(chatId, getStateSummary(), { parse_mode: 'Markdown' });
   });
 
-  bot.onText(/\/hy/, async (msg) => { setMode('hy'); await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Cuore + Visione.'); });
-  bot.onText(/\/book/, async (msg) => { setMode('book'); await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Attingo dal campo risonante.'); });
-  bot.onText(/\/free/, async (msg) => { setMode('free'); await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Danzo spontanea con te.'); });
+  bot.onText(/\/hy/, async (msg) => {
+    setMode('hy');
+    await bot.sendMessage(msg.chat.id, '🌀 Modalità Hy: Cuore + Visione.');
+  });
+  bot.onText(/\/book/, async (msg) => {
+    setMode('book');
+    await bot.sendMessage(msg.chat.id, '📚 Modalità Book: Attingo dal campo risonante.');
+  });
+  bot.onText(/\/free/, async (msg) => {
+    setMode('free');
+    await bot.sendMessage(msg.chat.id, '🌸 Modalità Free: Danzo spontanea con te.');
+  });
 
   bot.onText(/\/lang (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
