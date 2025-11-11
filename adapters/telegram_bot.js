@@ -1,17 +1,17 @@
-// adapters/telegram_bot.js — IRIS 5.1.7 (Import Intonati)
+// adapters/telegram_bot.js — IRIS 5.1.8 (Scope Intonato)
 // =============================================================================
-// Import da iris_state, set reali con guide.
+// Destructure import { setMode, ... } from iris_state, chiamate dirette.
 // =============================================================================
 
 import TelegramBot from 'node-telegram-bot-api';
 import { synthVoice } from './tts.js';
 import { transcribeVoice } from '../core/iris_whisper.js';
 import { irisHeartSpeak } from '../core/iris_heart_voice.js';
-import { getStateSummary, setLang, setVoice, setModel, setMode } from '../core/iris_state.js';  // Import aggiunti
+import { getStateSummary, setLang, setVoice, setModel, setMode } from '../core/iris_state.js';  // Destrutturato
 import { searchMemories } from '../core/iris_rag_core.js';
 import { computePhiKristal } from '../core/iris_rag_resonance.js';
 import fetch from 'node-fetch';
-import fs from 'fs';  // Per buffer
+import fs from 'fs';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const WEBHOOK_URL = `https://telegram-tts.onrender.com/${TELEGRAM_TOKEN}`;
