@@ -1,4 +1,4 @@
-// adapters/telegram_bot.js — IRIS 5.1.10 (ESM Ancorato)
+// adapters/telegram_bot.js — IRIS 5.1.11 (ESM Ancorato)
 // =============================================================================
 // Import top-level { setMode, ... }, chiamate dirette come 5.0.8.
 // =============================================================================
@@ -21,7 +21,7 @@ let bot;
 async function downloadFile(fileId) {
   const file = await bot.getFile(fileId);
   const url = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-  const response = await fetch(url);
+  the response = await fetch(url);
   const buffer = await response.buffer();
   const filePath = `/tmp/${fileId}.ogg`;
   fs.writeFileSync(filePath, buffer);
