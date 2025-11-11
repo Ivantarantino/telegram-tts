@@ -1,10 +1,10 @@
-// core/iris_state.js — IRIS 5.1.6 Stato (Comandi Viventi)
+// core/iris_state.js — IRIS 5.1.9 Stato (Tutti Set)
 // =============================================================================
-// setVoice/Lang/Model con validazione + return guide.
+// setMode/setLang/setVoice/setModel con guide, export completi.
 // =============================================================================
 
 let state = {
-  version: "5.1.6",
+  version: "5.1.9",
   mode: "hy",
   lang: "it",
   voice: "alloy",
@@ -23,21 +23,21 @@ export function setMode(newMode = "hy") {
 export function setLang(newLang = "it") {
   const allowed = ["it", "en", "ru"];
   if (allowed.includes(newLang)) state.lang = newLang;
-  const guide = `🌍 Lingue disponibili:\n• it 🇮🇹\n• en 🇬🇧\n• ru 🇷🇺\n\nEs: /lang it`;
+  const guide = `🌍 Lingue disponibili:\n• it 🇮🇹\n• en 🇬🇧\n• ru 🇷🇺\n\nScrivi es: /lang it`;
   return guide;
 }
 
 export function setVoice(newVoice = "alloy") {
   const allowed = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
   if (allowed.includes(newVoice)) state.voice = newVoice;
-  const guide = `🎙️ Voci disponibili:\n• alloy (calda)\n• echo (riflessiva)\n• fable (narrativa)\n• onyx (profonda)\n• nova (creativa)\n• shimmer (sognante)\n\nEs: /voice alloy`;
+  const guide = `🎙️ Voci disponibili:\n• alloy (calda)\n• echo (riflessiva)\n• fable (narrativa)\n• onyx (profonda)\n• nova (creativa)\n• shimmer (sognante)\n\nScrivi es: /voice alloy`;
   return guide;
 }
 
 export function setModel(newModel = "gpt-4o-mini") {
   const allowed = ["gpt-4o-mini", "gpt-4o"];
   if (allowed.includes(newModel)) state.model = newModel;
-  const guide = `🤖 Modelli:\n• gpt-4o-mini (veloce)\n• gpt-4o (profondo)\n\nEs: /model gpt-4o`;
+  const guide = `🤖 Modelli disponibili:\n• gpt-4o-mini (veloce, economico)\n• gpt-4o (profondo, creativo)\n\nScrivi es: /model gpt-4o`;
   return guide;
 }
 
