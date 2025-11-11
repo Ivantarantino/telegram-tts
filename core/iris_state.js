@@ -1,10 +1,10 @@
-// core/iris_state.js — IRIS 5.1.10 Stato (Guide Lucide)
+// core/iris_state.js — IRIS 5.1.11 Stato (Guide Lucide)
 // =============================================================================
 // set con guide carine, separate, come 5.0.8.
 // =============================================================================
 
 let state = {
-  version: "5.1.10",
+  version: "5.1.11",
   mode: "hy",
   lang: "it",
   voice: "alloy",
