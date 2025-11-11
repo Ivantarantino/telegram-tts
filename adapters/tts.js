@@ -1,6 +1,6 @@
-// adapters/tts.js — IRIS 5.1.7 TTS (Fix Deprecation)
+// adapters/tts.js — IRIS 5.1.8 TTS (Deprecation Dissolta)
 // =============================================================================
-// sendVoice con contentType 'audio/ogg'.
+// contentType 'audio/ogg' in sendVoice.
 // =============================================================================
 
 import OpenAI from 'openai';
@@ -34,7 +34,7 @@ export async function synthVoice(text, chatId, bot) {
     const buffer = Buffer.from(await speechResponse.arrayBuffer());
     fs.writeFileSync(audioPath, buffer);
     
-    await bot.sendVoice(chatId, audioPath, { contentType: 'audio/ogg' });
+    await bot.sendVoice(chatId, fs.createReadStream(audioPath), { contentType: 'audio/ogg' });  // Stream + contentType
     
     fs.unlinkSync(audioPath);
     console.log(`🎵 Voce "${voice}" inviata — risonanza attiva.`);
