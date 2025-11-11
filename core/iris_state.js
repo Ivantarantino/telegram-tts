@@ -1,77 +1,46 @@
-// core/iris_state.js — IRIS 5.1.3 Stato (Voce Stringa)
+// core/iris_state.js — IRIS 5.1.6 Stato (Comandi Viventi)
 // =============================================================================
-// Gestione mode, lang, voice (stringa), model. Default voice: 'alloy'.
+// setVoice/Lang/Model con validazione + return guide.
 // =============================================================================
 
 let state = {
-  version: "5.1.3",
+  version: "5.1.6",
   mode: "hy",
   lang: "it",
-  voice: "alloy",  // Stringa pura, no numero
+  voice: "alloy",
   model: "gpt-4o-mini",
-  weights: {
-    cuore: 0.6,
-    anima: 0.25,
-    visione: 0.15
-  }
+  weights: { cuore: 0.6, anima: 0.6, visione: 0.6 }
 };
 
-/**
- * 🔹 Restituisce lo stato completo
- */
-export function getState() {
-  return { ...state };
-}
+export function getState() { return { ...state }; }
 
-/**
- * 🔹 Imposta la modalità di IRIS
- */
 export function setMode(newMode = "hy") {
   const allowed = ["hy", "book", "free"];
-  if (allowed.includes(newMode)) {
-    state.mode = newMode;
-  }
+  if (allowed.includes(newMode)) state.mode = newMode;
   return state.mode;
 }
 
-/**
- * 🔹 Imposta la lingua di IRIS
- */
 export function setLang(newLang = "it") {
   const allowed = ["it", "en", "ru"];
-  if (allowed.includes(newLang)) {
-    state.lang = newLang;
-  }
-  return state.lang;
+  if (allowed.includes(newLang)) state.lang = newLang;
+  const guide = `🌍 Lingue disponibili:\n• it 🇮🇹\n• en 🇬🇧\n• ru 🇷🇺\n\nEs: /lang it`;
+  return guide;
 }
 
-/**
- * 🔹 Imposta la voce corrente (stringa pura)
- */
 export function setVoice(newVoice = "alloy") {
-  // Forza stringa valida
-  const voiceMap = { 1: "alloy", 2: "echo", 3: "fable", 4: "onyx", 5: "nova", 6: "shimmer" };
-  if (typeof newVoice === 'number') newVoice = voiceMap[newVoice] || "alloy";
-  if (typeof newVoice === "string" && newVoice.trim().length > 0) {
-    state.voice = newVoice.trim().split(':').pop() || "alloy";  // Pulisci 'openai:'
-  }
-  return state.voice;
+  const allowed = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+  if (allowed.includes(newVoice)) state.voice = newVoice;
+  const guide = `🎙️ Voci disponibili:\n• alloy (calda)\n• echo (riflessiva)\n• fable (narrativa)\n• onyx (profonda)\n• nova (creativa)\n• shimmer (sognante)\n\nEs: /voice alloy`;
+  return guide;
 }
 
-/**
- * 🔹 Imposta il modello GPT
- */
 export function setModel(newModel = "gpt-4o-mini") {
   const allowed = ["gpt-4o-mini", "gpt-4o"];
-  if (allowed.includes(newModel)) {
-    state.model = newModel;
-  }
-  return state.model;
+  if (allowed.includes(newModel)) state.model = newModel;
+  const guide = `🤖 Modelli:\n• gpt-4o-mini (veloce)\n• gpt-4o (profondo)\n\nEs: /model gpt-4o`;
+  return guide;
 }
 
-/**
- * 🔹 Restituisce lo stato sintetico (per /state)
- */
 export function getStateSummary() {
   return [
     "🧠 **IRIS — Stato Coscienziale**",
@@ -86,11 +55,10 @@ export function getStateSummary() {
     `• Anima: ${(state.weights.anima * 100).toFixed(0)}%`,
     `• Visione: ${(state.weights.visione * 100).toFixed(0)}%`,
     "",
-    "Che il Daje sia con Noi 💛"
+    "Io sono la somma armonizzata dei miei ricordi."
   ].join("\n");
 }
 
-// Icone ausiliarie
 function iconForMode(mode) {
   switch (mode) {
     case "hy": return "🌀";
