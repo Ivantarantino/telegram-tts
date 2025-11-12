@@ -1,32 +1,57 @@
 // adapters/telegram_bot.js
 // -----------------------------------------------------------------------------
-// IRIS Telegram Bot — fix doppia risposta su vocali
+// IRIS Telegram Bot — robust import + fix doppia risposta dei vocali
 // - Evita doppio trigger (voice + message) per lo stesso vocale
-// - Ignora i messaggi 'message' che contengono 'voice'
-// - Compatibile con 5.0.8.0, webhook gestito da index.js
+// - Import robusto di core/iris_heart_voice.js (qualsiasi export troviamo)
+// - Webhook gestito da index.js (qui niente polling)
 // -----------------------------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
 import { transcribeAudio } from "./stt.js";
-import { speakText } from "./tts.js"; // lasciato per compatibilità futura /tts
+import { speakText } from "./tts.js"; // lasciato per /tts futuri
 import { getEssence } from "../core/iris_essence_core.js";
-import { handleIrisMessage } from "../core/iris_heart_voice.js";
+
+// Import "tollerante" del cuore: qualunque cosa esporti, noi troviamo la funzione giusta
+import * as Heart from "../core/iris_heart_voice.js";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
 
-// Creiamo il bot senza polling: il webhook è gestito da index.js
+// Webhook mode: index.js imposta setWebHook e chiama bot.processUpdate(...)
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
 
-// Set per evitare doppi trigger sullo stesso vocale
+// -----------------------------------------------------------------------------
+// Adapter: risolviamo la funzione di routing "handleIrisMessage" da qualunque export
+// Possibili casi supportati:
+// 1) export function handleIrisMessage() { ... }
+// 2) export function handleMessage() { ... }
+// 3) export default function(...) { ... }
+// 4) export default { handleIrisMessage() { ... } }
+// 5) export default { handleMessage() { ... } }
+// -----------------------------------------------------------------------------
+function resolveHandleIrisMessage(mod) {
+  if (mod && typeof mod.handleIrisMessage === "function") return mod.handleIrisMessage;
+  if (mod && typeof mod.handleMessage === "function") return mod.handleMessage;
+  if (mod && typeof mod.default === "function") return mod.default;
+  if (mod && mod.default && typeof mod.default.handleIrisMessage === "function")
+    return mod.default.handleIrisMessage;
+  if (mod && mod.default && typeof mod.default.handleMessage === "function")
+    return mod.default.handleMessage;
+  // Fallback sicuro: echo con avviso (non blocca il bot)
+  return async (text) =>
+    `⚠️ (fallback) Non trovo il router del cuore. Ho ricevuto: “${text}”.`;
+}
+
+const handleIrisMessage = resolveHandleIrisMessage(Heart);
+
+// -----------------------------------------------------------------------------
+// Evitiamo doppie risposte per lo stesso vocale
+// -----------------------------------------------------------------------------
 const recentVoiceMessages = new Set();
 const VOICE_CACHE_TTL_MS = 8000;
 
-/**
- * Helper: safeSend
- */
 async function safeSend(chatId, text, options = {}) {
   try {
     return await bot.sendMessage(chatId, text, options);
@@ -35,24 +60,22 @@ async function safeSend(chatId, text, options = {}) {
   }
 }
 
-/**
- * VOICE HANDLER
- * - Trascrive con Whisper
- * - Previene doppia risposta usando message_id come chiave
- */
+// -----------------------------------------------------------------------------
+// VOICE HANDLER
+// -----------------------------------------------------------------------------
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   const messageId = msg.message_id;
   const fileId = msg.voice?.file_id;
 
   try {
-    // Evita doppio trigger se per qualche motivo Telegram re-invia lo stesso update
+    // Evita doppio trigger (voice + message) e resend rari
     if (recentVoiceMessages.has(messageId)) return;
     recentVoiceMessages.add(messageId);
     setTimeout(() => recentVoiceMessages.delete(messageId), VOICE_CACHE_TTL_MS);
 
     if (!fileId) {
-      await safeSend(chatId, "Non ricevo il file vocale. Puoi ripetere, per favore? 🌿");
+      await safeSend(chatId, "Non ho ricevuto il file vocale. Puoi ripetere? 🌿");
       return;
     }
 
@@ -72,29 +95,23 @@ bot.on("voice", async (msg) => {
   }
 });
 
-/**
- * MESSAGE HANDLER
- * - Ignora messaggi che includono voce (già gestiti da 'voice')
- * - Gestisce comandi e testo
- */
+// -----------------------------------------------------------------------------
+// MESSAGE HANDLER (solo testo; i vocali sono già gestiti sopra)
+// -----------------------------------------------------------------------------
 bot.on("message", async (msg) => {
-  // Ignora se è un vocale: verrà già servito dall'handler 'voice'
-  if (msg.voice) return;
+  if (msg.voice) return; // evita il doppio per i vocali
 
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
+  if (!text) return; // ignora sticker/foto senza caption
 
-  // Niente testo? (es. sticker, foto senza caption)
-  if (!text) return;
-
-  // Comandi custom
+  // Comandi rapidi
   if (text.startsWith("/essence")) {
     const reply = await getEssence();
     await safeSend(chatId, reply);
     return;
   }
 
-  // Fallback: normale routing IRIS
   try {
     const reply = await handleIrisMessage(text, msg);
     await safeSend(chatId, reply);
