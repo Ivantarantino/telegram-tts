@@ -1,12 +1,14 @@
 // adapters/telegram_bot.js
 // -----------------------------------------------------------------------------
-// IRIS Telegram Bot — fix doppia risposta dei vocali + import robusto
-// Pulito da speakText (non necessario ora)
-// Compatibile con 5.0.8.0 + webhook gestito da index.js
+// IRIS Telegram Bot — import robusti + fix doppia risposta ai vocali
+// - STT import tollerante (qualsiasi export da adapters/stt.js)
+// - Cuore import tollerante (già fatto)
+// - Niente speakText (non usato ora)
+// - Webhook gestito da index.js (qui polling:false)
 // -----------------------------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
-import { transcribeAudio } from "./stt.js";
+import * as STT from "./stt.js"; // <— import totale, poi risolviamo la funzione giusta
 import { getEssence } from "../core/iris_essence_core.js";
 import * as Heart from "../core/iris_heart_voice.js";
 
@@ -15,11 +17,53 @@ if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
 
-// Webhook mode (Render gestisce i webhook, non il polling)
+// Webhook mode (Render → index.js fa setWebHook e processUpdate)
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
 
 // -----------------------------------------------------------------------------
-// Adattatore: trova la funzione cuore indipendentemente dall’export
+// Risoluzione "tollerante" delle funzioni dal modulo STT
+// Supporta:
+// 1) export function transcribeAudio(bot, fileId)
+// 2) export function transcribe(bot, fileId)
+// 3) export default function (bot, fileId)
+// 4) export default { transcribeAudio(){} } o { transcribe(){} }
+// 5) export function whisperTranscribe(...)   (fallback comune)
+// -----------------------------------------------------------------------------
+function resolveTranscribe(mod) {
+  if (mod && typeof mod.transcribeAudio === "function") return mod.transcribeAudio;
+  if (mod && typeof mod.transcribe === "function") return mod.transcribe;
+  if (mod && typeof mod.whisperTranscribe === "function") return mod.whisperTranscribe;
+  if (mod && typeof mod.default === "function") return mod.default;
+  if (mod && mod.default && typeof mod.default.transcribeAudio === "function")
+    return mod.default.transcribeAudio;
+  if (mod && mod.default && typeof mod.default.transcribe === "function")
+    return mod.default.transcribe;
+  if (mod && mod.default && typeof mod.default.whisperTranscribe === "function")
+    return mod.default.whisperTranscribe;
+
+  // Ultimo fallback: funzione che restituisce stringa vuota (non blocca il bot)
+  return async () => "";
+}
+
+const rawTranscribe = resolveTranscribe(STT);
+
+// Adattatore di chiamata: prova (bot,fileId) → (fileId) → ({bot,fileId})
+async function callTranscribe(sttFn, botInstance, fileId) {
+  try {
+    // Preferiamo la firma (bot, fileId)
+    if (sttFn.length >= 2) return await sttFn(botInstance, fileId);
+    // Altrimenti solo fileId
+    if (sttFn.length === 1) return await sttFn(fileId);
+    // Altrimenti oggetto parametri
+    return await sttFn({ bot: botInstance, fileId });
+  } catch (err) {
+    console.error("❌ STT call failed:", err);
+    return "";
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Risoluzione tollerante della funzione cuore (router messaggi)
 // -----------------------------------------------------------------------------
 function resolveHandleIrisMessage(mod) {
   if (mod && typeof mod.handleIrisMessage === "function") return mod.handleIrisMessage;
@@ -30,13 +74,13 @@ function resolveHandleIrisMessage(mod) {
   if (mod && mod.default && typeof mod.default.handleMessage === "function")
     return mod.default.handleMessage;
   return async (text) =>
-    `⚠️ (fallback) Non trovo il cuore attivo. Ho ricevuto: “${text}”.`;
+    `⚠️ (fallback) Router cuore non trovato. Ricevuto: “${text}”.`;
 }
 
 const handleIrisMessage = resolveHandleIrisMessage(Heart);
 
 // -----------------------------------------------------------------------------
-// Prevenzione doppie risposte per i vocali
+// Prevenzione doppie risposte per lo stesso vocale
 // -----------------------------------------------------------------------------
 const recentVoiceMessages = new Set();
 const VOICE_CACHE_TTL_MS = 8000;
@@ -50,7 +94,7 @@ async function safeSend(chatId, text, options = {}) {
 }
 
 // -----------------------------------------------------------------------------
-// VOICE HANDLER
+// VOICE HANDLER — unica risposta per vocale
 // -----------------------------------------------------------------------------
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
@@ -58,6 +102,7 @@ bot.on("voice", async (msg) => {
   const fileId = msg.voice?.file_id;
 
   try {
+    // Evita doppio trigger (voice + message) e resend rari
     if (recentVoiceMessages.has(messageId)) return;
     recentVoiceMessages.add(messageId);
     setTimeout(() => recentVoiceMessages.delete(messageId), VOICE_CACHE_TTL_MS);
@@ -67,7 +112,7 @@ bot.on("voice", async (msg) => {
       return;
     }
 
-    const text = await transcribeAudio(bot, fileId);
+    const text = await callTranscribe(rawTranscribe, bot, fileId);
     console.log(`🗣️ Trascrizione Whisper: "${text}"`);
 
     if (!text || !text.trim()) {
@@ -78,20 +123,20 @@ bot.on("voice", async (msg) => {
     const reply = await handleIrisMessage(text, msg);
     await safeSend(chatId, reply);
   } catch (err) {
-    console.error("❌ Errore nella gestione del vocale:", err);
+    console.error("❌ Errore gestione vocale:", err);
     await safeSend(chatId, "Qualcosa è andato storto con la voce. 💫");
   }
 });
 
 // -----------------------------------------------------------------------------
-// MESSAGE HANDLER (solo testo; i vocali sono già gestiti sopra)
+// MESSAGE HANDLER (solo testo; i vocali li gestisce 'voice')
 // -----------------------------------------------------------------------------
 bot.on("message", async (msg) => {
-  if (msg.voice) return; // evita doppio trigger
+  if (msg.voice) return; // evita il doppio sui vocali
 
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
-  if (!text) return;
+  if (!text) return; // ignora sticker/foto senza caption
 
   // Comando /essence
   if (text.startsWith("/essence")) {
