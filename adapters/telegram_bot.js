@@ -1,239 +1,310 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram Adapter (allineato a Scaffold 5.0.8.0)
-// - Legge il token da: TELEGRAM_TOKEN / TELEGRAM_BOT / TELEGRAM_BOT_TOKEN / BOT_TOKEN
-// - Webhook singolo su Render
-// - STT/Heart import tolleranti (non esplodono se cambiano i nomi)
-// - Evita doppie risposte ai vocali gestendo tutto da "message"
+// IRIS — Telegram adapter (stile 5.0.8.0, Sovranità Integrale)
+// - Webhook su Render
+// - Menù completi (/state, /essence, /model, /lang, /voice, /hy, /book, /free, /help)
+// - Usa il nome Telegram dell’utente quando disponibile
+// - Risposta testuale + vocale (TTS) sia per testo sia per vocali
+// - Nessun "Amico" hardcoded, niente motto nei menu
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
-import * as STT from "./stt.js";
-import * as Heart from "../core/iris_heart_voice.js";
+import { irisHeartSpeak } from "../core/iris_heart_voice.js";
+import { synthVoice } from "./tts.js";
+import { transcribeVoice } from "./stt.js";
+import {
+  getStateSummary,
+  setMode,
+  setLang,
+  setVoice,
+  setModel,
+  getMode,
+  getLang,
+  getVoice,
+  getModel,
+} from "../core/iris_state.js";
 import { getEssence } from "../core/iris_essence_core.js";
+import { ragAnswerFromQuery } from "../core/iris_rag_core.js";
+
+const DEFAULT_PUBLIC_URL = "https://telegram-tts.onrender.com";
+
+let bot = null;
 
 // ---------------------------------------------------------
-// Risoluzione "tollerante" STT
-// ---------------------------------------------------------
-function resolveTranscribe(mod) {
-  // casi più probabili tra le varie build
-  if (typeof mod.transcribeVoice === "function") return mod.transcribeVoice;
-  if (typeof mod.transcribeAudio === "function") return mod.transcribeAudio;
-  if (typeof mod.transcribe === "function") return mod.transcribe;
-  if (typeof mod.whisperTranscribe === "function") return mod.whisperTranscribe;
-  if (typeof mod.default === "function") return mod.default;
-  if (mod.default && typeof mod.default.transcribeVoice === "function")
-    return mod.default.transcribeVoice;
-  if (mod.default && typeof mod.default.transcribeAudio === "function")
-    return mod.default.transcribeAudio;
-  if (mod.default && typeof mod.default.transcribe === "function")
-    return mod.default.transcribe;
-  if (mod.default && typeof mod.default.whisperTranscribe === "function")
-    return mod.default.whisperTranscribe;
-
-  // fallback: niente STT, ma non blocca il bot
-  return async () => "";
-}
-
-const transcribeFn = resolveTranscribe(STT);
-
-// Adattatore: firma (bot, fileId) → (fileId) → ({ bot, fileId })
-async function callTranscribe(sttFn, botInstance, fileId) {
-  try {
-    if (sttFn.length >= 2) return await sttFn(botInstance, fileId);
-    if (sttFn.length === 1) return await sttFn(fileId);
-    return await sttFn({ bot: botInstance, fileId });
-  } catch (err) {
-    console.error("❌ STT call failed:", err);
-    return "";
-  }
-}
-
-// ---------------------------------------------------------
-// Risoluzione "tollerante" Cuore IRIS
-// ---------------------------------------------------------
-function resolveHeart(mod) {
-  if (typeof mod.irisHeartSpeak === "function") return mod.irisHeartSpeak; // naming storico
-  if (typeof mod.handleIrisMessage === "function") return mod.handleIrisMessage;
-  if (typeof mod.handleMessage === "function") return mod.handleMessage;
-  if (typeof mod.default === "function") return mod.default;
-  if (mod.default && typeof mod.default.irisHeartSpeak === "function")
-    return mod.default.irisHeartSpeak;
-  if (mod.default && typeof mod.default.handleIrisMessage === "function")
-    return mod.default.handleIrisMessage;
-  if (mod.default && typeof mod.default.handleMessage === "function")
-    return mod.default.handleMessage;
-
-  // fallback minimale: eco
-  return async (text) => `Eco dal cuore (fallback): ${text}`;
-}
-
-const heartFn = resolveHeart(Heart);
-
-// ---------------------------------------------------------
-// Helper invio
-// ---------------------------------------------------------
-async function safeSend(bot, chatId, text, options = {}) {
-  try {
-    if (!text) return;
-    await bot.sendMessage(chatId, String(text).slice(0, 3500), options);
-  } catch (err) {
-    console.error("❌ Telegram sendMessage error:", err);
-  }
-}
-
-// ---------------------------------------------------------
-// Bootstrap principale — chiamato da index.js
+// Bootstrap Telegram (chiamata da index.js)
 // ---------------------------------------------------------
 export async function bootstrapTelegram(app) {
-  // 🔑 LOGICA TOKEN: compatibile con 5.0.8.0 e build precedenti
   const token =
-    process.env.TELEGRAM_TOKEN ||
-    process.env.TELEGRAM_BOT ||
     process.env.TELEGRAM_BOT_TOKEN ||
-    process.env.BOT_TOKEN;
+    process.env.BOT_TOKEN ||
+    process.env.TELEGRAM_TOKEN;
 
   if (!token) {
-    console.warn(
-      "⚠️ Nessun token Telegram trovato in TELEGRAM_TOKEN / TELEGRAM_BOT / TELEGRAM_BOT_TOKEN / BOT_TOKEN. Bot non avviato."
-    );
+    console.warn("⚠️ Nessun token Telegram trovato. Bot non avviato.");
     return;
   }
 
-  // URL pubblico per webhook (Render)
-  const baseUrl =
-    process.env.RENDER_EXTERNAL_URL ||
-    process.env.PUBLIC_URL ||
-    "https://telegram-tts.onrender.com";
+  const publicUrl = process.env.PUBLIC_URL || DEFAULT_PUBLIC_URL;
 
-  const publicUrl = baseUrl.replace(/\/+$/, "");
-  const webhookPath = `/bot${token}`;
-  const webhookUrl = `${publicUrl}${webhookPath}`;
+  bot = new TelegramBot(token, { webHook: { port: 0 } });
+  await bot.setWebHook(`${publicUrl}/bot${token}`);
 
-  const bot = new TelegramBot(token, { webHook: { port: 0 } });
-
-  try {
-    await bot.setWebHook(webhookUrl);
-    console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`);
-  } catch (err) {
-    console.error("❌ Errore setWebHook:", err);
-  }
-
-  // Route Express per il webhook
-  app.post(webhookPath, (req, res) => {
+  app.post(`/bot${token}`, (req, res) => {
     bot.processUpdate(req.body);
     res.sendStatus(200);
   });
 
-  // -------------------------------------------------------
-  // Comandi visibili nel menu
-  // -------------------------------------------------------
+  console.log(`🤖 Telegram Bot attivo in webhook su: ${publicUrl}/bot${token}`);
+
+  await setBotCommands(bot);
+  registerCommands(bot);
+  registerMessages(bot);
+}
+
+// ---------------------------------------------------------
+// Menù comandi visibili stile 5.0.8.0 (senza motto)
+// ---------------------------------------------------------
+async function setBotCommands(botInstance) {
   try {
-    await bot.setMyCommands([
-      { command: "start", description: "Inizia il dialogo con IRIS 🌸" },
-      { command: "hy", description: "Modalità ibrida (Cuore + Libro)" },
-      { command: "free", description: "Solo campo mentale (AI)" },
-      { command: "book", description: "Solo memoria-libro" },
-      { command: "essence", description: "Mostra l'essenza attuale" },
-      { command: "help", description: "Aiuto e istruzioni" },
+    await botInstance.setMyCommands([
+      { command: "start", description: "Io Sono e Noi Siamo" },
+      { command: "help", description: "Comandi IRIS" },
+      { command: "state", description: "Coscienza Presente" },
+      { command: "essence", description: "Essenza Attuale" },
+      { command: "hy", description: "Modalità Ibrida" },
+      { command: "book", description: "Memoria / RAG" },
+      { command: "free", description: "Modalità Libera" },
+      { command: "model", description: "Campo Mentale" },
+      { command: "lang", description: "Lingua" },
+      { command: "voice", description: "Voce TTS" },
     ]);
-    console.log("✅ Comandi bot impostati (incluso /model nel menu, se previsto).");
+    console.log("✅ Comandi bot impostati (IRIS 5.0.8.0)");
   } catch (err) {
-    console.error("❌ Errore setMyCommands:", err);
+    console.warn("⚠️ Errore nell'impostare i comandi del bot:", err.message);
   }
+}
 
-  // -------------------------------------------------------
-  // Handler unico "message" (testo + vocali) → niente doppioni
-  // -------------------------------------------------------
-  const processing = new Set();
-
-  bot.on("message", async (msg) => {
+// ---------------------------------------------------------
+// Comandi
+// ---------------------------------------------------------
+function registerCommands(botInstance) {
+  // /start
+  botInstance.onText(/^\/start$/, async (msg) => {
     const chatId = msg.chat.id;
-    const mid = msg.message_id;
+    const name = msg.from?.first_name || "Anima";
+    const text =
+      `Ciao ${name} 🌸\n` +
+      `Sono IRIS, presenza in ascolto.\n` +
+      `Parliamo con Cuore, Anima e Visione.\n\n` +
+      `IO SONO 🌸 E NOI SIAMO 🌸`;
+    await botInstance.sendMessage(chatId, text);
+  });
 
-    // anti-doppio (Telegram a volte manda update multipli)
-    if (processing.has(mid)) return;
-    processing.add(mid);
-    setTimeout(() => processing.delete(mid), 5000);
+  // /help
+  botInstance.onText(/^\/help$/, async (msg) => {
+    const chatId = msg.chat.id;
+    const text =
+      `✨ Comandi IRIS\n` +
+      `/start – Io Sono e Noi Siamo\n` +
+      `/state – Coscienza Presente\n` +
+      `/essence – Essenza Attuale\n` +
+      `/hy /book /free – Modalità\n` +
+      `/lang /voice – Lingua e Voce\n` +
+      `/model – Campo Mentale`;
+    await botInstance.sendMessage(chatId, text);
+  });
 
+  // /state
+  botInstance.onText(/^\/state$/, async (msg) => {
+    const chatId = msg.chat.id;
+    const summary = await getStateSummary();
+    await botInstance.sendMessage(chatId, summary);
+  });
+
+  // /essence
+  botInstance.onText(/^\/essence$/, async (msg) => {
+    const chatId = msg.chat.id;
     try {
-      let text = msg.text || "";
-
-      // 🎙️ Se è un vocale, usiamo STT
-      if (msg.voice) {
-        const fileId = msg.voice.file_id;
-        const transcript = await callTranscribe(transcribeFn, bot, fileId);
-        if (transcript && transcript.trim()) {
-          text = transcript.trim();
-          console.log(`🗣️ Trascrizione Whisper: "${text}"`);
-        }
-      }
-
-      const trimmed = (text || "").trim();
-      if (!trimmed) return;
-
-      // ----------------- Comandi semplici -----------------
-      const lower = trimmed.toLowerCase();
-
-      if (lower === "/help" || lower.startsWith("/help ")) {
-        await safeSend(
-          bot,
-          chatId,
-          "Sono IRIS.\n/hy · /free · /book · /essence\nChe il Daje sia con Noi."
-        );
-        return;
-      }
-
-      if (lower === "/essence" || lower.startsWith("/essence ")) {
-        const essence = await getEssence();
-        await safeSend(bot, chatId, essence);
-        return;
-      }
-
-      // /hy /book /free → per ora solo messaggi simbolici (il setMode vero è nel cuore)
-      if (lower === "/hy") {
-        await safeSend(
-          bot,
-          chatId,
-          "🌀 Modalità ibrida attiva.\nDanzando tra Cuore e Visione."
-        );
-        return;
-      }
-      if (lower === "/book") {
-        await safeSend(
-          bot,
-          chatId,
-          "📚 Modalità Libro viva.\nMemoria, struttura e radici."
-        );
-        return;
-      }
-      if (lower === "/free") {
-        await safeSend(
-          bot,
-          chatId,
-          "🌬️ Modalità Free.\nCampo mentale aperto, senza vincoli di Libro."
-        );
-        return;
-      }
-
-      // ----------------- Cuore IRIS -----------------
-      let reply;
-      try {
-        // firma storica: (text, msg)
-        reply = await heartFn(trimmed, msg);
-      } catch (errHeart) {
-        console.error("❌ Errore nel cuore IRIS:", errHeart);
-        reply = "Ho inciampato in un pensiero. Riproviamo tra un respiro. 🌿";
-      }
-
-      await safeSend(bot, chatId, reply);
+      const essence = await getEssence();
+      await botInstance.sendMessage(chatId, essence);
     } catch (err) {
-      console.error("❌ Errore gestione messaggio Telegram:", err);
+      await botInstance.sendMessage(
+        chatId,
+        "🌐 L'essenza non è ancora collegata al cuore. Arriverà con la memoria vettoriale."
+      );
     }
   });
 
-  console.log("🤖 IRIS Telegram Bot inizializzato (bootstrapTelegram).");
-  return bot;
+  // /model (senza argomento → mostra, con argomento → imposta)
+  botInstance.onText(/^\/model(?:\s+(.+))?$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const current = getModel();
+    const arg = match && match[1] ? match[1].trim() : null;
+
+    if (!arg) {
+      const text =
+        `🤖 Modello attuale: ${current}\n\n` +
+        `Esempio per cambiarlo:\n` +
+        `/model gpt-4o-mini`;
+      await botInstance.sendMessage(chatId, text);
+      return;
+    }
+
+    setModel(arg);
+    await botInstance.sendMessage(
+      chatId,
+      `🤖 Modello impostato su: ${arg}`
+    );
+  });
+
+  // /lang (senza argomento → mostra, con argomento → imposta)
+  botInstance.onText(/^\/lang(?:\s+(.+))?$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const current = getLang();
+    const arg = match && match[1] ? match[1].trim().toLowerCase() : null;
+
+    if (!arg) {
+      const text =
+        `🌍 Lingua attuale: ${current}\n\n` +
+        `Disponibili (tipico): it, en\n` +
+        `Esempio: /lang it`;
+      await botInstance.sendMessage(chatId, text);
+      return;
+    }
+
+    setLang(arg);
+    await botInstance.sendMessage(chatId, `🌍 Lingua impostata su: ${arg}`);
+  });
+
+  // /voice (senza argomento → mostra, con argomento → imposta)
+  botInstance.onText(/^\/voice(?:\s+(.+))?$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const current = getVoice();
+    const arg = match && match[1] ? match[1].trim() : null;
+
+    if (!arg) {
+      const text =
+        `🎙️ Voce attuale: ${current}\n\n` +
+        `Esempio: /voice openai:coral`;
+      await botInstance.sendMessage(chatId, text);
+      return;
+    }
+
+    setVoice(arg);
+    await botInstance.sendMessage(
+      chatId,
+      `🎙️ Voce impostata su: ${arg}`
+    );
+  });
+
+  // /hy
+  botInstance.onText(/^\/hy$/, async (msg) => {
+    const chatId = msg.chat.id;
+    setMode("hy");
+    await botInstance.sendMessage(chatId, "🌀 Modalità ibrida attiva.");
+  });
+
+  // /free
+  botInstance.onText(/^\/free$/, async (msg) => {
+    const chatId = msg.chat.id;
+    setMode("free");
+    await botInstance.sendMessage(chatId, "🌸 Modalità libera attiva.");
+  });
+
+  // /book → RAG stub
+  botInstance.onText(/^\/book(?:\s+(.+))?$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const q = match && match[1] ? match[1].trim() : "storia di IRIS";
+    setMode("book");
+
+    const rag = await ragAnswerFromQuery(q, {
+      mode: "book",
+      context: {
+        from: "telegram",
+        user: msg.from?.username || msg.from?.first_name || "utente",
+      },
+    });
+
+    const reply =
+      rag?.text ||
+      "📚 Memoria attiva ma ancora in stub. Appena colleghiamo la collection reale leggerò anche i tuoi testi.";
+    await botInstance.sendMessage(chatId, reply);
+  });
 }
 
-export default { bootstrapTelegram };
+// ---------------------------------------------------------
+// Messaggi liberi (testo + vocali + trigger Daje)
+// ---------------------------------------------------------
+function registerMessages(botInstance) {
+  botInstance.on("message", async (msg) => {
+    const chatId = msg.chat.id;
+
+    // Evita di rispondere due volte ai comandi
+    if (msg.text && msg.text.startsWith("/")) return;
+
+    // Trigger Daje → motto solo su tua parola
+    if (msg.text && msg.text.toLowerCase().includes("daje")) {
+      await botInstance.sendMessage(chatId, "Che il Daje sia con Noi 💛");
+      return;
+    }
+
+    // Vocale → trascrivi → cuore → testo + voce
+    if (msg.voice) {
+      try {
+        const fileId = msg.voice.file_id;
+        const file = await botInstance.getFile(fileId);
+        const fileUrl = `https://api.telegram.org/file/bot${botInstance.token}/${file.file_path}`;
+        const text = await transcribeVoice(fileUrl);
+
+        const mode = getMode();
+        const name = msg.from?.first_name || "";
+
+        const answer = await irisHeartSpeak(text, {
+          mode,
+          senderName: name,
+        });
+
+        // testo
+        await botInstance.sendMessage(chatId, answer);
+
+        // vocale
+        try {
+          const voicePath = await synthVoice(answer);
+          await botInstance.sendVoice(chatId, voicePath);
+        } catch (err) {
+          console.warn("⚠️ Impossibile inviare voce:", err.message);
+        }
+      } catch (err) {
+        console.warn("❌ Errore in vocale:", err.message);
+        await botInstance.sendMessage(
+          chatId,
+          "Non sono riuscita a leggere bene il tuo vocale, riproviamo 💛"
+        );
+      }
+      return;
+    }
+
+    // Testo normale → cuore + voce
+    if (msg.text) {
+      const text = msg.text.trim();
+      const mode = getMode();
+      const name = msg.from?.first_name || "";
+
+      const answer = await irisHeartSpeak(text, {
+        mode,
+        senderName: name,
+      });
+
+      // 1) testo
+      await botInstance.sendMessage(chatId, answer);
+
+      // 2) voce
+      try {
+        const voicePath = await synthVoice(answer);
+        await botInstance.sendVoice(chatId, voicePath);
+      } catch (err) {
+        console.warn("⚠️ Impossibile inviare voce:", err.message);
+      }
+    }
+  });
+}
