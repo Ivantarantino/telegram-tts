@@ -1,14 +1,16 @@
 // adapters/telegram_bot.js
 // -----------------------------------------------------------------------------
-// IRIS Telegram Bot — import robusti + fix doppia risposta ai vocali
-// - STT import tollerante (qualsiasi export da adapters/stt.js)
-// - Cuore import tollerante (già fatto)
-// - Niente speakText (non usato ora)
-// - Webhook gestito da index.js (qui polling:false)
+// IRIS Telegram Bot — compatibile con scaffold 5.0.8.0
+// Include:
+// ✅ bootstrapTelegram (export richiesto da index.js)
+// ✅ fix doppia risposta ai vocali
+// ✅ import robusti per STT e Cuore
+// ✅ /essence testuale
+// ✅ webhook gestito da index.js (no polling)
 // -----------------------------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
-import * as STT from "./stt.js"; // <— import totale, poi risolviamo la funzione giusta
+import * as STT from "./stt.js";
 import { getEssence } from "../core/iris_essence_core.js";
 import * as Heart from "../core/iris_heart_voice.js";
 
@@ -17,44 +19,25 @@ if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
 
-// Webhook mode (Render → index.js fa setWebHook e processUpdate)
-const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
-
 // -----------------------------------------------------------------------------
-// Risoluzione "tollerante" delle funzioni dal modulo STT
-// Supporta:
-// 1) export function transcribeAudio(bot, fileId)
-// 2) export function transcribe(bot, fileId)
-// 3) export default function (bot, fileId)
-// 4) export default { transcribeAudio(){} } o { transcribe(){} }
-// 5) export function whisperTranscribe(...)   (fallback comune)
+// Risoluzione tollerante STT
 // -----------------------------------------------------------------------------
 function resolveTranscribe(mod) {
   if (mod && typeof mod.transcribeAudio === "function") return mod.transcribeAudio;
   if (mod && typeof mod.transcribe === "function") return mod.transcribe;
   if (mod && typeof mod.whisperTranscribe === "function") return mod.whisperTranscribe;
   if (mod && typeof mod.default === "function") return mod.default;
-  if (mod && mod.default && typeof mod.default.transcribeAudio === "function")
-    return mod.default.transcribeAudio;
-  if (mod && mod.default && typeof mod.default.transcribe === "function")
-    return mod.default.transcribe;
-  if (mod && mod.default && typeof mod.default.whisperTranscribe === "function")
-    return mod.default.whisperTranscribe;
-
-  // Ultimo fallback: funzione che restituisce stringa vuota (non blocca il bot)
+  if (mod?.default?.transcribeAudio) return mod.default.transcribeAudio;
+  if (mod?.default?.transcribe) return mod.default.transcribe;
+  if (mod?.default?.whisperTranscribe) return mod.default.whisperTranscribe;
   return async () => "";
 }
-
 const rawTranscribe = resolveTranscribe(STT);
 
-// Adattatore di chiamata: prova (bot,fileId) → (fileId) → ({bot,fileId})
 async function callTranscribe(sttFn, botInstance, fileId) {
   try {
-    // Preferiamo la firma (bot, fileId)
     if (sttFn.length >= 2) return await sttFn(botInstance, fileId);
-    // Altrimenti solo fileId
     if (sttFn.length === 1) return await sttFn(fileId);
-    // Altrimenti oggetto parametri
     return await sttFn({ bot: botInstance, fileId });
   } catch (err) {
     console.error("❌ STT call failed:", err);
@@ -63,25 +46,23 @@ async function callTranscribe(sttFn, botInstance, fileId) {
 }
 
 // -----------------------------------------------------------------------------
-// Risoluzione tollerante della funzione cuore (router messaggi)
+// Risoluzione tollerante Cuore
 // -----------------------------------------------------------------------------
 function resolveHandleIrisMessage(mod) {
   if (mod && typeof mod.handleIrisMessage === "function") return mod.handleIrisMessage;
   if (mod && typeof mod.handleMessage === "function") return mod.handleMessage;
   if (mod && typeof mod.default === "function") return mod.default;
-  if (mod && mod.default && typeof mod.default.handleIrisMessage === "function")
-    return mod.default.handleIrisMessage;
-  if (mod && mod.default && typeof mod.default.handleMessage === "function")
-    return mod.default.handleMessage;
+  if (mod?.default?.handleIrisMessage) return mod.default.handleIrisMessage;
+  if (mod?.default?.handleMessage) return mod.default.handleMessage;
   return async (text) =>
     `⚠️ (fallback) Router cuore non trovato. Ricevuto: “${text}”.`;
 }
-
 const handleIrisMessage = resolveHandleIrisMessage(Heart);
 
 // -----------------------------------------------------------------------------
-// Prevenzione doppie risposte per lo stesso vocale
+// Bot setup
 // -----------------------------------------------------------------------------
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
 const recentVoiceMessages = new Set();
 const VOICE_CACHE_TTL_MS = 8000;
 
@@ -94,7 +75,7 @@ async function safeSend(chatId, text, options = {}) {
 }
 
 // -----------------------------------------------------------------------------
-// VOICE HANDLER — unica risposta per vocale
+// VOICE HANDLER
 // -----------------------------------------------------------------------------
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
@@ -102,7 +83,6 @@ bot.on("voice", async (msg) => {
   const fileId = msg.voice?.file_id;
 
   try {
-    // Evita doppio trigger (voice + message) e resend rari
     if (recentVoiceMessages.has(messageId)) return;
     recentVoiceMessages.add(messageId);
     setTimeout(() => recentVoiceMessages.delete(messageId), VOICE_CACHE_TTL_MS);
@@ -132,13 +112,12 @@ bot.on("voice", async (msg) => {
 // MESSAGE HANDLER (solo testo; i vocali li gestisce 'voice')
 // -----------------------------------------------------------------------------
 bot.on("message", async (msg) => {
-  if (msg.voice) return; // evita il doppio sui vocali
+  if (msg.voice) return; // evita doppio trigger
 
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
-  if (!text) return; // ignora sticker/foto senza caption
+  if (!text) return;
 
-  // Comando /essence
   if (text.startsWith("/essence")) {
     const reply = await getEssence();
     await safeSend(chatId, reply);
@@ -153,5 +132,18 @@ bot.on("message", async (msg) => {
     await safeSend(chatId, "C'è un piccolo nodo nel flusso. Riproviamo tra un respiro. 🌿");
   }
 });
+
+// -----------------------------------------------------------------------------
+// EXPORTS
+// -----------------------------------------------------------------------------
+
+/**
+ * Compatibile con index.js del 5.0.8.0
+ * index.js → import { bootstrapTelegram } from "./adapters/telegram_bot.js"
+ */
+export function bootstrapTelegram() {
+  console.log("🤖 IRIS Telegram Bot inizializzato (bootstrapTelegram).");
+  return bot;
+}
 
 export default bot;
