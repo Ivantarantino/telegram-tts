@@ -2,6 +2,7 @@
 // -----------------------------------------------------------------------------
 // IRIS — /essence minima, poetica e coerente con Sovranità Integrale.
 // Compatibile con 5.0.8.0 e con import { getEssence }.
+// Output SOLO TESTO (niente TTS).
 // -----------------------------------------------------------------------------
 
 function weightedMeanScalar(embeddings = [], weights = []) {
