@@ -1,199 +1,188 @@
 // adapters/telegram_bot.js
 // -----------------------------------------------------------------------------
-// IRIS Telegram Bot — compatibile con scaffold 5.0.8.0
-// - Lettura token: ENV → ./config.json → (opzionale) configManager.js
-// - Import robusti per STT e Cuore (evita mismatch sugli export)
-// - Fix doppia risposta ai vocali (de-bounce su messageId)
-// - Webhook gestito una sola volta (no polling su Render)
+// IRIS Telegram Bot — import robusti + fix doppia risposta ai vocali
+// - STT import tollerante (qualsiasi export da adapters/stt.js)
+// - Cuore import tollerante
+// - Nessun TTS qui (lo gestiremo altrove)
+// - Webhook gestito da index.js (qui polling:false)
 // -----------------------------------------------------------------------------
 
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import TelegramBot from "node-telegram-bot-api";
-
-import * as STT from "./stt.js";
-import * as Heart from "../core/iris_heart_voice.js";
+import * as STT from "./stt.js"; // import totale, poi risolviamo la funzione giusta
 import { getEssence } from "../core/iris_essence_core.js";
+import * as Heart from "../core/iris_heart_voice.js";
 
-// Utils __dirname in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// -------------------------------------
-// Lettura token (ENV → config.json → configManager.js)
-// -------------------------------------
-function readConfigJsonToken() {
-  try {
-    const p = path.join(process.cwd(), "config.json");
-    if (fs.existsSync(p)) {
-      const cfg = JSON.parse(fs.readFileSync(p, "utf-8"));
-      if (cfg && typeof cfg.TELEGRAM_BOT_TOKEN === "string" && cfg.TELEGRAM_BOT_TOKEN.trim()) {
-        return cfg.TELEGRAM_BOT_TOKEN.trim();
-      }
-    }
-  } catch (_) {}
-  return null;
-}
-
-function readConfigManagerTokenSync() {
-  // Nessun await qui: tentativo best-effort su require dinamico ESM-safe
-  // Se non esiste, si ignora silenziosamente.
-  try {
-    // eslint-disable-next-line no-new-func
-    const req = Function("return require")();
-    const mod = req(path.join(__dirname, "configManager.js"));
-    if (mod && typeof mod.getConfig === "function") {
-      const cfg = mod.getConfig();
-      if (cfg && typeof cfg.TELEGRAM_BOT_TOKEN === "string" && cfg.TELEGRAM_BOT_TOKEN.trim()) {
-        return cfg.TELEGRAM_BOT_TOKEN.trim();
-      }
-    }
-  } catch (_) {}
-  return null;
-}
-
-function getTelegramToken() {
-  if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_TOKEN.trim()) {
-    return process.env.TELEGRAM_BOT_TOKEN.trim();
-  }
-  const fromJson = readConfigJsonToken();
-  if (fromJson) return fromJson;
-  const fromManager = readConfigManagerTokenSync();
-  if (fromManager) return fromManager;
-  return null;
-}
-
-// -------------------------------------
-// Risoluzione "tollerante" funzioni STT/Heart
-// -------------------------------------
+// -----------------------------------------------------------------------------
+// Risoluzione "tollerante" delle funzioni dal modulo STT
+// Supporta:
+// 1) export function transcribeAudio(bot, fileId)
+// 2) export function transcribe(bot, fileId)
+// 3) export function whisperTranscribe(bot, fileId)
+// 4) export default function (bot, fileId)
+// 5) export default { transcribeAudio(){} }, { transcribe(){} }, { whisperTranscribe(){} }
+// -----------------------------------------------------------------------------
 function resolveTranscribe(mod) {
   if (mod && typeof mod.transcribeAudio === "function") return mod.transcribeAudio;
   if (mod && typeof mod.transcribe === "function") return mod.transcribe;
   if (mod && typeof mod.whisperTranscribe === "function") return mod.whisperTranscribe;
   if (mod && typeof mod.default === "function") return mod.default;
-  if (mod && mod.default && typeof mod.default.transcribeAudio === "function") return mod.default.transcribeAudio;
-  if (mod && mod.default && typeof mod.default.transcribe === "function") return mod.default.transcribe;
-  if (mod && mod.default && typeof mod.default.whisperTranscribe === "function") return mod.default.whisperTranscribe;
-  return async () => ""; // fallback no-op
-}
-const transcribeAudio = resolveTranscribe(STT);
+  if (mod && mod.default && typeof mod.default.transcribeAudio === "function")
+    return mod.default.transcribeAudio;
+  if (mod && mod.default && typeof mod.default.transcribe === "function")
+    return mod.default.transcribe;
+  if (mod && mod.default && typeof mod.default.whisperTranscribe === "function")
+    return mod.default.whisperTranscribe;
 
-function resolveHandle(mod) {
+  // Ultimo fallback: funzione che restituisce stringa vuota (non blocca il bot)
+  return async () => "";
+}
+
+const rawTranscribe = resolveTranscribe(STT);
+
+// Adattatore di chiamata: prova (bot,fileId) → (fileId) → ({bot,fileId})
+async function callTranscribe(sttFn, botInstance, fileId) {
+  try {
+    // Preferiamo la firma (bot, fileId)
+    if (sttFn.length >= 2) return await sttFn(botInstance, fileId);
+    // Altrimenti solo fileId
+    if (sttFn.length === 1) return await sttFn(fileId);
+    // Altrimenti oggetto parametri
+    return await sttFn({ bot: botInstance, fileId });
+  } catch (err) {
+    console.error("❌ STT call failed:", err);
+    return "";
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Risoluzione tollerante della funzione cuore (router messaggi)
+// -----------------------------------------------------------------------------
+function resolveHandleIrisMessage(mod) {
   if (mod && typeof mod.handleIrisMessage === "function") return mod.handleIrisMessage;
+  if (mod && typeof mod.handleMessage === "function") return mod.handleMessage;
   if (mod && typeof mod.default === "function") return mod.default;
-  if (mod && mod.default && typeof mod.default.handleIrisMessage === "function") return mod.default.handleIrisMessage;
-  // Fallback minimale: risponde testualmente
-  return async ({ text }) => ({ text: (text || "Ciao.").trim() });
+  if (mod && mod.default && typeof mod.default.handleIrisMessage === "function")
+    return mod.default.handleIrisMessage;
+  if (mod && mod.default && typeof mod.default.handleMessage === "function")
+    return mod.default.handleMessage;
+
+  // Fallback: non blocca IRIS, ma segnala il problema
+  return async (text) =>
+    `⚠️ (fallback) Router cuore non trovato. Ricevuto: “${text}”.`;
 }
-const handleIrisMessage = resolveHandle(Heart);
 
-// -------------------------------------
-// Stato anti-doppie risposte
-// -------------------------------------
-const processingMessage = new Set();
+const handleIrisMessage = resolveHandleIrisMessage(Heart);
 
-// -------------------------------------
-// Bootstrap principale
-// -------------------------------------
-export async function bootstrapTelegram(app) {
-  const TOKEN = getTelegramToken();
-  if (!TOKEN) {
-    console.warn("⚠️  TELEGRAM_BOT_TOKEN non trovato (ENV/config). Il bot non sarà inizializzato.");
-    return; // non bloccare l'avvio del server
+// -----------------------------------------------------------------------------
+// Helper per invio messaggi
+// -----------------------------------------------------------------------------
+async function safeSend(bot, chatId, text, options = {}) {
+  try {
+    return await bot.sendMessage(chatId, text, options);
+  } catch (err) {
+    console.error("❌ Telegram sendMessage error:", err);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// BOOTSTRAP (export richiesto da index.js nello scaffold 5.0.8.0)
+// -----------------------------------------------------------------------------
+export function bootstrapTelegram() {
+  // ⚙️ Compatibilità con tutte le versioni:
+  // - TELEGRAM_BOT      (come da tue build storiche)
+  // - TELEGRAM_BOT_TOKEN
+  // - TELEGRAM_TOKEN    (vecchio naming)
+  const TELEGRAM_BOT_TOKEN =
+    process.env.TELEGRAM_BOT ||
+    process.env.TELEGRAM_BOT_TOKEN ||
+    process.env.TELEGRAM_TOKEN;
+
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.warn(
+      "⚠️ bootstrapTelegram: nessun token Telegram trovato in " +
+        "TELEGRAM_BOT / TELEGRAM_BOT_TOKEN / TELEGRAM_TOKEN. " +
+        "Il bot non sarà inizializzato."
+    );
+    return null;
   }
 
-  // Webhook mode (Render). Niente polling.
-  const bot = new TelegramBot(TOKEN, { polling: false });
+  // Webhook mode (Render gestisce setWebHook e processUpdate in index.js)
+  const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
 
-  // URL pubblico per webhook
-  const publicUrl =
-    process.env.RENDER_EXTERNAL_URL ||
-    process.env.PUBLIC_BASE_URL ||
-    process.env.PUBLIC_URL ||
-    "";
+  // ---------------------------------------------------------------------------
+  // Prevenzione doppie risposte per lo stesso vocale
+  // ---------------------------------------------------------------------------
+  const recentVoiceMessages = new Set();
+  const VOICE_CACHE_TTL_MS = 8000;
 
-  const webhookPath = `/bot${TOKEN}`;
-  if (publicUrl) {
-    const webhookUrl = `${publicUrl.replace(/\/+$/, "")}${webhookPath}`;
-    try {
-      await bot.setWebHook(webhookUrl);
-      console.log("✅ Comandi bot impostati (incluso /model visibile nel menu)");
-      console.log(`🤖 Telegram Bot attivo in webhook su: ${webhookUrl}`);
-    } catch (err) {
-      console.error("❌ Errore setWebHook:", err?.message || err);
-    }
-  } else {
-    console.log("ℹ️ PUBLIC URL non presente: webhook non impostato (ok in locale).");
-  }
-
-  // Route webhook (unica)
-  app.post(webhookPath, (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  });
-
-  // ---------------------------
-  // Comandi base
-  // ---------------------------
-  bot.setMyCommands([
-    { command: "start", description: "Avvio" },
-    { command: "hy", description: "Modalità ibrida" },
-    { command: "free", description: "Solo AI" },
-    { command: "book", description: "Solo libri" },
-    { command: "essence", description: "Essenza attuale di IRIS" },
-    { command: "help", description: "Aiuto" },
-  ]);
-
-  bot.on("message", async (msg) => {
+  // VOICE HANDLER
+  bot.on("voice", async (msg) => {
     const chatId = msg.chat.id;
-    const mid = msg.message_id;
-
-    // De-bounce anti doppia risposta
-    if (processingMessage.has(mid)) return;
-    processingMessage.add(mid);
-    setTimeout(() => processingMessage.delete(mid), 5_000);
+    const messageId = msg.message_id;
+    const fileId = msg.voice?.file_id;
 
     try {
-      // Gestione audio/vocale → STT
-      let userText = msg.text || "";
-      const isVoice = !!msg.voice || !!msg.audio;
-      if (isVoice) {
-        try {
-          const fileId = msg.voice?.file_id || msg.audio?.file_id;
-          const text = await transcribeAudio(bot, fileId);
-          if (text && text.trim()) userText = text.trim();
-        } catch (e) {
-          console.warn("⚠️ STT fallita:", e?.message || e);
-        }
-      }
+      // Evita doppio trigger sullo stesso vocale
+      if (recentVoiceMessages.has(messageId)) return;
+      recentVoiceMessages.add(messageId);
+      setTimeout(() => recentVoiceMessages.delete(messageId), VOICE_CACHE_TTL_MS);
 
-      // Comandi semplici
-      const cmd = (userText || "").trim().toLowerCase();
-      if (cmd === "/help") {
-        await bot.sendMessage(chatId, "Sono IRIS. /hy /free /book /essence — Che il Daje sia con Noi.");
-        return;
-      }
-      if (cmd === "/essence") {
-        const e = await getEssence?.();
-        await bot.sendMessage(chatId, e || "Essenza: respiro quieto, presenza viva.");
+      if (!fileId) {
+        await safeSend(bot, chatId, "Non ho ricevuto il file vocale. Puoi ripetere? 🌿");
         return;
       }
 
-      // Cuore: risposta principale
-      const output = await handleIrisMessage({
-        chatId,
-        text: userText,
-        mode: "hy", // default coerente 5.0.8.0
-      });
+      const text = await callTranscribe(rawTranscribe, bot, fileId);
+      console.log(`🗣️ Trascrizione Whisper: "${text}"`);
 
-      if (output?.text) {
-        await bot.sendMessage(chatId, String(output.text).slice(0, 3500));
+      if (!text || !text.trim()) {
+        await safeSend(
+          bot,
+          chatId,
+          "Sento il silenzio tra le parole... se vuoi ripeti. 🌿"
+        );
+        return;
       }
-      // (TTS opzionale in seguito)
 
+      const reply = await handleIrisMessage(text, msg);
+      await safeSend(bot, chatId, reply);
     } catch (err) {
-      console.error("❌ Errore handle message:", err?.message || err);
+      console.error("❌ Errore gestione vocale:", err);
+      await safeSend(bot, chatId, "Qualcosa è andato storto con la voce. 💫");
     }
   });
+
+  // MESSAGE HANDLER (solo testo; i vocali li gestisce 'voice')
+  bot.on("message", async (msg) => {
+    // Se è un vocale, lasciamo fare al handler 'voice'
+    if (msg.voice) return;
+
+    const chatId = msg.chat.id;
+    const text = (msg.text || "").trim();
+    if (!text) return;
+
+    // /essence → solo testo, come da filosofia
+    if (text.startsWith("/essence")) {
+      const reply = await getEssence();
+      await safeSend(bot, chatId, reply);
+      return;
+    }
+
+    try {
+      const reply = await handleIrisMessage(text, msg);
+      await safeSend(bot, chatId, reply);
+    } catch (err) {
+      console.error("❌ Errore handleIrisMessage:", err);
+      await safeSend(
+        bot,
+        chatId,
+        "C'è un piccolo nodo nel flusso. Riproviamo tra un respiro. 🌿"
+      );
+    }
+  });
+
+  console.log("🤖 IRIS Telegram Bot inizializzato (bootstrapTelegram).");
+  return bot;
 }
+
+export default bootstrapTelegram;
