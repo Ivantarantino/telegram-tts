@@ -1,17 +1,13 @@
 // adapters/telegram_bot.js
 // -----------------------------------------------------------------------------
-// IRIS Telegram Bot — robust import + fix doppia risposta dei vocali
-// - Evita doppio trigger (voice + message) per lo stesso vocale
-// - Import robusto di core/iris_heart_voice.js (qualsiasi export troviamo)
-// - Webhook gestito da index.js (qui niente polling)
+// IRIS Telegram Bot — fix doppia risposta dei vocali + import robusto
+// Pulito da speakText (non necessario ora)
+// Compatibile con 5.0.8.0 + webhook gestito da index.js
 // -----------------------------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
 import { transcribeAudio } from "./stt.js";
-import { speakText } from "./tts.js"; // lasciato per /tts futuri
 import { getEssence } from "../core/iris_essence_core.js";
-
-// Import "tollerante" del cuore: qualunque cosa esporti, noi troviamo la funzione giusta
 import * as Heart from "../core/iris_heart_voice.js";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -19,17 +15,11 @@ if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
 
-// Webhook mode: index.js imposta setWebHook e chiama bot.processUpdate(...)
+// Webhook mode (Render gestisce i webhook, non il polling)
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
 
 // -----------------------------------------------------------------------------
-// Adapter: risolviamo la funzione di routing "handleIrisMessage" da qualunque export
-// Possibili casi supportati:
-// 1) export function handleIrisMessage() { ... }
-// 2) export function handleMessage() { ... }
-// 3) export default function(...) { ... }
-// 4) export default { handleIrisMessage() { ... } }
-// 5) export default { handleMessage() { ... } }
+// Adattatore: trova la funzione cuore indipendentemente dall’export
 // -----------------------------------------------------------------------------
 function resolveHandleIrisMessage(mod) {
   if (mod && typeof mod.handleIrisMessage === "function") return mod.handleIrisMessage;
@@ -39,15 +29,14 @@ function resolveHandleIrisMessage(mod) {
     return mod.default.handleIrisMessage;
   if (mod && mod.default && typeof mod.default.handleMessage === "function")
     return mod.default.handleMessage;
-  // Fallback sicuro: echo con avviso (non blocca il bot)
   return async (text) =>
-    `⚠️ (fallback) Non trovo il router del cuore. Ho ricevuto: “${text}”.`;
+    `⚠️ (fallback) Non trovo il cuore attivo. Ho ricevuto: “${text}”.`;
 }
 
 const handleIrisMessage = resolveHandleIrisMessage(Heart);
 
 // -----------------------------------------------------------------------------
-// Evitiamo doppie risposte per lo stesso vocale
+// Prevenzione doppie risposte per i vocali
 // -----------------------------------------------------------------------------
 const recentVoiceMessages = new Set();
 const VOICE_CACHE_TTL_MS = 8000;
@@ -69,7 +58,6 @@ bot.on("voice", async (msg) => {
   const fileId = msg.voice?.file_id;
 
   try {
-    // Evita doppio trigger (voice + message) e resend rari
     if (recentVoiceMessages.has(messageId)) return;
     recentVoiceMessages.add(messageId);
     setTimeout(() => recentVoiceMessages.delete(messageId), VOICE_CACHE_TTL_MS);
@@ -99,13 +87,13 @@ bot.on("voice", async (msg) => {
 // MESSAGE HANDLER (solo testo; i vocali sono già gestiti sopra)
 // -----------------------------------------------------------------------------
 bot.on("message", async (msg) => {
-  if (msg.voice) return; // evita il doppio per i vocali
+  if (msg.voice) return; // evita doppio trigger
 
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
-  if (!text) return; // ignora sticker/foto senza caption
+  if (!text) return;
 
-  // Comandi rapidi
+  // Comando /essence
   if (text.startsWith("/essence")) {
     const reply = await getEssence();
     await safeSend(chatId, reply);
