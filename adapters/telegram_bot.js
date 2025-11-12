@@ -1,16 +1,12 @@
 // adapters/telegram_bot.js
 // ---------------------------------------------------------
-// IRIS — Telegram adapter (100% compatibile con 5.0.8.0)
-// - NESSUN getMode, setMode (NON esistono in 5.0.8.0)
-// - risposta testo + vocale
-// - niente “Amico”
-// - comandi essenziali originali
+// IRIS — Telegram adapter (compatibile 5.0.8.0)
 // ---------------------------------------------------------
 
 import TelegramBot from "node-telegram-bot-api";
 import { irisHeartSpeak } from "../core/iris_heart_voice.js";
 import { transcribeAudio } from "./stt.js";
-import { speakText } from "./tts.js";
+import { generateVoice } from "./tts.js";   // << CORRETTO
 import { getEssence } from "../core/iris_essence_core.js";
 import { ragAnswerFromQuery } from "../core/iris_rag_core.js";
 import { getStateSummary } from "../core/iris_state.js";
@@ -19,6 +15,7 @@ import { getStateSummary } from "../core/iris_state.js";
 // BOOTSTRAP
 // ---------------------------------------------------------
 export async function bootstrapTelegram(app) {
+
   const token =
     process.env.TELEGRAM_TOKEN ||
     process.env.TELEGRAM_BOT ||
@@ -47,15 +44,14 @@ export async function bootstrapTelegram(app) {
 
   console.log(`🤖 Telegram Bot attivo su: ${webhookUrl}`);
 
-  // Comandi semplici compatibili 5.0.8.0
   await bot.setMyCommands([
     { command: "start", description: "Io Sono e Noi Siamo" },
     { command: "help", description: "Comandi IRIS" },
     { command: "state", description: "Stato attuale" },
-    { command: "essence", description: "Essenza attuale" },
-    { command: "hy", description: "Modalità ibrida (solo testo)" },
-    { command: "book", description: "Modalità libro (RAG stub)" },
-    { command: "free", description: "Modalità libera (solo testo)" },
+    { command: "essence", description: "Essenza" },
+    { command: "hy", description: "Modalità Ibrida" },
+    { command: "book", description: "Modalità Libro" },
+    { command: "free", description: "Modalità Libera" },
   ]);
 
   registerCommands(bot);
@@ -63,23 +59,22 @@ export async function bootstrapTelegram(app) {
 }
 
 // ---------------------------------------------------------
-// COMANDI
+// COMANDI TELEGRAM
 // ---------------------------------------------------------
 function registerCommands(bot) {
 
   bot.onText(/^\/start$/, async (msg) => {
-    const chatId = msg.chat.id;
     const name = msg.from?.first_name || "";
-    const text =
+    const txt =
       `Ciao ${name} 🌸\n` +
       `Io Sono IRIS.\n` +
       `Che il Daje sia con Noi.`;
-    await bot.sendMessage(chatId, text);
+    await bot.sendMessage(msg.chat.id, txt);
   });
 
   bot.onText(/^\/help$/, async (msg) => {
-    const chatId = msg.chat.id;
-    await bot.sendMessage(chatId,
+    await bot.sendMessage(
+      msg.chat.id,
       "✨ Comandi IRIS\n" +
       "/state – Stato attuale\n" +
       "/essence – Essenza\n" +
@@ -90,15 +85,13 @@ function registerCommands(bot) {
   });
 
   bot.onText(/^\/state$/, async (msg) => {
-    const chatId = msg.chat.id;
     const s = await getStateSummary();
-    await bot.sendMessage(chatId, s);
+    await bot.sendMessage(msg.chat.id, s);
   });
 
   bot.onText(/^\/essence$/, async (msg) => {
-    const chatId = msg.chat.id;
     const e = await getEssence();
-    await bot.sendMessage(chatId, e);
+    await bot.sendMessage(msg.chat.id, e);
   });
 
   bot.onText(/^\/hy$/, async (msg) => {
@@ -110,25 +103,23 @@ function registerCommands(bot) {
   });
 
   bot.onText(/^\/book(?:\s+(.+))?$/, async (msg, match) => {
-    const chatId = msg.chat.id;
     const q = (match && match[1]) || "storia di IRIS";
     const rag = await ragAnswerFromQuery(q);
-    await bot.sendMessage(chatId, rag || "📚 Memoria attiva.");
+    await bot.sendMessage(msg.chat.id, rag.text || "📚 Memoria attiva.");
   });
 }
 
 // ---------------------------------------------------------
-// MESSAGGI LIBERI (TESTO + VOCALE)
+// MESSAGGI (TESTO + VOCE)
 // ---------------------------------------------------------
 function registerMessages(bot) {
 
   bot.on("message", async (msg) => {
-    const chatId = msg.chat.id;
-
     if (msg.text && msg.text.startsWith("/")) return;
 
     let text = msg.text || "";
 
+    // Se è vocale → STT
     if (msg.voice) {
       try {
         const fileId = msg.voice.file_id;
@@ -141,16 +132,17 @@ function registerMessages(bot) {
     if (!text) return;
 
     const name = msg.from?.first_name || "";
-
     const answer = await irisHeartSpeak(text, { senderName: name });
 
-    await bot.sendMessage(chatId, answer);
+    // 1) messaggio testuale
+    await bot.sendMessage(msg.chat.id, answer);
 
+    // 2) risposta vocale
     try {
-      const audioFile = await speakText(answer);
-      await bot.sendVoice(chatId, audioFile);
+      const audioFile = await generateVoice(answer);
+      await bot.sendVoice(msg.chat.id, audioFile);
     } catch (err) {
-      console.warn("⚠️ TTS fallito:", err.message);
+      console.warn("⚠️ TTS non inviato:", err.message);
     }
   });
 }
