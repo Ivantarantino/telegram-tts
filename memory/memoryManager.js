@@ -15,7 +15,10 @@ const QDRANT_URL = process.env.QDRANT_URL || "";
 const QDRANT_API_KEY = process.env.QDRANT_API_KEY || "";
 const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
 
+// Client OpenAI (embedding)
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+
+// Client Qdrant
 const qdrant =
   QDRANT_URL && QDRANT_API_KEY
     ? new QdrantClient({ url: QDRANT_URL, apiKey: QDRANT_API_KEY })
@@ -23,7 +26,6 @@ const qdrant =
 
 // Stato interno per non ricreare la collection ogni volta
 let collectionReady = false;
-let vectorSize = null;
 
 // ----------------------------------------
 // Utility: append su file locale
@@ -46,31 +48,25 @@ function appendLocalMemory(entry) {
 
 // ----------------------------------------
 // Ensure Qdrant collection `iris_memory`
+// (se esiste → ok, se non esiste → crea)
 // ----------------------------------------
 async function ensureCollection(dimension) {
   if (!qdrant) return false;
 
-  // Se già pronta e dimensione coerente → ok
-  if (collectionReady && vectorSize === dimension) {
+  if (collectionReady) {
     return true;
   }
 
   try {
-    const info = await qdrant.getCollection(QDRANT_COLLECTION);
-    const cfg = info?.result?.config?.params?.vectors;
-    const existingSize =
-      (cfg && typeof cfg.size === "number" && cfg.size) ||
-      (cfg && cfg.config && typeof cfg.config.size === "number" && cfg.config.size) ||
-      null;
-
-    vectorSize = existingSize || dimension;
+    // Se la collection esiste, basta questo
+    await qdrant.getCollection(QDRANT_COLLECTION);
     collectionReady = true;
     console.log(
-      `🧠 [IRIS_MEMORY] Collection '${QDRANT_COLLECTION}' pronta (size=${vectorSize}).`
+      `🧠 [IRIS_MEMORY] Collection '${QDRANT_COLLECTION}' trovata e pronta.`
     );
     return true;
   } catch (err) {
-    // Se non esiste, la creiamo
+    // Se non esiste, la creiamo con la dimensione che usiamo ora
     try {
       await qdrant.createCollection(QDRANT_COLLECTION, {
         vectors: {
@@ -78,7 +74,6 @@ async function ensureCollection(dimension) {
           distance: "Cosine",
         },
       });
-      vectorSize = dimension;
       collectionReady = true;
       console.log(
         `🧠 [IRIS_MEMORY] Collection '${QDRANT_COLLECTION}' creata (size=${dimension}).`
@@ -136,8 +131,9 @@ export async function processMemory(userText, irisReply) {
     );
 
     // 3) Embeddings OpenAI (uno per ogni messaggio del pair)
+    //    Usiamo text-embedding-3-large → 1536 dimensioni
     const embResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small",
+      model: "text-embedding-3-large",
       input: cleanInputs,
     });
 
@@ -149,7 +145,7 @@ export async function processMemory(userText, irisReply) {
 
     const dim = embeddings[0].length;
 
-    // 4) Assicura che la collection esista con la dimensione giusta
+    // 4) Assicura che la collection esista
     const ok = await ensureCollection(dim);
     if (!ok) {
       return false;
