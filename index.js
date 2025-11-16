@@ -1,6 +1,6 @@
-// index.js — IRIS 5.0.9.1 (Fix RAG Integrato) – 17 novembre 2025
+// index.js — IRIS 5.0.9.1 (Fix Deploy + RAG + TTS) – 17 novembre 2025
 // ========================================================
-// Avvio server Express + Telegram bot + RAG integration
+// Avvio server Express + Telegram bot + RAG + TTS
 // ========================================================
 
 import express from "express";
@@ -8,10 +8,10 @@ import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import path from "path";
-import { irisHeartSpeak } from "./core/iris_heart_voice.js";  // Importa la funzione corretta
-import { ragAnswerFromQuery } from "./core/iris_rag_core.js";  // Importa RAG
-import { getStateSummary, setLang, setVoice, setModel, getMode } from "./core/iris_state.js";
-import { synthToFile } from "./adapters/tts.js";  // Assumo tu abbia TTS separato
+import { irisHeartSpeak } from "./core/iris_heart_voice.js";
+import { ragAnswerFromQuery } from "./core/iris_rag_core.js";
+import { getStateSummary, setLang, setVoice, setModel, getMode, getVoice } from "./core/iris_state.js";
+import { synthToFile } from "./adapters/tts.js";  // Import named corretto
 
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
@@ -74,48 +74,39 @@ bot.onText(/\/state/, (msg) => {
   bot.sendMessage(msg.chat.id, getStateSummary(), { parse_mode: "Markdown" });
 });
 
-// Handler messaggi di testo – QUI IL FIX: chiama RAG e passa ragContext
+// Handler messaggi di testo – RAG integrato
 bot.on("text", async (msg) => {
-  if (msg.text.startsWith("/")) return;  // Ignora comandi
+  if (msg.text.startsWith("/")) return;
 
   const chatId = msg.chat.id;
   const senderName = msg.from.first_name || "";
   const query = msg.text.trim();
 
   try {
-    // 1. Chiama RAG per contesto
-    const mode = getMode();  // Assumo tu abbia getMode in iris_state.js
+    const mode = getMode();
     const ragContext = await ragAnswerFromQuery(query, mode);
 
-    // 2. Genera risposta con RAG passato
     const replyText = await irisHeartSpeak(query, {
       senderName,
-      ragContext,  // ← Questo era mancante!
+      ragContext,
       mode,
     });
 
-    // 3. Invia testo
     await bot.sendMessage(chatId, replyText);
 
-    // 4. Genera e invia voce (se TTS attivo)
+    // TTS con voce dallo state
+    const voice = getVoice();  // Assumo getVoice in iris_state.js
     const audioPath = path.join(TEMP_DIR, `voice_${Date.now()}.mp3`);
-    await synthToFile(replyText, audioPath);
+    await synthToFile(replyText, audioPath, voice);
     await bot.sendVoice(chatId, fs.createReadStream(audioPath));
-    fs.unlinkSync(audioPath);  // Pulisci temp
+    fs.unlinkSync(audioPath);
   } catch (err) {
     console.error("❌ Errore handler text:", err);
     bot.sendMessage(chatId, "Per un attimo ho perso il filo… riprova.");
   }
 });
 
-// Handler vocali (STT stub, da espandere)
-bot.on("voice", async (msg) => {
-  // ... codice per STT, poi chiama irisHeartSpeak come sopra ...
-});
-
-// =====================================================
-// Avvio polling se non webhook
-// =====================================================
+// Polling se non webhook
 if (!USE_WEBHOOK) {
   console.log("📡 Polling Telegram attivo.");
 }
