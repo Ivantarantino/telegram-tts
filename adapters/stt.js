@@ -1,75 +1,51 @@
 // adapters/stt.js
 // ---------------------------------------------------------
-// IRIS — Speech To Text (Telegram vocali → testo)
+// IRIS — Speech-to-Text (Whisper Fix Telegram OGA → OGG)
 // ---------------------------------------------------------
 
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
+import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const client = new OpenAI({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// ---------------------------------------------------------
-// Scarica il file audio da URL in un file temporaneo
-// ---------------------------------------------------------
-async function downloadToTempFile(fileUrl) {
-  if (typeof fileUrl !== "string") {
-    throw new TypeError(`downloadToTempFile: URL non valido: ${String(fileUrl)}`);
-  }
+// Scarica file Telegram e rinomina .oga → .ogg
+async function downloadToOgg(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Errore download audio Telegram");
 
-  const response = await fetch(fileUrl);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} durante il download audio`);
-  }
+  // Temporary file
+  const tempPath = `/tmp/iris-${Date.now()}.ogg`;
 
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const buffer = await res.arrayBuffer();
+  fs.writeFileSync(tempPath, Buffer.from(buffer));
 
-  const tmpDir = "/tmp";
-  const filename = `iris-voice-${Date.now()}.oga`;
-  const filePath = path.join(tmpDir, filename);
-
-  await fs.promises.writeFile(filePath, buffer);
-  return filePath;
+  return tempPath;
 }
 
-// ---------------------------------------------------------
-// Transcribe: URL → testo
-// ---------------------------------------------------------
-export async function transcribeVoice(fileUrl) {
+// Trascrizione Whisper
+async function transcribeVoice(fileUrl) {
   try {
-    const localPath = await downloadToTempFile(fileUrl);
+    const oggPath = await downloadToOgg(fileUrl);
 
-    const transcription = await client.audio.transcriptions.create({
-      file: fs.createReadStream(localPath),
-      // modello STT: adegua al naming che stai usando nelle altre parti del progetto
-      model: "gpt-4o-mini-transcribe",
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(oggPath),
+      model: "whisper-1",
+      language: "it", // IRIS auto-detects but Italian is best default
     });
 
-    // pulizia base
-    const textRaw =
-      typeof transcription.text === "string"
-        ? transcription.text
-        : "";
-
-    const text = textRaw.trim();
-
-    // opzionale: elimina file temporaneo
-    try {
-      await fs.promises.unlink(localPath);
-    } catch (err) {
-      console.warn("Impossibile cancellare file temporaneo STT:", err.message);
-    }
-
-    return text;
+    return transcription.text;
   } catch (err) {
-    console.warn("❌ Errore vocale (STT):", err);
-    return "";
+    console.error("❌ Errore vocale (STT):", err);
+    throw err;
   }
 }
+
+export { transcribeVoice };
