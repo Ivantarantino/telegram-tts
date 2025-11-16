@@ -1,67 +1,35 @@
-// adapters/tts.js
-// ---------------------------------------------------------
-// TTS per IRIS (Telegram)
-// - Usa OpenAI Text-to-Speech per generare voce OGG/Opus
-// - Esporta: generateVoice, synthVoice, speakText
-//   (tutti alias tra loro, per piena compatibilità).
-// ---------------------------------------------------------
-
-import OpenAI from "openai";
+// adapters/tts.js – TTS OpenAI con export named 'synthToFile'
 import fs from "fs";
-import os from "os";
-import path from "path";
+import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-const TTS_MODEL =
-  process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
-const TTS_VOICE = process.env.OPENAI_VOICE || "alloy";
-const TTS_FORMAT = "opus"; // OGG/Opus, perfetto per Telegram
-
 /**
- * Genera un file vocale a partire da testo, ritorna il path locale.
+ * Genera un file vocale MP3.
+ * @param {string} text - Testo da sintetizzare.
+ * @param {string} outputPath - Percorso output.
+ * @param {string} voice - Voce (default "alloy").
+ * @returns {string} Path del file generato.
  */
-export async function generateVoice(text) {
-  if (!text || !text.trim()) {
-    throw new Error("generateVoice: testo vuoto");
+export async function synthToFile(text, outputPath, voice = "alloy") {
+  try {
+    if (!text.trim()) throw new Error("Testo vuoto.");
+
+    const response = await openai.audio.speech.create({
+      model: "tts-1",  // Usa "tts-1-hd" per qualità alta
+      voice,
+      input: text,
+      response_format: "mp3",
+    });
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(outputPath, buffer);
+    console.log(`🔊 Audio creato: ${outputPath}`);
+    return outputPath;
+  } catch (err) {
+    console.error("❌ TTS error:", err.message);
+    throw err;
   }
-
-  const response = await client.audio.speech.create({
-    model: TTS_MODEL,
-    voice: TTS_VOICE,
-    input: text,
-    format: TTS_FORMAT,
-  });
-
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  const tmpPath = path.join(
-    os.tmpdir(),
-    `iris-voice-${Date.now()}.ogg`
-  );
-  await fs.promises.writeFile(tmpPath, buffer);
-
-  console.log("🔊 Voce generata:", tmpPath);
-  return tmpPath;
 }
-
-/**
- * Alias storici per compatibilità con tutte le versioni di telegram_bot.js
- */
-export async function synthVoice(text) {
-  return generateVoice(text);
-}
-
-export async function speakText(text) {
-  return generateVoice(text);
-}
-
-// Anche qui, un default "amichevole"
-export default {
-  generateVoice,
-  synthVoice,
-  speakText,
-};
