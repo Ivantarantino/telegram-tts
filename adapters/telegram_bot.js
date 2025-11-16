@@ -62,12 +62,20 @@ function flagForLang(lang) {
 // Bootstrap Telegram
 // ---------------------------------------------------------
 export function bootstrapTelegram(app) {
-  const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+  // 🔴 IMPORTANTE: manteniamo lo standard del progetto
+  // TELEGRAM_TOKEN è la variabile storica usata nelle build precedenti.
+  const token =
+    process.env.TELEGRAM_TOKEN ||
+    process.env.TELEGRAM_BOT_TOKEN ||
+    process.env.BOT_TOKEN;
+
   const baseUrl =
     process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || "";
 
   if (!token) {
-    console.error("❌ TELEGRAM_BOT_TOKEN non impostato.");
+    console.error(
+      "❌ Nessun token Telegram trovato. Attesi: TELEGRAM_TOKEN o TELEGRAM_BOT_TOKEN o BOT_TOKEN."
+    );
     return;
   }
 
@@ -174,10 +182,10 @@ function registerCommands(bot) {
     const chatId = msg.chat.id;
     const summary = await getStateSummary(chatId);
 
-    const mode = summary.mode || (await getMode());
-    const lang = summary.lang || (await getLang());
-    const voice = summary.voice || (await getVoice());
-    const model = summary.model || (await getModel());
+    const mode = summary.mode || (await getMode(chatId));
+    const lang = summary.lang || (await getLang(chatId));
+    const voice = summary.voice || (await getVoice(chatId));
+    const model = summary.model || (await getModel(chatId));
 
     const text =
       "🧭 Stato di IRIS\n" +
@@ -331,7 +339,7 @@ function registerCommands(bot) {
     const name = msg.from?.first_name || "Anima";
 
     try {
-      const essence = await getEssence(); // mantiene la firma attuale
+      const essence = await getEssence();
 
       let text;
       if (
@@ -351,7 +359,6 @@ function registerCommands(bot) {
 
       await bot.sendMessage(chatId, text);
 
-      // opzionale: voce
       try {
         const voicePath = await synthVoice(text);
         if (voicePath) {
@@ -389,7 +396,6 @@ function registerMessages(bot, token) {
       try {
         const fileId = msg.voice.file_id;
 
-        // info file da Telegram
         const file = await bot.getFile(fileId);
         const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
 
@@ -435,10 +441,7 @@ function registerMessages(bot, token) {
 
     // 3) TESTO “Daje” (easter egg)
     if (text && text.toLowerCase().includes("daje")) {
-      await bot.sendMessage(
-        chatId,
-        "Che il Daje sia con Noi 💛"
-      );
+      await bot.sendMessage(chatId, "Che il Daje sia con Noi 💛");
       return;
     }
 
@@ -451,7 +454,6 @@ function registerMessages(bot, token) {
         let answerRaw;
 
         if (mode === "book") {
-          // RAG: IL PROGRAMMA KRIST (e altri doc) via Qdrant
           answerRaw = await ragAnswerFromQuery(text, { lang, name, mode });
         } else {
           answerRaw = await irisHeartSpeak(text, { mode, name, lang });
