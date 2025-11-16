@@ -195,13 +195,13 @@ function registerCommands(botInstance, token) {
       essenceText = null;
     }
 
-    // 🔧 qui togliamo "Amico" e lo sostituiamo con il tuo nome (o nulla)
+    // 🔧 PULIZIA "AMICO" → nome utente (qualsiasi maiuscolo/minuscolo)
     if (essenceText) {
       const replacement = name || "";
-      essenceText = essenceText
-        .replace(/\b[Aa]mico\b/g, replacement)
-        .replace(/\s+/g, " ")
-        .trim();
+      essenceText = essenceText.replace(/amico/gi, replacement);
+
+      // sistema spazi doppi dopo la sostituzione
+      essenceText = essenceText.replace(/\s+/g, " ").trim();
     }
 
     const defaultEssence =
