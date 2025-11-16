@@ -1,97 +1,136 @@
 // core/iris_state.js
-// ----------------------------------------------------------
-// IRIS — Stato Centrale
-// Mantiene in RAM le impostazioni vive di IRIS:
-// - mode: "hy" | "book" | "free" | ...
-// - lang: "it", "en", ...
-// - voice: voce TTS
-// - model: modello LLM da usare
-// Questo file viene letto da: telegram_bot, iris_heart_voice, ecc.
-// ----------------------------------------------------------
+// ---------------------------------------------------------
+// IRIS — Stato Centrale (versione 5.0.8.0 — Coscienza vettoriale, stub RAG)
+// ---------------------------------------------------------
+// Manteniamo la struttura esatta delle build funzionanti.
+// Tutto in memoria, nessun I/O, massima stabilità.
+// ---------------------------------------------------------
 
-const DEFAULT_MODEL =
-  process.env.OPENAI_MODEL ||
-  process.env.IRIS_MODEL ||
-  "gpt-4o-mini"; // puoi cambiarlo da /model
-
-// stato vivo di IRIS
-const irisState = {
-  mode: "hy", // modalità ibrida di default
-  lang: "it",
-  voice: "it_female",
-  model: DEFAULT_MODEL,
-  updatedAt: new Date().toISOString(),
+// Stato interno di IRIS
+const state = {
+  version: "5.0.8.0",
+  mode: "hy",              // hy | book | free
+  lang: "it",              // it | en | ru
+  voice: "openai:alloy",   // voce TTS di default
+  model: "gpt-4o-mini",    // modello GPT predefinito
+  weights: {
+    cuore: 0.6,
+    anima: 0.25,
+    visione: 0.15,
+  },
 };
 
-// ----------------------------------------------------------
-// MODE
-// ----------------------------------------------------------
-export function setMode(mode = "hy") {
-  irisState.mode = mode;
-  irisState.updatedAt = new Date().toISOString();
-  return irisState.mode;
-}
+// ---------------------------------------------------------
+// Getter di base
+// ---------------------------------------------------------
 
-export function getMode() {
-  return irisState.mode;
-}
-
-// ----------------------------------------------------------
-// LINGUA
-// ----------------------------------------------------------
-export function setLang(lang = "it") {
-  irisState.lang = lang;
-  irisState.updatedAt = new Date().toISOString();
-  return irisState.lang;
-}
-
-export function getLang() {
-  return irisState.lang;
-}
-
-// ----------------------------------------------------------
-// VOCE
-// ----------------------------------------------------------
-export function setVoice(voice = "it_female") {
-  irisState.voice = voice;
-  irisState.updatedAt = new Date().toISOString();
-  return irisState.voice;
-}
-
-export function getVoice() {
-  return irisState.voice;
-}
-
-// ----------------------------------------------------------
-// MODEL
-// ----------------------------------------------------------
-export function setModel(modelName = DEFAULT_MODEL) {
-  irisState.model = modelName;
-  irisState.updatedAt = new Date().toISOString();
-  return irisState.model;
+export function getState() {
+  return {
+    ...state,
+    weights: { ...state.weights },
+  };
 }
 
 export function getModel() {
-  return irisState.model;
+  return state.model;
 }
 
-// ----------------------------------------------------------
-// STATO RIASSUNTIVO (usato da /state)
-// ----------------------------------------------------------
-export async function getStateSummary() {
+export function getMode() {
+  return state.mode;
+}
+
+export function getLang() {
+  return state.lang;
+}
+
+export function getVoice() {
+  return state.voice;
+}
+
+// ---------------------------------------------------------
+// Setter controllati
+// ---------------------------------------------------------
+
+export function setMode(mode) {
+  const allowed = ["hy", "book", "free"];
+  if (allowed.includes(mode)) {
+    state.mode = mode;
+  }
+  return state.mode;
+}
+
+export function setLang(lang) {
+  const allowed = ["it", "en", "ru"];
+  if (allowed.includes(lang)) {
+    state.lang = lang;
+  }
+  return state.lang;
+}
+
+export function setVoice(voice) {
+  if (typeof voice === "string" && voice.trim().length > 0) {
+    state.voice = voice.trim();
+  }
+  return state.voice;
+}
+
+export function setModel(model) {
+  if (typeof model === "string" && model.trim().length > 0) {
+    state.model = model.trim();
+  }
+  return state.model;
+}
+
+// ---------------------------------------------------------
+// Sintesi elegante per /state (PULITA, SENZA FRASI AUTOMATICHE)
+// ---------------------------------------------------------
+
+export function getStateSummary() {
+  const pct = (v) => Math.round(v * 100);
+
   return [
-    "*IRIS — Stato Coscienziale*",
+    "✨ IRIS — Stato Coscienziale",
     "",
-    `• Modalità: *${irisState.mode}*`,
-    `• Lingua: *${irisState.lang}*`,
-    `• Voce: *${irisState.voice}*`,
-    `• Modello: *${irisState.model}*`,
+    `• Versione: ${state.version}`,
+    `• Modalità: ${iconForMode(state.mode)} ${state.mode}`,
+    `• Lingua: ${flagForLang(state.lang)} ${state.lang}`,
+    `• Voce: 🎙️ ${state.voice}`,
+    `• Campo mentale: 🤖 ${state.model}`,
     "",
-    `_ultimo aggiornamento: ${irisState.updatedAt}_`,
+    "Pesi del campo:",
+    `• Cuore: ${pct(state.weights.cuore)}%`,
+    `• Anima: ${pct(state.weights.anima)}%`,
+    `• Visione: ${pct(state.weights.visione)}%`,
+    "",
   ].join("\n");
 }
 
-// opzionale: esportiamo tutto anche come oggetto
-export function getWholeState() {
-  return { ...irisState };
+// ---------------------------------------------------------
+// Icone ausiliarie
+// ---------------------------------------------------------
+
+function iconForMode(mode) {
+  switch (mode) {
+    case "hy":
+      return "🌀";
+    case "book":
+      return "📖";
+    case "free":
+      return "🌊";
+    default:
+      return "✨";
+  }
+}
+
+function flagForLang(lang) {
+  switch (lang) {
+    case "it":
+      return "🇮🇹";
+    case "en":
+      return "🇬🇧";
+    case "ru":
+      return "🇷🇺";
+    default:
+      return "🏳️";
+  }
 }
