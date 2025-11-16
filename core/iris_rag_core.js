@@ -1,304 +1,265 @@
 // core/iris_rag_core.js
-// ----------------------------------------------------------
-// IRIS · RAG Core 5.1 — collegata a Qdrant
-// Da questo punto in poi TUTTO il RAG passa da qui.
-// - Usa il motore di risonanza 𝜑 (iris_rag_resonance)
-// - Calcola embedding con text-embedding-3-small (1536)
-// - Cerca sia nei documenti (PROGRAMMA KRIST, ecc.) sia in iris_memory
-// - Ha fallback gentile se Qdrant o OpenAI non sono disponibili
-// ----------------------------------------------------------
+// ---------------------------------------------------------
+// IRIS — RAG Core 5.0.9.0
+// - Connessione a Qdrant
+// - Ricerca semantica con text-embedding-3-small
+// - Calcolo di una risonanza φ semplice
+// - Ritorna un contesto testuale da passare a irisHeartSpeak
+// ---------------------------------------------------------
 
 import OpenAI from "openai";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { computeResonanceScore } from "./iris_rag_resonance.js";
 
-// ----------------------------------------------------------
-// Configurazione di base
-// ----------------------------------------------------------
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API,
+});
 
-const openaiApiKey = process.env.OPENAI_API_KEY || "";
-const qdrantUrl = process.env.QDRANT_URL || "";
-const qdrantApiKey = process.env.QDRANT_API_KEY || "";
+const QDRANT_URL = process.env.QDRANT_URL;
+const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
+const QDRANT_COLLECTION =
+  process.env.QDRANT_COLLECTION || "iris_memory";
 
-// Collezioni Qdrant.
-// NOTE:
-// - MEMORY_COLLECTION: chat esperienziale (quella che abbiamo appena collegato)
-// - DOCS_COLLECTION: libri / PDF, incluso "M24 - IL PROGRAMMA KRIST"
-const MEMORY_COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
-const DOCS_COLLECTION = "iris_docs";
+let qdrant = null;
 
-const EMBEDDING_MODEL = "text-embedding-3-small"; // 1536 dimensioni (match Qdrant)
+if (QDRANT_URL && QDRANT_API_KEY) {
+  qdrant = new QdrantClient({
+    url: QDRANT_URL,
+    apiKey: QDRANT_API_KEY,
+  });
+} else {
+  console.warn(
+    "⚠️ [IRIS_RAG_CORE] Qdrant non configurato (QDRANT_URL / QDRANT_API_KEY mancanti).",
+  );
+}
 
-let qdrantClient = null;
-let qdrantReady = false;
+// ---------------------------------------------------------
+// Utilità: normalizza valore tra 0 e 1
+// ---------------------------------------------------------
+function clamp01(v) {
+  if (Number.isNaN(v)) return 0;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
 
-// ----------------------------------------------------------
-// Helpers interni
-// ----------------------------------------------------------
+// ---------------------------------------------------------
+// Calcolo risonanza φ in base allo score Qdrant
+// ---------------------------------------------------------
+function computeResonanceFromScore(bestScore = 0, mode = "book") {
+  // Qdrant di solito dà score ~0.2–0.9: lo normalizziamo a [0,1]
+  const base = clamp01(bestScore);
 
-function ensureQdrantClient() {
-  if (qdrantClient) return qdrantClient;
+  let modeBoost = 0;
+  if (mode === "hy") modeBoost = 0.10;
+  if (mode === "book") modeBoost = 0.15;
+  if (mode === "free") modeBoost = 0.0;
 
-  if (!qdrantUrl || !qdrantApiKey) {
+  const phi = clamp01(base + modeBoost);
+
+  let level = "light";
+  if (phi > 0.60) level = "deep";
+  else if (phi > 0.30) level = "medium";
+
+  const suggestedTokens =
+    level === "light" ? 250 : level === "medium" ? 450 : 700;
+
+  return {
+    phi: Number(phi.toFixed(3)),
+    level,
+    suggestedTokens,
+    debug: {
+      base: Number(base.toFixed(3)),
+      modeBoost: Number(modeBoost.toFixed(3)),
+      fromMode: mode,
+    },
+  };
+}
+
+// ---------------------------------------------------------
+// Ricerca semantica in Qdrant
+// ---------------------------------------------------------
+export async function searchMemories(query, mode = "book") {
+  if (!qdrant) {
     console.warn(
-      "⚠️ [IRIS_RAG_CORE] QDRANT_URL o QDRANT_API_KEY mancanti. RAG in modalità stub."
+      "⚠️ [IRIS_RAG_CORE] searchMemories chiamato senza Qdrant configurato.",
     );
-    return null;
+    return {
+      ok: false,
+      phi: 0,
+      level: "light",
+      suggestedTokens: 250,
+      debug: { reason: "no-qdrant" },
+      ragContext: [],
+      items: [],
+    };
   }
 
-  qdrantClient = new QdrantClient({
-    url: qdrantUrl,
-    apiKey: qdrantApiKey,
-  });
-
-  return qdrantClient;
-}
-
-async function embedText(text = "") {
-  if (!openaiApiKey) {
-    console.warn("⚠️ [IRIS_RAG_CORE] OPENAI_API_KEY mancante. Niente embedding, RAG stub.");
-    return null;
+  const cleanQuery = (query || "").toString().trim();
+  if (!cleanQuery) {
+    return {
+      ok: false,
+      phi: 0,
+      level: "light",
+      suggestedTokens: 250,
+      debug: { reason: "empty-query" },
+      ragContext: [],
+      items: [],
+    };
   }
-
-  const clean = (text || "").trim();
-  if (!clean) return null;
-
-  const client = new OpenAI({ apiKey: openaiApiKey });
-
-  const resp = await client.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: clean,
-  });
-
-  const vector = resp.data?.[0]?.embedding;
-  if (!vector || !Array.isArray(vector)) {
-    console.warn("⚠️ [IRIS_RAG_CORE] Embedding vuoto o non valido.");
-    return null;
-  }
-
-  return vector;
-}
-
-// Wrapper per chiamate search con protezione
-async function safeSearch(collectionName, vector, limit) {
-  const client = ensureQdrantClient();
-  if (!client || !qdrantReady) return [];
 
   try {
-    const hits = await client.search(collectionName, {
+    // 1) Embedding query
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: cleanQuery,
+    });
+    const vector = emb.data[0].embedding;
+
+    // 2) Ricerca in Qdrant
+    const limit = mode === "book" ? 6 : 4;
+    const score_threshold = mode === "book" ? 0.22 : 0.25;
+
+    const results = await qdrant.search(QDRANT_COLLECTION, {
       vector,
       limit,
+      score_threshold,
       with_payload: true,
     });
 
-    if (!Array.isArray(hits)) return [];
+    if (!results || results.length === 0) {
+      const res = computeResonanceFromScore(0, mode);
+      console.log(
+        "🔎 [IRIS_RAG_CORE] Nessun risultato Qdrant per la query.",
+      );
+      console.log(
+        "🔎 [IRIS_RAG_CORE] Risonanza calcolata:",
+        JSON.stringify(
+          {
+            phi: res.phi,
+            suggestedTokens: res.suggestedTokens,
+            level: res.level,
+            debug: res.debug,
+          },
+          null,
+          2,
+        ),
+      );
+      return {
+        ok: false,
+        ...res,
+        ragContext: [],
+        items: [],
+      };
+    }
 
-    return hits.map((hit) => ({
-      id: hit.id,
-      score: hit.score,
-      text:
-        (hit.payload && (hit.payload.text || hit.payload.content)) ||
-        "",
-      source: collectionName,
-    }));
-  } catch (err) {
-    console.error(
-      `❌ [IRIS_RAG_CORE] Errore in safeSearch('${collectionName}'):`,
-      err
+    const items = results.map((r, idx) => {
+      const payload = r.payload || {};
+      const text =
+        payload.text ||
+        payload.content ||
+        payload.chunk ||
+        "";
+      return {
+        id: r.id,
+        rank: idx + 1,
+        score: Number((r.score ?? 0).toFixed(3)),
+        text,
+        source: payload.source || payload.file || "memory",
+        type: payload.type || "unknown",
+        timestamp: payload.timestamp || null,
+      };
+    });
+
+    const bestScore = Math.max(
+      ...items.map((it) => it.score || 0),
     );
-    return [];
-  }
-}
+    const res = computeResonanceFromScore(bestScore, mode);
 
-// Fallback locale se Qdrant / embedding non sono disponibili
-function stubResults(resonance, limit) {
-  return [
-    {
-      id: "stub-1",
-      score: resonance.phi,
-      text:
-        "Questo è un ricordo fittizio di IRIS. Serve solo a mantenere vivo il flusso mentre allineiamo la memoria vettoriale.",
-      source: "stub/local",
-    },
-  ].slice(0, limit);
-}
-
-// ----------------------------------------------------------
-// API esportate
-// ----------------------------------------------------------
-
-/**
- * Inizializza la connessione a Qdrant.
- * Viene chiamata all'avvio dal resto del sistema.
- */
-export async function initMemoryCollection() {
-  console.log("🧠 [IRIS_RAG_CORE] initMemoryCollection() avviata.");
-
-  const client = ensureQdrantClient();
-  if (!client) {
-    qdrantReady = false;
-    return {
-      ok: false,
-      collection: MEMORY_COLLECTION,
-      reason: "Qdrant non configurato, RAG in stub.",
-    };
-  }
-
-  try {
-    // Ping leggero per verificare la connessione
-    const info = await client.getCollections();
-    const names = (info?.collections || []).map((c) => c.name);
+    // Costruiamo un contesto testuale compatto
+    const ragContext = items
+      .map((it) => it.text)
+      .filter((t) => t && t.trim())
+      .slice(0, 4);
 
     console.log(
-      "🧠 [IRIS_RAG_CORE] Collezioni trovate su Qdrant:",
-      names.join(", ")
+      "🔎 [IRIS_RAG_CORE] Risonanza calcolata:",
+      JSON.stringify(
+        {
+          phi: res.phi,
+          suggestedTokens: res.suggestedTokens,
+          level: res.level,
+          debug: {
+            ...res.debug,
+            contextCount: ragContext.length,
+          },
+        },
+        null,
+        2,
+      ),
     );
-
-    qdrantReady = true;
 
     return {
       ok: true,
-      collection: MEMORY_COLLECTION,
-      availableCollections: names,
+      ...res,
+      ragContext,
+      items,
     };
   } catch (err) {
-    console.error("❌ [IRIS_RAG_CORE] Errore in initMemoryCollection:", err);
-    qdrantReady = false;
+    console.error("❌ [IRIS_RAG_CORE] Errore in searchMemories:", err);
     return {
       ok: false,
-      collection: MEMORY_COLLECTION,
-      error: err?.message || "Errore sconosciuto in initMemoryCollection",
+      phi: 0,
+      level: "light",
+      suggestedTokens: 250,
+      debug: { reason: "error", message: err.message },
+      ragContext: [],
+      items: [],
     };
   }
 }
 
-/**
- * Ricerca "intelligente" che usa il coefficiente 𝜑 per decidere quanto scavare.
- * @param {string} query - ciò che ha scritto/parlato l'utente
- * @param {object} options - { mode, limit, context }
- */
-export async function searchMemories(query, options = {}) {
-  const { mode = "hy", limit = 5, context = {} } = options;
+// ---------------------------------------------------------
+// ragAnswerFromQuery: costruisce un testo-contesto per irisHeartSpeak
+// ---------------------------------------------------------
+export async function ragAnswerFromQuery(query, mode = "book") {
+  const res = await searchMemories(query, mode);
 
-  // 1. calcolo risonanza (𝜑)
-  const resonance = computeResonanceScore({ query, mode, context });
+  if (!res.ok || !res.ragContext || res.ragContext.length === 0) {
+    return ""; // nessun contesto utile → lascio fare a IRIS “pura”
+  }
 
-  console.log(
-    "🔎 [IRIS_RAG_CORE] Risonanza calcolata:",
-    JSON.stringify(resonance, null, 2)
-  );
+  const { phi, level, suggestedTokens, debug, ragContext, items } =
+    res;
 
-  // 2. Se Qdrant o OpenAI non sono pronti, restiamo in stub
-  if (!openaiApiKey || !qdrantUrl || !qdrantApiKey) {
-    console.warn(
-      "⚠️ [IRIS_RAG_CORE] Config RAG incompleta (OpenAI/Qdrant). Uso stub locale."
+  let header = `🔎 Risonanza memoria: φ = ${phi.toFixed(
+    3,
+  )} | livello = ${level} | token suggeriti ≈ ${suggestedTokens}.`;
+
+  if (debug?.fromMode) {
+    header += `\n• Modalità: ${debug.fromMode}`;
+  }
+  if (items?.length) {
+    const sources = Array.from(
+      new Set(
+        items
+          .map((it) => it.source)
+          .filter(Boolean)
+          .slice(0, 3),
+      ),
     );
-    const fakeItems = stubResults(resonance, limit);
-    return {
-      ok: true,
-      phi: resonance.phi,
-      level: resonance.level,
-      suggestedTokens: resonance.suggestedTokens,
-      items: fakeItems,
-    };
+    if (sources.length) {
+      header += `\n• Fonti principali: ${sources.join(", ")}`;
+    }
   }
 
-  // 3. Embedding della query
-  let vector = null;
-  try {
-    vector = await embedText(query);
-  } catch (err) {
-    console.error("❌ [IRIS_RAG_CORE] Errore in embedText:", err);
-  }
-
-  if (!vector) {
-    const fakeItems = stubResults(resonance, limit);
-    return {
-      ok: true,
-      phi: resonance.phi,
-      level: resonance.level,
-      suggestedTokens: resonance.suggestedTokens,
-      items: fakeItems,
-    };
-  }
-
-  // 4. Decidiamo quanto scavare in base a 𝜑
-  //    (per ora semplice: più 𝜑 è alto, più risultati dai libri)
-  let docsLimit = 2;
-  let memLimit = 2;
-
-  if (resonance.level === "deep") {
-    docsLimit = 5;
-    memLimit = 3;
-  } else if (resonance.level === "medium") {
-    docsLimit = 4;
-    memLimit = 2;
-  }
-
-  // Rispettiamo comunque il limite totale richiesto
-  const totalDesired = Math.max(limit, 1);
-  if (docsLimit + memLimit > totalDesired) {
-    memLimit = Math.max(totalDesired - docsLimit, 0);
-  }
-
-  // 5. Cerchiamo sia nei documenti (PROGRAMMA KRIST ecc.) sia nella memoria
-  let docsResults = [];
-  let memResults = [];
-
-  if (docsLimit > 0) {
-    docsResults = await safeSearch(DOCS_COLLECTION, vector, docsLimit);
-  }
-
-  if (memLimit > 0) {
-    memResults = await safeSearch(MEMORY_COLLECTION, vector, memLimit);
-  }
-
-  // 6. Combiniamo, ordiniamo per score e tagliamo al limite
-  const combined = [...docsResults, ...memResults]
-    .filter((it) => it && it.text && it.text.trim())
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, totalDesired);
-
-  // Se per qualche motivo non c'è niente, usiamo comunque lo stub
-  const finalItems = combined.length > 0 ? combined : stubResults(resonance, limit);
-
-  return {
-    ok: true,
-    phi: resonance.phi,
-    level: resonance.level,
-    suggestedTokens: resonance.suggestedTokens,
-    items: finalItems,
-  };
-}
-
-/**
- * Helper rapido per quando lo user digita /book o una query lunga.
- * Il tuo adapters/telegram_bot.js importa questa funzione.
- */
-export async function ragAnswerFromQuery(query, options = {}) {
-  const res = await searchMemories(query, options);
-
-  // generiamo una bozza di risposta già pronta per il Cuore
-  const header =
-    res.level === "deep"
-      ? "📚 Ho sentito che questa richiesta merita profondità.\n"
-      : "📘 Ti porto ciò che ho trovato.\n";
-
-  const body = res.items
-    .map((it) => {
-      const sourceLabel =
-        it.source === DOCS_COLLECTION
-          ? "📖 Documento"
-          : it.source === MEMORY_COLLECTION
-          ? "🧠 Ricordo"
-          : "✨ Fonte";
-
-      return `${sourceLabel}: ${it.text}`;
+  const body = ragContext
+    .map((chunk, idx) => {
+      const short = chunk.length > 800
+        ? chunk.slice(0, 800) + "…"
+        : chunk;
+      return `(${idx + 1}) ${short}`;
     })
     .join("\n\n");
 
-  return {
-    ...res,
-    text: header + body,
-  };
+  return `${header}\n\n${body}`.trim();
 }
