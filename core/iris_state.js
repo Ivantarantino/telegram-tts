@@ -1,4 +1,4 @@
-// core/iris_state.js – Menu stilistici con icon
+// core/iris_state.js – Icon belli da 5.0.9.0
 let state = {
   mode: "hy",
   lang: "it",
