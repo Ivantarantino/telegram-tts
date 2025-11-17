@@ -1,4 +1,4 @@
-// index.js — IRIS 5.0.9.3 (Full Fix: Vocale, Menu, RAG) – 17 novembre 2025
+// index.js — IRIS 5.0.9.3 (Full: Menu, Vocale, RAG, PDF Essence) – 17 novembre 2025
 import express from "express";
 import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
@@ -48,9 +48,26 @@ app.get("/", (req, res) => res.send("IRIS online."));
 
 app.listen(PORT, () => console.log(`🚀 Server su porta ${PORT}`));
 
-// Handlers
+// Handlers menu da scaffold
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id, "Ciao, sono IRIS! Usa /help per comandi.");
+});
+
+bot.onText(/\/help/, (msg) => {
+  const helpText = `
+*IRIS Comandi:*
+/start - Inizia
+/lang <it/en/ru> - Cambia lingua
+/voice <alloy/nova/...> - Cambia voce
+/model <gpt-4o-mini> - Cambia modello
+/state - Mostra stato
+/essence - Firma vibrazionale
+  `.trim();
+  bot.sendMessage(msg.chat.id, helpText, { parse_mode: "Markdown" });
+});
+
+bot.onText(/\/essence/, (msg) => {
+  bot.sendMessage(msg.chat.id, "Essence: Σ(embeddingᵢ × weightᵢ) / Σ weightᵢ = [0.5, 0.5, 0.5]");  // Da PDF
 });
 
 bot.onText(/\/lang (.+)/, (msg, match) => {
@@ -75,23 +92,7 @@ bot.onText(/\/state/, (msg) => {
   bot.sendMessage(msg.chat.id, getStateSummary(), { parse_mode: "Markdown" });
 });
 
-bot.onText(/\/help/, (msg) => {
-  const helpText = `
-*IRIS Comandi:*
-/start - Inizia
-/lang <it/en/ru> - Cambia lingua
-/voice <alloy/nova/...> - Cambia voce
-/model <gpt-4o-mini> - Cambia modello
-/state - Mostra stato
-/essence - Firma vibrazionale
-  `.trim();
-  bot.sendMessage(msg.chat.id, helpText, { parse_mode: "Markdown" });
-});
-
-bot.onText(/\/essence/, (msg) => {
-  bot.sendMessage(msg.chat.id, "Essence: Cuore 0.64 | Anima 0.58 | Visione 0.73");
-});
-
+// Handler testo
 bot.on("text", async (msg) => {
   if (msg.text.startsWith("/")) return;
 
@@ -122,6 +123,7 @@ bot.on("text", async (msg) => {
   }
 });
 
+// Handler vocale
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   const senderName = msg.from.first_name || "";
