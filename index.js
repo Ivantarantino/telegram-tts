@@ -1,15 +1,11 @@
-// index.js — IRIS 5.0.9.3 (Fix __dirname in ESM + Full Deploy + Handlers) – 17 novembre 2025
-// ========================================================
-// Server completo con __dirname polyfill per ES module
-// ========================================================
-
+// index.js — IRIS 5.0.9.3 (Full Fix: TTS, Menu, RAG, STT, Vocale) – 17 novembre 2025
 import express from "express";
 import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import path from "path";
 import https from "https";
-import { fileURLToPath } from "url";  // Per __dirname in ESM
+import { fileURLToPath } from "url";
 import { irisHeartSpeak } from "./core/iris_heart_voice.js";
 import { ragAnswerFromQuery } from "./core/iris_rag_core.js";
 import { getStateSummary, setLang, setVoice, setModel, getMode, getVoice } from "./core/iris_state.js";
@@ -17,7 +13,7 @@ import { synthToFile } from "./adapters/tts.js";
 import { processVoice } from "./adapters/stt.js";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);  // Fix per ESM
+const __dirname = path.dirname(__filename);
 
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
@@ -48,16 +44,11 @@ if (USE_WEBHOOK) {
   }).catch(err => console.error("❌ Errore webhook:", err));
 }
 
-// Healthcheck
 app.get("/", (req, res) => res.send("IRIS online."));
 
 app.listen(PORT, () => console.log(`🚀 Server su porta ${PORT}`));
 
-// =====================================================
-// Handlers Telegram
-// =====================================================
-
-// Comandi
+// Handlers
 bot.onText(/\/lang (.+)/, (msg, match) => {
   const lang = match[1].trim().toLowerCase();
   setLang(lang);
@@ -80,7 +71,6 @@ bot.onText(/\/state/, (msg) => {
   bot.sendMessage(msg.chat.id, getStateSummary(), { parse_mode: "Markdown" });
 });
 
-// Handler menu /help
 bot.onText(/\/help/, (msg) => {
   const helpText = `
 *IRIS Comandi:*
@@ -93,12 +83,10 @@ bot.onText(/\/help/, (msg) => {
   bot.sendMessage(msg.chat.id, helpText, { parse_mode: "Markdown" });
 });
 
-// /essence stub (espandi dopo con formula dal PDF)
 bot.onText(/\/essence/, (msg) => {
-  bot.sendMessage(msg.chat.id, "Essence: Cuore 0.64 | Anima 0.58 | Visione 0.73");  // Da esempio PDF
+  bot.sendMessage(msg.chat.id, "Essence: Cuore 0.64 | Anima 0.58 | Visione 0.73");
 });
 
-// Handler testo – RAG integrato
 bot.on("text", async (msg) => {
   if (msg.text.startsWith("/")) return;
 
@@ -118,10 +106,10 @@ bot.on("text", async (msg) => {
 
     await bot.sendMessage(chatId, replyText);
 
-    const voice = getVoice() || 'alloy';  // Fallback voice
+    const voice = getVoice() || 'alloy';
     const audioPath = path.join(TEMP_DIR, `voice_${Date.now()}.mp3`);
     await synthToFile(replyText, audioPath, voice);
-    await bot.sendVoice(chatId, fs.createReadStream(audioPath));
+    await bot.sendVoice(chatId, fs.createReadStream(audioPath), { contentType: "audio/mpeg" });  // Fix deprecation
     fs.unlinkSync(audioPath);
   } catch (err) {
     console.error("❌ Text handler error:", err);
@@ -129,7 +117,6 @@ bot.on("text", async (msg) => {
   }
 });
 
-// Handler vocali – STT + RAG
 bot.on("voice", async (msg) => {
   const chatId = msg.chat.id;
   const senderName = msg.from.first_name || "";
@@ -139,7 +126,6 @@ bot.on("voice", async (msg) => {
     const file = await bot.getFile(fileId);
     const filePath = path.join(TEMP_DIR, `${fileId}.ogg`);
 
-    // Download vocale
     const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
     const downloadStream = fs.createWriteStream(filePath);
     https.get(fileUrl, (response) => {
@@ -161,7 +147,7 @@ bot.on("voice", async (msg) => {
         const voice = getVoice() || 'alloy';
         const audioPath = path.join(TEMP_DIR, `reply_${Date.now()}.mp3`);
         await synthToFile(replyText, audioPath, voice);
-        await bot.sendVoice(chatId, fs.createReadStream(audioPath));
+        await bot.sendVoice(chatId, fs.createReadStream(audioPath), { contentType: "audio/mpeg" });
         fs.unlinkSync(audioPath);
         fs.unlinkSync(filePath);
       });
@@ -172,7 +158,6 @@ bot.on("voice", async (msg) => {
   }
 });
 
-// Polling se non webhook
 if (!USE_WEBHOOK) {
   console.log("📡 Polling attivo.");
 }
