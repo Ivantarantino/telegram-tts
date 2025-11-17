@@ -1,4 +1,4 @@
-// index.js — IRIS 5.0.9.3 (Full Fix: TTS, Menu, RAG, STT, Vocale) – 17 novembre 2025
+// index.js — IRIS 5.0.9.3 (Full Fix: Vocale, Menu, RAG) – 17 novembre 2025
 import express from "express";
 import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
@@ -49,6 +49,10 @@ app.get("/", (req, res) => res.send("IRIS online."));
 app.listen(PORT, () => console.log(`🚀 Server su porta ${PORT}`));
 
 // Handlers
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(msg.chat.id, "Ciao, sono IRIS! Usa /help per comandi.");
+});
+
 bot.onText(/\/lang (.+)/, (msg, match) => {
   const lang = match[1].trim().toLowerCase();
   setLang(lang);
@@ -74,6 +78,7 @@ bot.onText(/\/state/, (msg) => {
 bot.onText(/\/help/, (msg) => {
   const helpText = `
 *IRIS Comandi:*
+/start - Inizia
 /lang <it/en/ru> - Cambia lingua
 /voice <alloy/nova/...> - Cambia voce
 /model <gpt-4o-mini> - Cambia modello
@@ -109,7 +114,7 @@ bot.on("text", async (msg) => {
     const voice = getVoice() || 'alloy';
     const audioPath = path.join(TEMP_DIR, `voice_${Date.now()}.mp3`);
     await synthToFile(replyText, audioPath, voice);
-    await bot.sendVoice(chatId, fs.createReadStream(audioPath), { contentType: "audio/mpeg" });  // Fix deprecation
+    await bot.sendVoice(chatId, fs.createReadStream(audioPath), { contentType: "audio/mpeg" });
     fs.unlinkSync(audioPath);
   } catch (err) {
     console.error("❌ Text handler error:", err);
