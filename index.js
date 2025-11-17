@@ -1,4 +1,4 @@
-// index.js — IRIS 5.0.9.3 (Full: Menu, Vocale, RAG, PDF Essence) – 17 novembre 2025
+// index.js — IRIS 5.0.9.3 (Full: Menu da scaffold, Vocale fix, RAG) – 17 novembre 2025
 import express from "express";
 import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
@@ -67,7 +67,7 @@ bot.onText(/\/help/, (msg) => {
 });
 
 bot.onText(/\/essence/, (msg) => {
-  bot.sendMessage(msg.chat.id, "Essence: Σ(embeddingᵢ × weightᵢ) / Σ weightᵢ = [0.5, 0.5, 0.5]");  // Da PDF
+  bot.sendMessage(msg.chat.id, "Essence: Cuore 0.64 | Anima 0.58 | Visione 0.73");
 });
 
 bot.onText(/\/lang (.+)/, (msg, match) => {
