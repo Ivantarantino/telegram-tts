@@ -1,4 +1,4 @@
-// adapters/tts.js – TTS con fix voice
+// adapters/tts.js – TTS con fix
 import fs from "fs";
 import OpenAI from "openai";
 
@@ -10,7 +10,7 @@ const VALID_VOICES = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash'
 
 export async function synthToFile(text, outputPath, voice = "alloy") {
   try {
-    voice = voice.replace('openai:', '');  // Fix prefix
+    voice = voice.replace('openai:', '');
     if (!VALID_VOICES.includes(voice)) {
       console.warn(`⚠️ Voice '${voice}' invalid, fallback to 'alloy'`);
       voice = 'alloy';
