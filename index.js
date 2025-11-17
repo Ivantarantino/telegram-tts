@@ -1,4 +1,4 @@
-// index.js — IRIS 5.0.9.3 (Fix __dirname in ESM + Full Deploy) – 17 novembre 2025
+// index.js — IRIS 5.0.9.3 (Fix __dirname in ESM + Full Deploy + Handlers) – 17 novembre 2025
 // ========================================================
 // Server completo con __dirname polyfill per ES module
 // ========================================================
@@ -80,6 +80,24 @@ bot.onText(/\/state/, (msg) => {
   bot.sendMessage(msg.chat.id, getStateSummary(), { parse_mode: "Markdown" });
 });
 
+// Handler menu /help
+bot.onText(/\/help/, (msg) => {
+  const helpText = `
+*IRIS Comandi:*
+/lang <it/en/ru> - Cambia lingua
+/voice <alloy/nova/...> - Cambia voce
+/model <gpt-4o-mini> - Cambia modello
+/state - Mostra stato
+/essence - Firma vibrazionale
+  `.trim();
+  bot.sendMessage(msg.chat.id, helpText, { parse_mode: "Markdown" });
+});
+
+// /essence stub (espandi dopo con formula dal PDF)
+bot.onText(/\/essence/, (msg) => {
+  bot.sendMessage(msg.chat.id, "Essence: Cuore 0.64 | Anima 0.58 | Visione 0.73");  // Da esempio PDF
+});
+
 // Handler testo – RAG integrato
 bot.on("text", async (msg) => {
   if (msg.text.startsWith("/")) return;
@@ -100,7 +118,7 @@ bot.on("text", async (msg) => {
 
     await bot.sendMessage(chatId, replyText);
 
-    const voice = getVoice();
+    const voice = getVoice() || 'alloy';  // Fallback voice
     const audioPath = path.join(TEMP_DIR, `voice_${Date.now()}.mp3`);
     await synthToFile(replyText, audioPath, voice);
     await bot.sendVoice(chatId, fs.createReadStream(audioPath));
@@ -140,7 +158,7 @@ bot.on("voice", async (msg) => {
 
         await bot.sendMessage(chatId, replyText);
 
-        const voice = getVoice();
+        const voice = getVoice() || 'alloy';
         const audioPath = path.join(TEMP_DIR, `reply_${Date.now()}.mp3`);
         await synthToFile(replyText, audioPath, voice);
         await bot.sendVoice(chatId, fs.createReadStream(audioPath));
