@@ -1,4 +1,4 @@
-// core/iris_state.js – Stub per state, getStateSummary
+// core/iris_state.js – State con menu
 let state = {
   mode: "hy",
   lang: "it",
@@ -20,7 +20,7 @@ export function getStateSummary() {
 }
 
 export function setLang(lang) { state.lang = lang; }
-export function setVoice(voice) { state.voice = voice; }
+export function setVoice(voice) { state.voice = voice.replace('openai:', ''); }  // Fix prefix
 export function setModel(model) { state.model = model; }
 export function getMode() { return state.mode; }
-export function getVoice() { return state.voice; }
+export function getVoice() { return state.voice || 'alloy'; }
