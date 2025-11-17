@@ -1,4 +1,4 @@
-// core/iris_state.js – State con exports
+// core/iris_state.js – Con icon per menu
 let state = {
   mode: "hy",
   lang: "it",
@@ -8,15 +8,40 @@ let state = {
   version: "5.0.9.3"
 };
 
+function pct(v) { return (v * 100).toFixed(0); }
+
+function iconForMode(mode) {
+  switch (mode) {
+    case "hy": return "🌀";
+    case "book": return "📖";
+    case "free": return "🌊";
+    default: return "✨";
+  }
+}
+
+function flagForLang(lang) {
+  switch (lang) {
+    case "it": return "🇮🇹";
+    case "en": return "🇬🇧";
+    case "ru": return "🇷🇺";
+    default: return "🏳️";
+  }
+}
+
 export function getStateSummary() {
-  return `
-*Stato IRIS:*
-- Modalità: ${state.mode}
-- Lingua: ${state.lang}
-- Modello: ${state.model}
-- Voce: ${state.voice}
-- Pesi: Cuore ${state.weights.cuore} | Anima ${state.weights.anima} | Visione ${state.weights.visione}
-  `.trim();
+  return [
+    "*Stato IRIS:*",
+    `• Versione: ${state.version}`,
+    `• Modalità: ${iconForMode(state.mode)} ${state.mode}`,
+    `• Lingua: ${flagForLang(state.lang)} ${state.lang}`,
+    `• Voce: 🎙️ ${state.voice}`,
+    `• Modello: 🤖 ${state.model}`,
+    "",
+    "Pesi:",
+    `• Cuore: ${pct(state.weights.cuore)}%`,
+    `• Anima: ${pct(state.weights.anima)}%`,
+    `• Visione: ${pct(state.weights.visione)}%`
+  ].join("\n");
 }
 
 export function setLang(lang) { state.lang = lang; }
