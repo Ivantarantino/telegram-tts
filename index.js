@@ -1,4 +1,4 @@
-// index.js — IRIS 5.0.9.3 (Full: Menu belli con icon, Vocale fix no warn, RAG) – 17 novembre 2025
+// index.js — IRIS 5.0.9.3 (Fix menu belli, deprecation, RAG) – 17 novembre 2025
 import express from "express";
 import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
@@ -48,7 +48,7 @@ app.get("/", (req, res) => res.send("IRIS online."));
 
 app.listen(PORT, () => console.log(`🚀 Server su porta ${PORT}`));
 
-// Handlers menu belli con icon da 5.0.9.0
+// Menu belli con icon da 5.0.9.0
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id, "Ciao, sono IRIS! Usa /help per comandi.");
 });
@@ -67,7 +67,7 @@ bot.onText(/\/help/, (msg) => {
 });
 
 bot.onText(/\/essence/, (msg) => {
-  bot.sendMessage(msg.chat.id, "Essence: Σ(embeddingᵢ × weightᵢ) / Σ weightᵢ = [0.5, 0.5, 0.5]");
+  bot.sendMessage(msg.chat.id, "Essence: Σ(embeddingᵢ × weightᵢ) / Σ weightᵢ");
 });
 
 bot.onText(/\/lang (.+)/, (msg, match) => {
