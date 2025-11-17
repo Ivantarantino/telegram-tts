@@ -1,4 +1,4 @@
-// adapters/tts.js – Fix voice validation
+// adapters/tts.js – TTS con fix voice
 import fs from "fs";
 import OpenAI from "openai";
 
@@ -10,6 +10,7 @@ const VALID_VOICES = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash'
 
 export async function synthToFile(text, outputPath, voice = "alloy") {
   try {
+    voice = voice.replace('openai:', '');  // Fix prefix
     if (!VALID_VOICES.includes(voice)) {
       console.warn(`⚠️ Voice '${voice}' invalid, fallback to 'alloy'`);
       voice = 'alloy';
@@ -25,7 +26,7 @@ export async function synthToFile(text, outputPath, voice = "alloy") {
 
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(outputPath, buffer);
-    console.log(`🔊 Audio: ${outputPath}`);
+    console.log(`🔊 Audio creato: ${outputPath}`);
     return outputPath;
   } catch (err) {
     console.error("❌ TTS error:", err.message);
