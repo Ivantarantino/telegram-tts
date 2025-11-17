@@ -1,6 +1,6 @@
-// index.js — IRIS 5.0.9.2 (Fix STT + Deploy + RAG + TTS) – 17 novembre 2025
+// index.js — IRIS 5.0.9.3 (Fix __dirname in ESM + Full Deploy) – 17 novembre 2025
 // ========================================================
-// Server completo con STT per vocali
+// Server completo con __dirname polyfill per ES module
 // ========================================================
 
 import express from "express";
@@ -8,12 +8,16 @@ import bodyParser from "body-parser";
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import path from "path";
-import https from "https";  // Per download file vocali
+import https from "https";
+import { fileURLToPath } from "url";  // Per __dirname in ESM
 import { irisHeartSpeak } from "./core/iris_heart_voice.js";
 import { ragAnswerFromQuery } from "./core/iris_rag_core.js";
 import { getStateSummary, setLang, setVoice, setModel, getMode, getVoice } from "./core/iris_state.js";
 import { synthToFile } from "./adapters/tts.js";
-import { processVoice } from "./adapters/stt.js";  // Import fixato
+import { processVoice } from "./adapters/stt.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);  // Fix per ESM
 
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
@@ -117,20 +121,17 @@ bot.on("voice", async (msg) => {
     const file = await bot.getFile(fileId);
     const filePath = path.join(TEMP_DIR, `${fileId}.ogg`);
 
-    // Download file vocale
-    const downloadStream = fs.createWriteStream(filePath);
+    // Download vocale
     const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+    const downloadStream = fs.createWriteStream(filePath);
     https.get(fileUrl, (response) => {
       response.pipe(downloadStream);
       downloadStream.on("finish", async () => {
-        // Trascrivi con STT
         const transcribedText = await processVoice(filePath);
 
-        // RAG su testo trascritto
         const mode = getMode();
         const ragContext = await ragAnswerFromQuery(transcribedText, mode);
 
-        // Rispondi
         const replyText = await irisHeartSpeak(transcribedText, {
           senderName,
           ragContext,
@@ -139,18 +140,17 @@ bot.on("voice", async (msg) => {
 
         await bot.sendMessage(chatId, replyText);
 
-        // TTS risposta
         const voice = getVoice();
         const audioPath = path.join(TEMP_DIR, `reply_${Date.now()}.mp3`);
         await synthToFile(replyText, audioPath, voice);
         await bot.sendVoice(chatId, fs.createReadStream(audioPath));
         fs.unlinkSync(audioPath);
-        fs.unlinkSync(filePath);  // Pulisci
+        fs.unlinkSync(filePath);
       });
     });
   } catch (err) {
     console.error("❌ Voice handler error:", err);
-    bot.sendMessage(chatId, "Non ho capito il vocale... manda testo.");
+    bot.sendMessage(chatId, "Non capito vocale... manda testo.");
   }
 });
 
