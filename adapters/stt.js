@@ -1,51 +1,33 @@
-// adapters/stt.js
-// ---------------------------------------------------------
-// IRIS — Speech-to-Text (Whisper Fix Telegram OGA → OGG)
-// ---------------------------------------------------------
-
+// adapters/stt.js – STT con OpenAI Whisper, export 'processVoice'
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import OpenAI from "openai";
-import fetch from "node-fetch";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Scarica file Telegram e rinomina .oga → .ogg
-async function downloadToOgg(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Errore download audio Telegram");
-
-  // Temporary file
-  const tempPath = `/tmp/iris-${Date.now()}.ogg`;
-
-  const buffer = await res.arrayBuffer();
-  fs.writeFileSync(tempPath, Buffer.from(buffer));
-
-  return tempPath;
-}
-
-// Trascrizione Whisper
-async function transcribeVoice(fileUrl) {
+/**
+ * Processa un file vocale e lo trascrive con Whisper.
+ * @param {string} filePath - Percorso del file vocale (ogg/mp3).
+ * @returns {string} Trascrizione testo.
+ */
+export async function processVoice(filePath) {
   try {
-    const oggPath = await downloadToOgg(fileUrl);
+    if (!fs.existsSync(filePath)) throw new Error("File vocale non trovato.");
 
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(oggPath),
+      file: fs.createReadStream(filePath),
       model: "whisper-1",
-      language: "it", // IRIS auto-detects but Italian is best default
+      language: "it",  // Default italiano; cambia via state
     });
 
-    return transcription.text;
+    console.log(`🎙️ Trascrizione: ${transcription.text}`);
+    return transcription.text.trim();
   } catch (err) {
-    console.error("❌ Errore vocale (STT):", err);
-    throw err;
+    console.error("❌ STT error:", err.message);
+    return "Non ho capito il vocale... riprova.";
   }
 }
 
-export { transcribeVoice };
+// Alias per compatibilità con scaffold
+export { processVoice as transcribeVoice, processVoice as whisperTranscribe };
