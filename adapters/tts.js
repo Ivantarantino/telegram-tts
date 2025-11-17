@@ -1,4 +1,4 @@
-// adapters/tts.js – TTS OpenAI con export named 'synthToFile'
+// adapters/tts.js – Fix voice validation
 import fs from "fs";
 import OpenAI from "openai";
 
@@ -6,19 +6,18 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-/**
- * Genera un file vocale MP3.
- * @param {string} text - Testo da sintetizzare.
- * @param {string} outputPath - Percorso output.
- * @param {string} voice - Voce (default "alloy").
- * @returns {string} Path del file generato.
- */
+const VALID_VOICES = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'];
+
 export async function synthToFile(text, outputPath, voice = "alloy") {
   try {
+    if (!VALID_VOICES.includes(voice)) {
+      console.warn(`⚠️ Voice '${voice}' invalid, fallback to 'alloy'`);
+      voice = 'alloy';
+    }
     if (!text.trim()) throw new Error("Testo vuoto.");
 
     const response = await openai.audio.speech.create({
-      model: "tts-1",  // Usa "tts-1-hd" per qualità alta
+      model: "tts-1",
       voice,
       input: text,
       response_format: "mp3",
@@ -26,7 +25,7 @@ export async function synthToFile(text, outputPath, voice = "alloy") {
 
     const buffer = Buffer.from(await response.arrayBuffer());
     fs.writeFileSync(outputPath, buffer);
-    console.log(`🔊 Audio creato: ${outputPath}`);
+    console.log(`🔊 Audio: ${outputPath}`);
     return outputPath;
   } catch (err) {
     console.error("❌ TTS error:", err.message);
