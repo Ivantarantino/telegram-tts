@@ -1,4 +1,4 @@
-// core/iris_state.js – State con menu
+// core/iris_state.js – State con exports per getLang ecc.
 let state = {
   mode: "hy",
   lang: "it",
@@ -24,3 +24,5 @@ export function setVoice(voice) { state.voice = voice.replace('openai:', ''); } 
 export function setModel(model) { state.model = model; }
 export function getMode() { return state.mode; }
 export function getVoice() { return state.voice || 'alloy'; }
+export function getLang() { return state.lang; }
+export function getModel() { return state.model; }
