@@ -10,6 +10,7 @@ import fs from "fs";
 import dotenv from "dotenv";
 import express from "express";
 import TelegramBot from "node-telegram-bot-api";
+import { ragSearch, hybridSearch, saveConversationToQdrant, gptFreeResponse } from "./core/rag_brutale.js";
 import {
   openai,
   ragSearch,
