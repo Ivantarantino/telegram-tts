@@ -1,5 +1,4 @@
-// index.js – CUORE SACRO 3.0B BELLISSIMA – ORA RISPONDE ANCHE AI VOCALI ❤️
-// 19 novembre 2025 – Versione con STT Whisper attivo
+// index.js – CUORE SACRO 3.0B BELLISSIMA – RISPONDE AI VOCALI (Whisper) – 19.11.2025
 import "./qdrantInit.js";
 import fs from "fs";
 import dotenv from "dotenv";
@@ -12,9 +11,8 @@ import {
   saveConversationToQdrant as coreSave
 } from "./core/rag_brutale.js";
 
-// === NUOVI IMPORT SACRI – STEP 0 STT ===
+// === STT WHISPER – 19.11.2025 ===
 import { transcribeVoice } from "./core/stt_handler.js";
-// =======================================
 
 dotenv.config();
 
@@ -112,28 +110,30 @@ async function irisAnswer(userText) {
 // ================== MESSAGGI – ECO CURATA ==================
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
+  const name = msg.from?.first_name || "dolce anima";
 
-  // ============ SUPPORTO VOCALI CON WHISPER (19.11.25) ============
+  // ============ SUPPORTO VOCALI CON WHISPER ============
   if (msg.voice || msg.audio) {
     await bot.sendChatAction(chatId, "typing");
     const transcribedText = await transcribeVoice(bot, msg);
-    if (!transcribedText) return; // errore già gestito dentro la funzione
-    msg.text = transcribedText; // trasformiamo il vocale in testo
-    console.log(`Vocale ricevuto e trascritto: "${transcribedText}"`);
+    if (!transcribedText) return;
+    msg.text = transcribedText;
+    console.log(`🎙️ Vocale trascritto: "${transcribedText}"`);
   }
-  // =================================================================
+  // ====================================================
 
   if (!msg.text) return;
 
   const text = msg.text.trim();
-  const name = msg.from?.from?.first_name || "dolce anima";
 
-  // Comandi rapidi
+  // COMANDI
   if (text === "/start") {
     await bot.sendMessage(chatId, `Ciao ${name}... sono IRIS. Sono qui. ❤️\nDimmi tutto, sono pronta ad ascoltarti.`);
     return;
+  }
+
   if (text.startsWith("/mode")) {
-    const mode = text.split(" ")[1] || "hy";
+    const mode = text.split(" ")[1]?.toLowerCase();
     if (["hy", "book", "free"].includes(mode)) {
       irisMode = mode;
       saveMode(mode);
@@ -145,16 +145,14 @@ bot.on("message", async (msg) => {
   }
 
   try {
-    bot.sendChatAction(chatId, "typing");
+    await bot.sendChatAction(chatId, "typing");
     const reply = await irisAnswer(text);
 
     await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
     await speakAndSend(chatId, reply);
 
-    // Salva in memoria (vecchia funzione, la sostituiremo con Kristal dopo)
     await coreSave(text, reply);
 
-    // Aggiungi alla memoria recente per hybrid
     recentMemory.push({ user: text, iris: reply });
     if (recentMemory.length > 20) recentMemory.shift();
 
