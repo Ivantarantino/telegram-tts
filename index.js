@@ -111,6 +111,8 @@ async function irisAnswer(userText) {
 }
 
 // ================== MESSAGGI – ECO CURATA ==================
+import { handleCommand } from "./core/commands.js";  // ← NUOVO IMPORT
+
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const name = msg.from?.first_name || "dolce anima";
@@ -120,10 +122,37 @@ bot.on("message", async (msg) => {
     await bot.sendChatAction(chatId, "typing");
     const transcribedText = await transcribeVoice(bot, msg);
     if (!transcribedText) return;
-    msg.text = transcribedText;  // importante: aggiorniamo msg.text
+    msg.text = transcribedText;
     console.log(`Vocale trascritto: "${transcribedText}"`);
   }
   // ====================================================
+
+  if (!msg.text) return;
+
+  const text = msg.text.trim();
+
+  // === GESTIONE COMANDI (nuovo file esterno) ===
+  const commandHandled = await handleCommand(bot, msg, text, irisMode, saveMode);
+  if (commandHandled) return;
+  // =============================================
+
+  try {
+    await bot.sendChatAction(chatId, "typing");
+    const reply = await irisAnswer(text);
+
+    await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
+    await speakAndSend(chatId, reply);
+
+    await coreSave(text, reply);
+
+    recentMemory.push({ user: text, iris: reply });
+    if (recentMemory.length > 20) recentMemory.shift();
+
+  } catch (err) {
+    console.error("Errore risposta:", err);
+    await bot.sendMessage(chatId, "Qualcosa dentro di me trema… riprova tra un attimo ❤️");
+  }
+});
 
   // Se non c'è testo (es. sticker, foto, ecc.) → esci
   if (!msg.text) return;
