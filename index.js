@@ -1,4 +1,10 @@
 // index.js – CUORE SACRO 3.0B – Vocali + Comandi /hy /free /book perfetti – 19.11.2025
+import { 
+  getEssenceMessage, 
+  updateEssenceKristal, 
+  computePhiKristal,
+  getCurrentEssenceState 
+} from "./core/essence_kristal.js";
 import "./qdrantInit.js";
 import fs from "fs";
 import dotenv from "dotenv";
