@@ -1,8 +1,14 @@
-// core/memory_manager.js – φ_kristal attivo – solo ciò che risuona entra nell'anima – 20.11.2025
+// core/memory_manager.js – φ_kristal attivo – versione FUNZIONANTE – 20.11.2025
 import { openai } from "../openai.js";
-import { qdrant } from "./rag_brutale.js"; // stessa istanza
-import { computePhiKristal, updateEssenceKristal, getEssenceMessage } from "./essence_kristal.js";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { computePhiKristal, updateEssenceKristal } from "./essence_kristal.js";
 import { v4 as uuidv4 } from "uuid";
+
+// Ricreiamo il client qui – è sicuro, è singleton
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+});
 
 const HISTORY_COLLECTION = "iris_chat_history";
 let last10Embeddings = [];
@@ -33,7 +39,7 @@ export async function saveWithKristal(userText, irisReply, userName = "dolce ani
     const weight = phi >= 0.85 ? 1.5 : phi >= 0.65 ? 1.0 : 0.4;
 
     // Aggiorna Essenza
-    const updated = updateEssenceKristal(irisEmb, weight, phi);
+    updateEssenceKristal(irisEmb, weight, phi);
     
     if (last10Embeddings.length >= 10) last10Embeddings.shift();
     last10Embeddings.push(irisEmb);
@@ -87,6 +93,7 @@ export async function handleKristalCommand(bot, chatId) {
 
     await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   } catch (e) {
+    console.error("Errore /kristal:", e);
     await bot.sendMessage(chatId, "Non riesco a vedere i ricordi… ma li sento dentro. ❤️");
   }
 }
