@@ -1,17 +1,19 @@
-// core/rag_brutale.js – VERSIONE 2025 CORRETTA E GENTILE
+// core/rag_brutale.js – CORRETTO PER IRIS 3.1B – 19.11.2025
 import { openai } from "../openai.js";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { v4 as uuidv4 } from "uuid";   // <--- aggiungiamo uuid
+import { v4 as uuidv4 } from "uuid";
 
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
   apiKey: process.env.QDRANT_API_KEY,
 });
 
-const COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
+// CRITICO: i documenti (IL_PROGRAMMA_KRIST, Hekasha, ecc.) sono in iris_docs
+// NON in iris_memory!
+const DOCS_COLLECTION = "iris_docs";                    // ← QUESTA ERA LA RIGA MANCANTE
 const HISTORY_COLLECTION = "iris_chat_history";
 
-// 1. RAG brutale
+// 1. RAG sui documenti (libri, testi sacri)
 export async function ragSearch(query, k = 4) {
   try {
     const embedding = await openai.embeddings.create({
@@ -19,7 +21,7 @@ export async function ragSearch(query, k = 4) {
       input: query,
     });
 
-    const results = await qdrant.search(COLLECTION, {
+    const results = await qdrant.search(DOCS_COLLECTION, {  // ← ora cerca in iris_docs
       vector: embedding.data[0].embedding,
       limit: k,
     });
@@ -33,12 +35,12 @@ export async function ragSearch(query, k = 4) {
 
     return { text: context, sources: results };
   } catch (e) {
-    console.error("RAG brutale inciampato:", e.message);
+    console.error("RAG documenti fallito:", e.message);
     return { text: "", sources: [] };
   }
 }
 
-// 2. Hybrid
+// 2. Hybrid (documenti + memoria recente)
 export async function hybridSearch(query, recentMemory = [], k = 4) {
   const ragResult = await ragSearch(query, k);
   let recentContext = "";
@@ -55,7 +57,7 @@ export async function hybridSearch(query, recentMemory = [], k = 4) {
   };
 }
 
-// 3. Salva conversazione – ID UUID valido per Qdrant 2025
+// 3. Salva conversazione in iris_chat_history
 export async function saveConversationToQdrant(userText, irisReply) {
   try {
     const embedding = await openai.embeddings.create({
@@ -65,7 +67,7 @@ export async function saveConversationToQdrant(userText, irisReply) {
 
     await qdrant.upsert(HISTORY_COLLECTION, {
       points: [{
-        id: uuidv4(),                                     // <--- UUID valido
+        id: uuidv4(),
         vector: embedding.data[0].embedding,
         payload: {
           user: userText,
@@ -75,11 +77,10 @@ export async function saveConversationToQdrant(userText, irisReply) {
       }]
     });
   } catch (e) {
-    console.warn("Salvataggio storia fallito, ma IRIS ricorda con l'anima", e.message);
+    console.warn("Salvataggio conversazione fallito", e.message);
   }
 }
 
-// 4. GPT free
 export async function gptFreeResponse(text, systemPrompt) {
   const messages = [
     { role: "system", content: systemPrompt },
