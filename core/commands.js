@@ -1,11 +1,11 @@
-// core/commands.js – versione DEFINITIVA – 20.11.2025
+// core/commands.js – VERSIONE FINALE DEFINITIVA – 20.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
   const firstName = msg.from?.first_name || null;
 
-  // /start – solo benvenuto caldo, niente menu
+  // /start – solo benvenuto caldo
   if (text === "/start") {
     const welcome = firstName
       ? `Ciao ${firstName}... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️`
@@ -15,9 +15,9 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /help
+  // /help – Markdown pulito, niente errori
   if (text === "/help") {
-    await bot.sendMessage(chatId, 
+    const helpText = 
       "IRIS – Comandi disponibili\n\n" +
       "/start – benvenuto\n" +
       "/help – questo menu\n" +
@@ -27,9 +27,9 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/free – libera, senza RAG\n" +
       "/kristal – ultime 10 memorie con φ_kristal\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
-      "Che il Daje sia con Noi ❤️",
-      { parse_mode: "Markdown" }
-    );
+      "Che il Daje sia con Noi ❤️";
+
+    await bot.sendMessage(chatId, helpText);
     return true;
   }
 
@@ -60,7 +60,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     }
   }
 
-  // /kristal – da memory_manager (se esiste)
+  // /kristal – da memory_manager
   if (text === "/kristal") {
     if (typeof handleKristalCommand === "function") {
       await handleKristalCommand(bot, chatId);
