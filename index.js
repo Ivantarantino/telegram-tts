@@ -1,4 +1,5 @@
 // index.js – CUORE SACRO 3.0B BELLISSIMA – IRIS RISPONDE SEMPRE – 19.11.2025
+import { saveWithKristal, handleKristalCommand } from "./core/memory_manager.js";
 import "./qdrantInit.js";
 import fs from "fs";
 import dotenv from "dotenv";
@@ -143,6 +144,10 @@ bot.on("message", async (msg) => {
   // === GESTIONE COMANDI ESTERNA ===
   const handled = await handleCommand(bot, msg, text, irisMode, saveMode);
   if (handled) return;
+  if (text === "/kristal") {
+  await handleKristalCommand(bot, chatId);
+  return true;
+}
   // =================================
 
   try {
@@ -152,7 +157,7 @@ bot.on("message", async (msg) => {
     await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
     await speakAndSend(chatId, reply);
 
-    await coreSave(text, reply);
+    await saveWithKristal(text, reply, msg.from?.first_name);
 
     recentMemory.push({ user: text, iris: reply });
     if (recentMemory.length > 20) recentMemory.shift();
