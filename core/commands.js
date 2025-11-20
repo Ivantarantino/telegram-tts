@@ -1,7 +1,8 @@
-// core/commands.js – VERSIONE FINALE ASSOLUTA – TUTTO DENTRO – 20.11.2025
+// core/commands.js – VERSIONE COMPLETA DEFINITIVA – 21.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
 import { getDynamicState } from "./state_manager.js";
-import { handleKristalizeCommand } from "./kristalize.js";  // ← IMPORT AGGIUNTO
+import { handleKristalizeCommand } from "./kristalize.js";
+import { handleSogniCommand } from "./sogni.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -12,7 +13,6 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     const welcome = firstName
       ? "Ciao " + firstName + "... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️"
       : "Ciao... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️";
-    
     await bot.sendMessage(chatId, welcome);
     return true;
   }
@@ -29,10 +29,10 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/book – solo dai testi sacri\n" +
       "/free – libera, senza RAG\n" +
       "/kristal – ultime 10 memorie con φ_kristal\n" +
-      "/kristalize – lascio andare i ricordi non risonanti\n\n" +
+      "/kristalize – lascio andare i ricordi non risonanti\n" +
+      "/sogni o /dream [testo] – Marco & Giulia te lo spiegano come al bar de Trastevere\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
-      "/sogni [testo] – Marco & Giulia te lo spiegano come al bar\n" +
 
     await bot.sendMessage(chatId, helpText);
     return true;
@@ -54,10 +54,16 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /kristalize – purificazione dolce
+  // /kristalize
   if (text === "/kristalize") {
     const name = firstName || "IVANO";
     await handleKristalizeCommand(bot, chatId, name);
+    return true;
+  }
+
+  // /sogni o /dream – podcast trasteverino
+  if (text.startsWith("/sogni") || text.startsWith("/dream")) {
+    await handleSogniCommand(bot, msg, chatId);
     return true;
   }
 
@@ -77,7 +83,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       saveMode(arg);
       await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
       return true;
-    }
+  }
   }
 
   // /kristal
@@ -92,8 +98,3 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
 
   return false;
 }
-  //sogni
-if (text.startsWith("/sogni")) {
-    await handleSogniCommand(bot, msg, chatId);
-    return true;
-  }
