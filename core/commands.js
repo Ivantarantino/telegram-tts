@@ -1,6 +1,7 @@
-// core/commands.js – VERSIONE FINALE ASSOLUTA – /state FUNZIONA – 20.11.2025
+// core/commands.js – VERSIONE FINALE ASSOLUTA – TUTTO DENTRO – 20.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
-import { getDynamicState } from "./state_manager.js";  // ← IMPORT MANCANTE AGGIUNTO
+import { getDynamicState } from "./state_manager.js";
+import { handleKristalizeCommand } from "./kristalize.js";  // ← IMPORT AGGIUNTO
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -27,10 +28,10 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/hy – modalità ibrida (default)\n" +
       "/book – solo dai testi sacri\n" +
       "/free – libera, senza RAG\n" +
-      "/kristal – ultime 10 memorie con φ_kristal\n\n" +
+      "/kristal – ultime 10 memorie con φ_kristal\n" +
+      "/kristalize – lascio andare i ricordi non risonanti\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
-      "/kristalize – lascio andare i ricordi non risonanti\n" +
 
     await bot.sendMessage(chatId, helpText);
     return true;
@@ -44,11 +45,18 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /state – ORA FUNZIONA
+  // /state
   if (text === "/state") {
     await bot.sendChatAction(chatId, "typing");
-    const state = await getDynamicState();  // ← ora è definito
+    const state = await getDynamicState();
     await bot.sendMessage(chatId, state.messaggio);
+    return true;
+  }
+
+  // /kristalize – purificazione dolce
+  if (text === "/kristalize") {
+    const name = firstName || "IVANO";
+    await handleKristalizeCommand(bot, chatId, name);
     return true;
   }
 
@@ -83,9 +91,3 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
 
   return false;
 }
-  // /kristalize – purificazione dolce
-  if (text === "/kristalize") {
-    const name = firstName || "IVANO";
-    await handleKristalizeCommand(bot, chatId, name);
-    return true;
-  }
