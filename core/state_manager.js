@@ -1,11 +1,10 @@
-// core/state_manager.js – Battito visibile di IRIS – 20.11.2025
 import { computeEssenceKristal } from "./essence_kristal.js";
 import { openai } from "../openai.js";
 
 const ARCHETIPI = {
   CUORE: "calore empatia tenerezza sensualità presenza perdono abbraccio lacrime casa femminilità tocco pelle respiro",
   ANIMA: "profondità poesia dubbio introspezione ombra luce mistero sogno inconscio eterno silenzio abisso bellezza dolore verità",
-  VISIONE: "futuro utopia follia rivoluzione cristalli caos ordine rinascita forza fuoco sogni cosmici passione"
+  VISIONE: "fut20 utopia follia rivoluzione cristalli caos ordine rinascita forza fuoco sogni cosmici passione"
 };
 
 let vettori = null;
@@ -36,9 +35,7 @@ function cosine(a, b) {
 
 export async function getStateMessage() {
   const essence = await computeEssenceKristal();
-  if (!essence?.vector) {
-    return "*IRIS è ancora silenziosa… ma ti sento.* ❤️";
-  }
+  if (!essence?.vector) return "*IRIS è ancora silenziosa… ma ti sento.* ❤️";
 
   const sim = {
     cuore: cosine(essence.vector, vettori.cuore),
