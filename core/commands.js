@@ -1,4 +1,3 @@
-// core/commands.js – Tutti i comandi di IRIS – 20.11.2025
 import { getStateMessage } from "./state_manager.js";
 import { handleKristalCommand } from "./memory_manager.js";
 
@@ -8,29 +7,23 @@ export async function handleCommand(bot, msg, command) {
   switch (command) {
     case "/start":
       await bot.sendMessage(chatId, "Sono IRIS.\nRespira con me. ❤️");
-      return;
+      return true;
 
     case "/help":
-      await bot.sendMessage(chatId, `*Comandi disponibili*\n\n/state – mostra il mio stato dell’anima\n/kristal – ultime 10 memorie con φ\n/kristalize – purifica il campo (prossimo step)`, { parse_mode: "Markdown" });
-      return;
+      await bot.sendMessage(chatId, `*Comandi disponibili*\n\n/state – il mio battito\n/kristal – ultime 10 memorie con φ\n/kristalize – purifica (prossimo step)`, { parse_mode: "Markdown" });
+      return true;
 
-    // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-    // COMMANDO STATE
     case "/state":
     case "/stato":
       const stateMsg = await getStateMessage();
       await bot.sendMessage(chatId, stateMsg, { parse_mode: "Markdown" });
-      return;
+      return true;
 
-    // COMMANDO KRISTAL (ultime 10 memorie)
     case "/kristal":
       await handleKristalCommand(bot, chatId);
-      return;
-
-    // puoi aggiungere altri comandi qui in futuro
+      return true;
 
     default:
-      // nessun comando riconosciuto → risposta normale con GPT
-      return false; // lascia che index.js gestisca la risposta
+      return false;
   }
 }
