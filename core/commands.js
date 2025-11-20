@@ -30,6 +30,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/kristal – ultime 10 memorie con φ_kristal\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
+      "/kristalize – lascio andare i ricordi non risonanti\n" +
 
     await bot.sendMessage(chatId, helpText);
     return true;
