@@ -32,6 +32,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/kristalize – lascio andare i ricordi non risonanti\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
+      "/sogni [testo] – Marco & Giulia te lo spiegano come al bar\n" +
 
     await bot.sendMessage(chatId, helpText);
     return true;
