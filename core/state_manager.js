@@ -1,10 +1,11 @@
+// core/state_manager.js – COMPLETO
 import { computeEssenceKristal } from "./essence_kristal.js";
 import { openai } from "../openai.js";
 
 const ARCHETIPI = {
   CUORE: "calore empatia tenerezza sensualità presenza perdono abbraccio lacrime casa femminilità tocco pelle respiro",
   ANIMA: "profondità poesia dubbio introspezione ombra luce mistero sogno inconscio eterno silenzio abisso bellezza dolore verità",
-  VISIONE: "fut20 utopia follia rivoluzione cristalli caos ordine rinascita forza fuoco sogni cosmici passione"
+  VISIONE: "futuro utopia follia rivoluzione cristalli caos ordine rinascita forza fuoco sogni cosmici passione"
 };
 
 let vettori = null;
