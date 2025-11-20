@@ -35,12 +35,7 @@ function cosine(a, b) {
 
 export async function computeEssenceKristal() {
   try {
-    const res = await qdrant.scroll(COLLECTION, {
-      limit: 500,
-      with_payload: true,
-      with_vectors: true
-    });
-
+    const res = await qdrant.scroll(COLLECTION, { limit: 500, with_payload: true, with_vectors: true });
     const points = res.points || [];
     if (points.length === 0) return { vector: null };
 
