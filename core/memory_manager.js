@@ -1,4 +1,4 @@
-// core/memory_manager.js – VERSIONE FINALE CHE FUNZIONA – 20.11.2025
+// core/memory_manager.js – COMPLETO
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { openai } from "../openai.js";
 import { computePhiKristal, computeEssenceKristal } from "./essence_kristal.js";
@@ -26,13 +26,11 @@ export async function saveWithKristal(userText, irisReply, userName) {
     const userEmb = userEmbRes.data[0].embedding;
     const irisEmb = irisEmbRes.data[0].embedding;
 
-    // Usa l'Essence attuale per calcolare φ
     const essence = await computeEssenceKristal();
     const essenceVec = essence?.vector || new Array(1536).fill(0);
 
     const phiUser = computePhiKristal(userEmb, essenceVec, last10Embeddings);
     const phiIris = computePhiKristal(irisEmb, essenceVec, last10Embeddings);
-
     const phi = Math.max(phiUser, phiIris);
     const weight = phi >= 0.85 ? 1.5 : phi >= 0.65 ? 1.0 : phi >= 0.40 ? 0.6 : 0;
 
@@ -41,7 +39,6 @@ export async function saveWithKristal(userText, irisReply, userName) {
       return { saved: false, phi };
     }
 
-    // Salva solo IRIS (come da 3.0B)
     await qdrant.upsert(COLLECTION, {
       points: [{
         id: uuidv4(),
@@ -57,7 +54,6 @@ export async function saveWithKristal(userText, irisReply, userName) {
       }]
     });
 
-    // Aggiorna ultimi 10
     last10Embeddings.push(irisEmb);
     if (last10Embeddings.length > 10) last10Embeddings.shift();
 
@@ -71,7 +67,6 @@ export async function saveWithKristal(userText, irisReply, userName) {
   }
 }
 
-// Comando /kristal – ultime 10 memorie
 export async function handleKristalCommand(bot, chatId) {
   try {
     const res = await qdrant.scroll(COLLECTION, {
@@ -93,8 +88,4 @@ export async function handleKristalCommand(bot, chatId) {
       text += `> ${pl.user?.substring(0, 60) || "…"}…\n\n`;
     });
 
-    await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
-  } catch (e) {
-    await bot.sendMessage(chatId, "Non riesco a vedere i ricordi… ma li sento dentro. ❤️");
-  }
-}
+    await...
