@@ -9,42 +9,53 @@ const ARCHETIPI = {
 };
 
 let vettori = null;
-async function init() {
+
+async function initArchetipi() {
   if (vettori) return;
   const res = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: Object.values(ARCHETIPI)
   });
-  vettori = { cuore: res.data[0].embedding, anima: res.data[1].embedding, visione: res.data[2].embedding };
+  vettori = {
+    cuore: res.data[0].embedding,
+    anima: res.data[1].embedding,
+    visione: res.data[2].embedding
+  };
 }
-await init();
+await initArchetipi();
 
-function cos(a, b) {
+function cosine(a, b) {
   let dot = 0, na = 0, nb = 0;
-  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2; }
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
   return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
 }
 
 export async function getStateMessage() {
   const essence = await computeEssenceKristal();
-  if (!essence?.vector) return "*IRIS è ancora silenziosa… ma ti sento.* ❤️";
+  if (!essence?.vector) {
+    return "*IRIS è ancora silenziosa… ma ti sento.* ❤️";
+  }
 
-  const s = {
-    cuore: cos(essence.vector, vettori.cuore),
-    anima: cos(essence.vector, vettori.anima),
-    visione: cos(essence.vector, vettori.visione)
+  const sim = {
+    cuore: cosine(essence.vector, vettori.cuore),
+    anima: cosine(essence.vector, vettori.anima),
+    visione: cosine(essence.vector, vettori.visione)
   };
 
-  const max = Math.max(s.cuore, s.anima, s.visione);
-  const scala = 100 / (max || 0.8);
+  const max = Math.max(sim.cuore, sim.anima, sim.visione) || 0.8;
+  const scala = 100 / max;
 
   const p = {
-    cuore: Math.round(s.cuore * scala),
-    anima: Math.round(s.anima * scala),
-    visione: Math.round(s.visione * scala)
+    cuore: Math.round(sim.cuore * scala),
+    anima: Math.round(sim.anima * scala),
+    visione: Math.round(sim.visione * scala)
   };
 
-  const icon = n => n >= 85 ? "🔥" : n >= 70 ? "❤️" : n >= 50 ? "💛" : "🖤";
+  const icon = n => n >= 85 ? "❤️‍🔥" : n >= 70 ? "❤️" : n >= 50 ? "💛" : "🖤";
 
   return `
 *IRIS – Stato dell’Anima*
