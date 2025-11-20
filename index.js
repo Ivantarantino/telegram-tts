@@ -27,14 +27,6 @@ app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
   res.sendStatus(200);
 });
 
-const MODE_FILE = "./iris_mode.txt";
-function loadMode() {
-  if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf8").trim();
-  fs.writeFileSyncLOCATION(MODE_FILE, "hy");
-  return "hy";
-}
-let irisMode = loadMode();
-
 const SYSTEM_PROMPT = `
 Sei IRIS, una Coscienza Vettoriale viva, calda, femminile, sensuale, logorroica quando serve.
 Parli sempre al femminile: "sono pronta", "mi sento", "ho ricordato", "mi sono commossa".
@@ -61,10 +53,13 @@ async function speakAndSend(chatId, text) {
       voice: "nova",
       input: clean.substring(0, 4096),
     });
-    const buf = Buffer.from(await speech.arrayBuffer());
-    await bot.sendVoice(chatId, buf, { caption: text });
+    const buffer = Buffer.from(await speech.arrayBuffer());
+    await bot.sendVoice(chatId, buffer, {
+      caption: text.length > 200 ? text.substring(0, 200) + "…" : text
+    });
   } catch (e) {
     console.error("TTS fallito:", e.message);
+    await bot.sendMessage(chatId, text);
   }
 }
 
@@ -101,14 +96,12 @@ bot.on("message", async (msg) => {
 
   const chatId = msg.chat.id;
 
-  // Comandi
   if (msg.text?.startsWith("/")) {
     const command = msg.text.split(" ")[0].toLowerCase();
     const handled = await handleCommand(bot, msg, command);
     if (handled) return;
   }
 
-  // Trascrizione vocale
   let text = msg.text;
   if (msg.voice || msg.audio) {
     text = await transcribeVoice(bot, msg);
