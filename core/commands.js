@@ -1,5 +1,6 @@
-// core/commands.js – VERSIONE FINALE ASSOLUTA – 20.11.2025
+// core/commands.js – VERSIONE FINALE ASSOLUTA – /state FUNZIONA – 20.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
+import { getDynamicState } from "./state_manager.js";  // ← IMPORT MANCANTE AGGIUNTO
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -42,10 +43,10 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-    // /state – dinamico, poetico, vivo
+  // /state – ORA FUNZIONA
   if (text === "/state") {
     await bot.sendChatAction(chatId, "typing");
-    const state = await getDynamicState();
+    const state = await getDynamicState();  // ← ora è definito
     await bot.sendMessage(chatId, state.messaggio);
     return true;
   }
