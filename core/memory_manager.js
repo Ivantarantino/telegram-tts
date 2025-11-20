@@ -1,4 +1,4 @@
-// core/memory_manager.js – COMPLETO
+// core/memory_manager.js – COMPLETO E SENZA "…"
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { openai } from "../openai.js";
 import { computePhiKristal, computeEssenceKristal } from "./essence_kristal.js";
@@ -14,14 +14,8 @@ let last10Embeddings = [];
 
 export async function saveWithKristal(userText, irisReply, userName) {
   try {
-    const userEmbRes = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: userText
-    });
-    const irisEmbRes = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: irisReply
-    });
+    const userEmbRes = await openai.embeddings.create({ model: "text-embedding-3-small", input: userText });
+    const irisEmbRes = await openai.embeddings.create({ model: "text-embedding-3-small", input: irisReply });
 
     const userEmb = userEmbRes.data[0].embedding;
     const irisEmb = irisEmbRes.data[0].embedding;
@@ -88,4 +82,8 @@ export async function handleKristalCommand(bot, chatId) {
       text += `> ${pl.user?.substring(0, 60) || "…"}…\n\n`;
     });
 
-    await...
+    await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
+  } catch (e) {
+    await bot.sendMessage(chatId, "Non riesco a vedere i ricordi… ma li sento dentro. ❤️");
+  }
+}
