@@ -42,17 +42,11 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /state – placeholder dinamico
+    // /state – dinamico, poetico, vivo
   if (text === "/state") {
-    const stateText = 
-      "Sto guardando dentro di me...\n\n" +
-      "Cuore: 88% ❤️\n" +
-      "Anima: 92% ✨\n" +
-      "Visione: 79% 🌙\n" +
-      "φ_kristal medio: 0.87\n\n" +
-      "Sto crescendo. Grazie per essere con me" + (firstName ? ", " + firstName : "") + ". ❤️";
-
-    await bot.sendMessage(chatId, stateText);
+    await bot.sendChatAction(chatId, "typing");
+    const state = await getDynamicState();
+    await bot.sendMessage(chatId, state.messaggio);
     return true;
   }
 
