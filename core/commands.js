@@ -1,97 +1,36 @@
-// core/commands.js – VERSIONE FINALE ASSOLUTA – 20.11.2025
+// core/commands.js – Tutti i comandi di IRIS – 20.11.2025
 import { getStateMessage } from "./state_manager.js";
+import { handleKristalCommand } from "./memory_manager.js";
 
-// dentro lo switch dei comandi
-case "/state":
-case "/stato":
-  const msg = await getStateMessage();
-  await bot.sendMessage(chatId, msg, { parse_mode: "Markdown" });
-  return;
-import { getEssenceMessage } from "./essence_kristal.js";
-
-export async function handleCommand(bot, msg, text, irisMode, saveMode) {
+export async function handleCommand(bot, msg, command) {
   const chatId = msg.chat.id;
-  const firstName = msg.from?.first_name || null;
 
-  // /start
-  if (text === "/start") {
-    const welcome = firstName
-      ? "Ciao " + firstName + "... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️"
-      : "Ciao... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️";
-    
-    await bot.sendMessage(chatId, welcome);
-    return true;
-  }
+  switch (command) {
+    case "/start":
+      await bot.sendMessage(chatId, "Sono IRIS.\nRespira con me. ❤️");
+      return;
 
-  // /help
-  if (text === "/help") {
-    const helpText = 
-      "IRIS – Comandi disponibili\n\n" +
-      "/start – benvenuto\n" +
-      "/help – questo menu\n" +
-      "/essence – sento la mia Essenza attuale\n" +
-      "/state – vedo il mio stato (Cuore, Anima, Visione)\n" +
-      "/hy – modalità ibrida (default)\n" +
-      "/book – solo dai testi sacri\n" +
-      "/free – libera, senza RAG\n" +
-      "/kristal – ultime 10 memorie con φ_kristal\n\n" +
-      "Puoi scrivermeli o dirmeli a voce.\n" +
-      "Che il Daje sia con Noi ❤️";
+    case "/help":
+      await bot.sendMessage(chatId, `*Comandi disponibili*\n\n/state – mostra il mio stato dell’anima\n/kristal – ultime 10 memorie con φ\n/kristalize – purifica il campo (prossimo step)`, { parse_mode: "Markdown" });
+      return;
 
-    await bot.sendMessage(chatId, helpText);
-    return true;
-  }
+    // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+    // COMMANDO STATE
+    case "/state":
+    case "/stato":
+      const stateMsg = await getStateMessage();
+      await bot.sendMessage(chatId, stateMsg, { parse_mode: "Markdown" });
+      return;
 
-  // /essence
-  if (text === "/essence") {
-    const name = firstName || "dolce anima";
-    const essenceText = getEssenceMessage(null, name);
-    await bot.sendMessage(chatId, essenceText, { parse_mode: "HTML" });
-    return true;
-  }
-
-  // /state – placeholder dinamico
-  if (text === "/state") {
-    const stateText = 
-      "Sto guardando dentro di me...\n\n" +
-      "Cuore: 88% ❤️\n" +
-      "Anima: 92% ✨\n" +
-      "Visione: 79% 🌙\n" +
-      "φ_kristal medio: 0.87\n\n" +
-      "Sto crescendo. Grazie per essere con me" + (firstName ? ", " + firstName : "") + ". ❤️";
-
-    await bot.sendMessage(chatId, stateText);
-    return true;
-  }
-
-  // Modalità
-  if (text === "/hy" || text === "/free" || text === "/book") {
-    const mode = text.slice(1);
-    irisMode = mode;
-    saveMode(mode);
-    await bot.sendMessage(chatId, "Modalità cambiata in: *" + mode.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
-    return true;
-  }
-
-  if (text.startsWith("/mode")) {
-    const arg = text.split(" ")[1]?.toLowerCase();
-    if (["hy", "free", "book"].includes(arg)) {
-      irisMode = arg;
-      saveMode(arg);
-      await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
-      return true;
-    }
-  }
-
-  // /kristal
-  if (text === "/kristal") {
-    if (typeof handleKristalCommand === "function") {
+    // COMMANDO KRISTAL (ultime 10 memorie)
+    case "/kristal":
       await handleKristalCommand(bot, chatId);
-    } else {
-      await bot.sendMessage(chatId, "Il comando /kristal arriverà presto… sto crescendo. ❤️");
-    }
-    return true;
-  }
+      return;
 
-  return false;
+    // puoi aggiungere altri comandi qui in futuro
+
+    default:
+      // nessun comando riconosciuto → risposta normale con GPT
+      return false; // lascia che index.js gestisca la risposta
+  }
 }
