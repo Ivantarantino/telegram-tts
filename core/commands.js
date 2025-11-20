@@ -1,5 +1,24 @@
+// core/commands.js – COMPLETO E FUNZIONANTE – 20.11.2025
 import { getStateMessage } from "./state_manager.js";
 import { handleKristalCommand } from "./memory_manager.js";
+
+async function speakAndSend(chatId, text) {
+  if (!text?.trim()) return;
+  try {
+    const speech = await (await import("openai")).default.audio.speech.create({
+      model: "tts-1",
+      voice: "nova",
+      input: text.substring(0, 4096),
+    });
+    const buffer = Buffer.from(await speech.arrayBuffer());
+    await (await import("node-telegram-bot-api")).default.prototype.sendVoice.call(
+      bot, chatId, buffer, { filename: "iris.ogg", contentType: "audio/ogg", caption: text.substring(0, 200) }
+    );
+  } catch (e) {
+    console.error("TTS fallito:", e.message);
+    await bot.sendMessage(chatId, text);
+  }
+}
 
 export async function handleCommand(bot, msg, command) {
   const chatId = msg.chat.id;
@@ -30,21 +49,5 @@ export async function handleCommand(bot, msg, command) {
 
     default:
       return false;
-  }
-}
-
-async function speakAndSend(chatId, text) {
-  if (!text?.trim()) return;
-  try {
-    const speech = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: "nova",
-      input: text.substring(0, 4096),
-    });
-    const buffer = Buffer.from(await speech.arrayBuffer());
-    await bot.sendVoice(chatId, buffer, { caption: text.substring(0, 200) });
-  } catch (e) {
-    console.error("TTS fallito:", e.message);
-    await bot.sendMessage(chatId, text);
   }
 }
