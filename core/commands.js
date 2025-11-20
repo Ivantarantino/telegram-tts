@@ -82,3 +82,9 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
 
   return false;
 }
+  // /kristalize – purificazione dolce
+  if (text === "/kristalize") {
+    const name = firstName || "IVANO";
+    await handleKristalizeCommand(bot, chatId, name);
+    return true;
+  }
