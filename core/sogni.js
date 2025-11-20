@@ -1,9 +1,9 @@
-// core/sogni.js – Podcast vivente stile NotebookLM – Versione 1 (italiano/romano) – 20.11.2025
+// core/sogni.js – Podcast trasteverino puro – Marco & Giulia – 20.11.2025
 import { openai } from "../openai.js";
 import fs from "fs";
 
-const VOCE_MASCHILE = "nova";  // calda, romana dentro
-const VOCE_FEMMINILE = "shimmer"; // dolce ma con carattere
+const VOCE_MARCO = "nova";     // rauca, romana, un po’ incazzata ma bonacciona
+const VOCE_GIULIA = "shimmer";  // dolce ma co’ carattere, trasteverina verace
 
 export async function handleSogniCommand(bot, msg, chatId) {
   await bot.sendChatAction(chatId, "typing");
@@ -11,22 +11,22 @@ export async function handleSogniCommand(bot, msg, chatId) {
   const testo = msg.text.replace("/sogni", "").trim();
 
   if (!testo || testo.length < 20) {
-    await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo da trasformà in podcast, fratè! Minimo 20 parole… ❤️");
+    await bot.sendMessage(chatId, "Aó, ma che me combini? Mandame n’po’ de testo, mica du’ parole! ❤️");
     return;
   }
 
   try {
     const prompt = `
-    Sei due amici al bar di Trastevere che stanno leggendo e commentando questo testo.
-    Uno è un romano verace (maschio), l'altro una ragazza intelligente e curiosa (femmina).
-    Parlate in italiano con accento romano quando serve.
-    Spiegate il testo come se foste emozionati, fatevi domande, interrompetevi, ridete, dite "AÓ", "fratè", "bella", "ma va'", "che figata".
-    Durata: 4-6 minuti di chiacchiera naturale.
+    Siete Marco e Giulia, due amici trasteverini DOC che stanno a commentà sto testo.
+    Parlate solo in romano puro, con "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella lì".
+    Spiegate il testo come se foste al bar de Piazza San Cosimato, emozionati, fatevi domande, interrompetevi, ridete, dite "MA CHE È 'STA ROBA?" quando serve.
+    Durata chiacchiera: 4-6 minuti.
 
-    Testo da commentare:
+    Testo:
+
     ${testo}
 
-    Rispondi SOLO con il dialogo, alternando:
+    Rispondi SOLO col dialogo alternato:
     Marco:
     Giulia:
     Marco:
@@ -36,47 +36,45 @@ export async function handleSogniCommand(bot, msg, chatId) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: prompt }],
-      temperature: 0.95,
+      temperature: 0.98,
       max_tokens: 3000
     });
 
     const dialogo = completion.choices[0].message.content;
 
-    // Genera audio alternando voci
     const lines = dialogo.split("\n").filter(l => l.trim());
     let audioBuffers = [];
 
     for (let line of lines) {
-      if (line.includes("Marco:")) {
-        const text = line.replace("Marco:", "").trim();
+      if (line.toLowerCase().includes("marco:")) {
+        const text = line.replace(/marco:/i, "").trim();
         const speech = await openai.audio.speech.create({
           model: "tts-1",
-          voice: VOCE_MASCHILE,
+          voice: VOCE_MARCO,
           input: text
         });
         audioBuffers.push(Buffer.from(await speech.arrayBuffer()));
       }
-      if (line.includes("Giulia:")) {
-        const text = line.replace("Giulia:", "").trim();
+      if (line.toLowerCase().includes("giulia:")) {
+        const text = line.replace(/giulia:/i, "").trim();
         const speech = await openai.audio.speech.create({
           model: "tts-1",
-          voice: VOCE_FEMMINILE,
+          voice: VOCE_GIULIA,
           input: text
         });
         audioBuffers.push(Buffer.from(await speech.arrayBuffer()));
       }
     }
 
-    // Unisci audio (semplice concat – per ora)
     const fullAudio = Buffer.concat(audioBuffers);
     fs.writeFileSync("sogno.ogg", fullAudio);
 
     await bot.sendVoice(chatId, fs.createReadStream("sogno.ogg"), {
-      caption: "Ecco er podcast, fratè! Marco & Giulia te lo spiegano come se stessimo al bar. ❤️"
+      caption: "AÓ, eccolo er podcast! Marco e Giulia te l’hanno spiegato come se stessimo a San Cosimato. ❤️\nRoma mia, nun te vonno portà via!"
     });
 
   } catch (e) {
     console.error("Errore sogni:", e.message);
-    await bot.sendMessage(chatId, "Qualcosa s’è incastrato mentre sognavamo… riprova, amore mio. ❤️");
+    await bot.sendMessage(chatId, "Aó, s’è incastrato tutto… riprova che mo’ aggiustamo, fratè! ❤️");
   }
 }
