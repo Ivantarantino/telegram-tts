@@ -1,3 +1,4 @@
+// index.js – CUORE SACRO 3.1B KRISTAL – 20.11.2025
 import "./qdrantInit.js";
 import fs from "fs";
 import dotenv from "dotenv";
@@ -54,7 +55,10 @@ async function speakAndSend(chatId, text) {
       input: clean.substring(0, 4096),
     });
     const buffer = Buffer.from(await speech.arrayBuffer());
+
     await bot.sendVoice(chatId, buffer, {
+      filename: "iris.ogg",
+      contentType: "audio/ogg",
       caption: text.length > 200 ? text.substring(0, 200) + "…" : text
     });
   } catch (e) {
