@@ -1,3 +1,4 @@
+// core/commands.js – VERSIONE FINALE CHE FUNZIONA – 20.11.2025
 import { getStateMessage } from "./state_manager.js";
 import { handleKristalCommand } from "./memory_manager.js";
 
@@ -10,7 +11,7 @@ export async function handleCommand(bot, msg, command) {
       return true;
 
     case "/help":
-      await bot.sendMessage(chatId, `*Comandi disponibili*\n\n/state – il mio battito\n/kristal – ultime 10 memorie con φ\n/kristalize – purifica (prossimo step)`, { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, `*Comandi*\n\n/state → il mio battito attuale\n/kristal → ultime 10 memorie con φ`, { parse_mode: "Markdown" });
       return true;
 
     case "/state":
@@ -24,6 +25,6 @@ export async function handleCommand(bot, msg, command) {
       return true;
 
     default:
-      return false;
+      return false; // lascia che index.js gestisca la risposta normale
   }
 }
