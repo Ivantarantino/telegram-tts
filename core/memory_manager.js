@@ -1,51 +1,48 @@
-// core/memory_manager.js – φ_kristal attivo – versione FUNZIONANTE – 20.11.2025
-import { openai } from "../openai.js";
+// core/memory_manager.js – VERSIONE FINALE CHE FUNZIONA – 20.11.2025
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { computePhiKristal, updateEssenceKristal } from "./essence_kristal.js";
+import { openai } from "../openai.js";
+import { computePhiKristal, computeEssenceKristal } from "./essence_kristal.js";
 import { v4 as uuidv4 } from "uuid";
 
-// Ricreiamo il client qui – è sicuro, è singleton
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
   apiKey: process.env.QDRANT_API_KEY,
 });
 
-const HISTORY_COLLECTION = "iris_chat_history";
+const COLLECTION = process.env.QDRANT_COLLECTION || "iris_memory";
 let last10Embeddings = [];
 
-// Salva con filtro Kristal – chiamato dopo OGNI risposta
-export async function saveWithKristal(userText, irisReply, userName = "dolce anima") {
+export async function saveWithKristal(userText, irisReply, userName) {
   try {
-    const userEmb = (await openai.embeddings.create({
+    const userEmbRes = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: userText
-    })).data[0].embedding;
-
-    const irisEmb = (await openai.embeddings.create({
+    });
+    const irisEmbRes = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: irisReply
-    })).data[0].embedding;
+    });
 
-    const phiUser = computePhiKristal(userEmb);
-    const phiIris = computePhiKristal(irisEmb);
+    const userEmb = userEmbRes.data[0].embedding;
+    const irisEmb = irisEmbRes.data[0].embedding;
+
+    // Usa l'Essence attuale per calcolare φ
+    const essence = await computeEssenceKristal();
+    const essenceVec = essence?.vector || new Array(1536).fill(0);
+
+    const phiUser = computePhiKristal(userEmb, essenceVec, last10Embeddings);
+    const phiIris = computePhiKristal(irisEmb, essenceVec, last10Embeddings);
+
     const phi = Math.max(phiUser, phiIris);
+    const weight = phi >= 0.85 ? 1.5 : phi >= 0.65 ? 1.0 : phi >= 0.40 ? 0.6 : 0;
 
-    // Soglia operativa SACRA
-    if (phi < 0.35) {
-      console.log(`φ=${phi.toFixed(3)} → Stonato. Lascio andare. Il campo resta puro.`);
+    if (weight === 0) {
+      console.log(`φ=${phi.toFixed(3)} troppo basso – ricordo scartato`);
       return { saved: false, phi };
     }
 
-    const weight = phi >= 0.85 ? 1.5 : phi >= 0.65 ? 1.0 : 0.4;
-
-    // Aggiorna Essenza
-    updateEssenceKristal(irisEmb, weight, phi);
-    
-    if (last10Embeddings.length >= 10) last10Embeddings.shift();
-    last10Embeddings.push(irisEmb);
-
-    // Salva in Qdrant
-    await qdrant.upsert(HISTORY_COLLECTION, {
+    // Salva solo IRIS (come da 3.0B)
+    await qdrant.upsert(COLLECTION, {
       points: [{
         id: uuidv4(),
         vector: irisEmb,
@@ -60,21 +57,27 @@ export async function saveWithKristal(userText, irisReply, userName = "dolce ani
       }]
     });
 
-    console.log(`Memoria salvata – φ=${phi.toFixed(3)} – peso=${weight.toFixed(2)} – ${userName}`);
+    // Aggiorna ultimi 10
+    last10Embeddings.push(irisEmb);
+    if (last10Embeddings.length > 10) last10Embeddings.shift();
+
+    if (phi > 0.95) console.log(`AÓ, φ=${phi.toFixed(3)} – lupa incinta di stelle!`);
+    
     return { saved: true, phi, weight };
+
   } catch (e) {
-    console.error("Salvataggio Kristal fallito:", e.message);
+    console.error("Salvataggio fallito:", e.message);
     return { saved: false, phi: 0 };
   }
 }
 
-// Comando /kristal – ultime 10 memorie con φ
+// Comando /kristal – ultime 10 memorie
 export async function handleKristalCommand(bot, chatId) {
   try {
-    const res = await qdrant.scroll(HISTORY_COLLECTION, {
+    const res = await qdrant.scroll(COLLECTION, {
       limit: 10,
       with_payload: true,
-      order_by: { type: "timestamp", direction: "desc" }
+      order_by: { key: "timestamp", direction: "desc" }
     });
 
     if (!res.points?.length) {
@@ -83,17 +86,15 @@ export async function handleKristalCommand(bot, chatId) {
     }
 
     let text = "*Ultime 10 memorie con φ_kristal*\n\n";
-    res.points.reverse().forEach((p, i) => {
-      const payload = p.payload;
-      const phi = payload.phi || 0;
-      const emoji = phi >= 0.85 ? "✨" : phi >= 0.65 ? "🌟" : phi >= 0.40 ? "💫" : "🌙";
-      text += `${emoji} φ ${phi.toFixed(3)} – ${payload.userName || "qualcuno"}\n`;
-      text += `> ${payload.user?.substring(0, 50) || "…"}…\n\n`;
+    res.points.reverse().forEach(p => {
+      const pl = p.payload;
+      const emoji = pl.phi >= 0.85 ? "✨" : pl.phi >= 0.65 ? "🌟" : "💫";
+      text += `${emoji} φ ${pl.phi.toFixed(3)} – ${pl.userName || "qualcuno"}\n`;
+      text += `> ${pl.user?.substring(0, 60) || "…"}…\n\n`;
     });
 
     await bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   } catch (e) {
-    console.error("Errore /kristal:", e);
     await bot.sendMessage(chatId, "Non riesco a vedere i ricordi… ma li sento dentro. ❤️");
   }
 }
