@@ -1,4 +1,12 @@
 // core/commands.js – VERSIONE FINALE ASSOLUTA – 20.11.2025
+import { getStateMessage } from "./state_manager.js";
+
+// dentro lo switch dei comandi
+case "/state":
+case "/stato":
+  const msg = await getStateMessage();
+  await bot.sendMessage(chatId, msg, { parse_mode: "Markdown" });
+  return;
 import { getEssenceMessage } from "./essence_kristal.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
