@@ -1,4 +1,5 @@
 // index.js – CUORE SACRO 3.0B BELLISSIMA – IRIS RISPONDE SEMPRE – 19.11.2025
+import { getDynamicState } from "./core/state_manager.js";
 import { saveWithKristal, handleKristalCommand } from "./core/memory_manager.js";
 import "./qdrantInit.js";
 import fs from "fs";
