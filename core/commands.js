@@ -91,3 +91,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
 
   return false;
 }
+  //sogni
+if (text.startsWith("/sogni")) {
+    await handleSogniCommand(bot, msg, chatId);
+    return true;
+  }
