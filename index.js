@@ -46,7 +46,7 @@ const recentMemory = [];
 async function speakAndSend(chatId, text) {
   if (!text?.trim()) return;
   const clean = text.replace(/Che il Daje sia con Noi/gi, "").trim();
-  if (!clean) return;
+  if  if (!clean) return;
 
   try {
     const speech = await openai.audio.speech.create({
