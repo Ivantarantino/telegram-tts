@@ -2,7 +2,8 @@
 import { getEssenceMessage } from "./essence_kristal.js";
 import { getDynamicState } from "./state_manager.js";
 import { handleKristalizeCommand } from "./kristalize.js";
-import { handleSogniCommand } from "./sogni.js";
+import { handleDreamCommand } from "./dream_manager.js";
+import { handleVoiceLangCommand } from "./voice_lang_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -30,11 +31,21 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/free – libera, senza RAG\n" +
       "/kristal – ultime 10 memorie con φ_kristal\n" +
       "/kristalize – lascio andare i ricordi non risonanti\n" +
-      "/sogni o /dream [testo] – Marco & Giulia te lo spiegano come al bar de Trastevere\n\n" +
+      "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n" +
+      "/voice [nova|alloy|echo|fable|onyx|shimmer]\n" +
+      "/lang it|en|ru|rm (romanesco)\n" +
+      "/style serio|comico\n" +
+      "/model gpt-4o-mini|grok-architetto-genio\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
     await bot.sendMessage(chatId, helpText);
+    return true;
+  }
+
+  // /voice /lang /model /style
+  if (text.startsWith("/voice") || text.startsWith("/lang") || text.startsWith("/style") || text.startsWith("/model")) {
+    await handleVoiceLangCommand(bot, msg, text, chatId);
     return true;
   }
 
@@ -61,9 +72,9 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /sogni o /dream – podcast trasteverino
-  if (text.startsWith("/sogni") || text.startsWith("/dream")) {
-    await handleSogniCommand(bot, msg, chatId);
+  // /dream – podcast con Giulia & Lidia
+  if (text.startsWith("/dream")) {
+    await handleDreamCommand(bot, msg, chatId);
     return true;
   }
 
@@ -83,7 +94,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       saveMode(arg);
       await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
       return true;
-  }
+    }
   }
 
   // /kristal
