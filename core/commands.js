@@ -1,4 +1,4 @@
-// core/commands.js – VERSIONE COMPLETA DEFINITIVA – 21.11.2025
+// core/commands.js – VERSIONE COMPLETA DEFINITIVA – 23.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
 import { getDynamicState } from "./state_manager.js";
 import { handleKristalizeCommand } from "./kristalize.js";
@@ -33,9 +33,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/kristalize – lascio andare i ricordi non risonanti\n" +
       "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n" +
       "/voice [nova|alloy|echo|fable|onyx|shimmer]\n" +
-      "/lang it|en|ru|rm (romanesco)\n" +
-      "/style serio|comico\n" +
-      "/model gpt-4o-mini|grok-architetto-genio\n\n" +
+      "/lang it|rm (romanesco)\n" +
+      "/style serio|comico\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
@@ -43,8 +42,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /voice /lang /model /style
-  if (text.startsWith("/voice") || text.startsWith("/lang") || text.startsWith("/style") || text.startsWith("/model")) {
+  // /voice /lang /style
+  if (text.startsWith("/voice") || text.startsWith("/lang") || text.startsWith("/style")) {
     await handleVoiceLangCommand(bot, msg, text, chatId);
     return true;
   }
@@ -72,7 +71,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /dream – podcast con Giulia & Lidia
+  // /dream
   if (text.startsWith("/dream")) {
     await handleDreamCommand(bot, msg, chatId);
     return true;
