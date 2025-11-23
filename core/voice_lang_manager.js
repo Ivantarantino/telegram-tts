@@ -1,53 +1,49 @@
-// core/voice_lang_manager.js – Comandi /voice /lang /model /style
+// core/voice_lang_manager.js – Solo ciò che funziona ORA
 import { handleDreamCommand } from "./dream_manager.js";
 
 let currentVoice = "nova";
 let currentLang = "it";
 let currentStyle = "comico";
-let currentModel = "gpt-4o-mini";
 
 export function getVoice() { return currentVoice; }
 export function getLang() { return currentLang; }
 export function getStyle() { return currentStyle; }
-export function getModel() { return currentModel; }
 
-export async function handleVoiceLangCommand(bot, msg, text, chatId) {
+export function setVoice(v) { currentVoice = v; }
+export function setLang(l) { currentLang = l; }
+export function setStyle(s) { currentStyle = s; }
+
+export async function handleVoiceLangCommand(bot, msg, text, chat1) {
   const parts = text.split(" ");
-  const cmd = parts[0];
-  const arg = parts[1]?.toLowerCase();
+  const cmd = parts[0].toLowerCase();
 
   if (cmd === "/voice") {
-    if (["nova","alloy","echo","fable","onyx","shimmer"].includes(arg)) {
-      currentVoice = arg;
-      await bot.sendMessage(chatId, `Voce cambiata in: *${arg.toUpperCase()}* 🎤`, { parse_mode: "Markdown" });
+    const v = parts[1]?.toLowerCase();
+    if (["nova","alloy","echo","fable","onyx","shimmer"].includes(v)) {
+      setVoice(v);
+      await bot.sendMessage(chat1, `Voce cambiata: *${v.toUpperCase()}* 🎤`, { parse_mode: "Markdown" });
     } else {
-      await bot.sendMessage(chatId, "Voci disponibili: nova, alloy, echo, fable, onyx, shimmer");
+      await bot.sendMessage(chat1, "Voci disponibili: nova, alloy, echo, fable, onyx, shimmer");
     }
     return true;
   }
 
   if (cmd === "/lang") {
-    if (["it","en","ru","rm"].includes(arg)) {
-      currentLang = arg;
-      await bot.sendMessage(chatId, `Lingua cambiata in: *${arg === "rm" ? "ROMANESCA PURA" : arg.toUpperCase()}* 🌍`, { parse_mode: "Markdown" });
+    const l = parts[1]?.toLowerCase();
+    if (["it","rm"].includes(l)) {
+      setLang(l);
+      await bot.sendMessage(chat1, `Lingua: *${l === "rm" ? "ROMANESCA PURA" : "ITALIANO"}* 🌍`, { parse_mode: "Markdown" });
     } else {
-      await bot.sendMessage(chatId, "Lingue: /lang it | en | ru | rm (romanesco)");
+      await bot.sendMessage(chat1, "/lang it | rm (romanesco)");
     }
     return true;
   }
 
   if (cmd === "/style") {
-    if (["serio","comico"].includes(arg)) {
-      currentStyle = arg;
-      await bot.sendMessage(chatId, `Stile cambiato in: *${arg === "comico" ? "COATTO ROMANESCA" : "SERIO"}* 🎭`, { parse_mode: "Markdown" });
-    }
-    return true;
-  }
-
-  if (cmd === "/model") {
-    if (["gpt-4o-mini","grok-architetto-genio"].includes(arg)) {
-      currentModel = arg;
-      await bot.sendMessage(chatId, `Modello cambiato in: *${arg}* 🚀`, { parse_mode: "Markdown" });
+    const s = parts[1]?.toLowerCase();
+    if (["serio","comico"].includes(s)) {
+      setStyle(s);
+      await bot.sendMessage(chat1, `Stile: *${s === "comico" ? "COATTO" : "SERIO"}* 🎭`, { parse_mode: "Markdown" });
     }
     return true;
   }
