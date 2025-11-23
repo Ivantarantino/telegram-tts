@@ -1,65 +1,62 @@
-// core/dream_manager.js – Podcast vivente con Giulia & Lidia – 21.11.2025
+// core/dream_manager.js – Giulia & Lidia – 23.11.2025 – FUNZIONA DAVVERO
 import { openai } from "../openai.js";
 import fs from "fs";
 
-let currentLang = "it";   // default
-let currentStyle = "comico"; // default
+let currentLang = "it";
+let currentStyle = "comico";
+let currentVoice = "nova";
 
-export function setLang(lang) {
-  if (["it", "en", "ru", "rm"].includes(lang)) currentLang = lang;
-}
-
-export function setStyle(style) {
-  if (["serio", "comico"].includes(style)) currentStyle = style;
-}
-
-const VOCI = {
-  giulia: "shimmer",  // trasteverina dolce ma co’ carattere
-  lidia:  "echo"      // romana verace, un po’ rauca
-};
+export function setLang(lang) { currentLang = lang; }
+export function setStyle(style) { currentStyle = style; }
+export function setVoice(voice) { currentVoice = voice; }
 
 export async function handleDreamCommand(bot, msg, chatId) {
   await bot.sendChatAction(chatId, "typing");
 
-  const testo = msg.text.replace(/\/(?:dream|sogni)/, "").trim();
+  const testo = msg.text.replace(/\/(?:dream|sogni)/i, "").trim();
 
   if (!testo || testo.length < 20) {
-    await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo, mica du’ parole! ❤️");
+    await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo, mica du’ spicci! ❤️");
     return;
   }
 
   try {
-    let systemPrompt = "";
+    let prompt = "";
     let caption = "";
 
     if (currentLang === "rm" && currentStyle === "comico") {
-      systemPrompt = `Siete Giulia e Lidia, due trasteverine DOC ubriache de verità.
-Parlate solo in romanesco puro: "aó", "ma va'", "er core nostro", "nun me fa' incazzà", "che te serve", "bella lì".
-Spiegate il testo come se foste al bar de Piazza San Cosimato, emozionate, interrompetevi, ridete, fate battute.
-Testo: ${testo}`;
+      prompt = `Siete GIULIA e LIDIA, due trasteverine DOC.
+Parlate SOLO in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella zzì".
+Spiegate il testo come se foste al bar de Piazza San Cosimato.
+Fate battute, interrompetevi, ridete.
+
+Testo da spiegare:
+${testo}
+
+Rispondi SOLO con:
+GIULIA: [testo]
+LIDIA: [testo]
+GIULIA: [testo]
+ecc.`;
       caption = "AÓ! Giulia & Lidia te l’hanno spiegato come se stessimo a San Cosimato! ❤️\nRoma mia, nun te vonno portà via!";
-    } else if (currentLang === "it") {
-      systemPrompt = `Siete Giulia e Lidia, due donne italiane intelligenti e calde.
-Parlate in italiano perfetto, tono ${currentStyle === "serio" ? "didattico e profondo" : "caloroso e amichevole"}.
-Spiegate il testo con chiarezza e passione.
-Testo: ${testo}`;
+    } else {
+      prompt = `Siete Giulia e Lidia, due donne italiane.
+Spiegate il testo in italiano ${currentStyle === "serio" ? "chiaro e profondo" : "caloroso e amichevole"}.
+
+Testo: ${testo}
+
+Rispondi SOLO con:
+GIULIA: [testo]
+LIDIA: [testo]
+GIULIA: [testo]
+ecc.`;
       caption = "Giulia & Lidia te l’hanno spiegato con tutto er core. ❤️";
-    } else if (currentLang === "en") {
-      systemPrompt = `You are Giulia and Lidia, two intelligent Italian women speaking perfect English.
-Explain the text in a ${currentStyle === "serio" ? "clear, educational" : "warm, engaging"} way.
-Text: ${testo}`;
-      caption = "Giulia & Lidia explained it with all their heart. ❤️";
-    } else if (currentLang === "ru") {
-      systemPrompt = `Вы — Джулия и Лидия, две умные итальянки, говорящие по-русски.
-Объясните текст ${currentStyle === "serio" ? "чётко и глубоко" : "тепло и живо"}.
-Текст: ${testo}`;
-      caption = "Джулия и Лидия объяснили от всего сердца. ❤️";
     }
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: systemPrompt }],
-      temperature: currentStyle === "comico" ? 0.98 : 0.85,
+      messages: [{ role: "system", content: prompt }],
+      temperature: currentStyle === "comico" ? 0.98 : 0.8,
       max_tokens: 3000
     });
 
@@ -69,10 +66,17 @@ Text: ${testo}`;
     let audioBuffers = [];
 
     for (let line of lines) {
-      let voice = VOCI.giulia;
-      if (line.toLowerCase().includes("lidia:")) voice = VOCI.lidia;
+      let voice = currentVoice;
+      let text = line.trim();
 
-      const text = line.replace(/(giulia|lidia):/i, "").trim();
+      if (text.toUpperCase().startsWith("GIULIA:")) {
+        text = text.replace(/^GIULIA:/i, "").trim();
+        voice = "shimmer";
+      } else if (text.toUpperCase().startsWith("LIDIA:")) {
+        text = text.replace(/^LIDIA:/i, "").trim();
+        voice = "echo";
+      }
+
       if (!text) continue;
 
       const speech = await openai.audio.speech.create({
@@ -92,6 +96,6 @@ Text: ${testo}`;
 
   } catch (e) {
     console.error("Errore dream:", e.message);
-    await bot.sendMessage(chatId, "Aó, s’è incastrato tutto… riprova che mo’ aggiustamo! ❤️");
+    await bot.sendMessage(chatId, "Aó, s’è impallato tutto… riprova che mmo’ aggiustamo! ❤️");
   }
 }
