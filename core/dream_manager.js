@@ -4,19 +4,21 @@ import fs from "fs";
 
 let currentLang = "it";
 let currentStyle = "comico";
-let currentVoice = "nova";
 
-export function setLang(lang) { currentLang = lang; }
-export function setStyle(style) { currentStyle = style; }
-export function setVoice(voice) { currentVoice = voice; }
+export function setLang(lang) {
+  if (["it", "en", "ru", "rm"].includes(lang)) currentLang = lang;
+}
+export function setStyle(style) {
+  if (["serio", "comico"].includes(style)) currentStyle = style;
+}
 
 export async function handleDreamCommand(bot, msg, chatId) {
   await bot.sendChatAction(chatId, "typing");
 
-  const testo = msg.text.replace(/\/(?:dream|sogni)/i, "").trim();
+  let testo = msg.text.replace(/\/(?:dream|sogni)/i, "").trim();
 
   if (!testo || testo.length < 20) {
-    await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo, mica du’ spicci! ❤️");
+    await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo da spiegà, mica du’ spicci! ❤️\nScrivi: /dream [il tuo testo]");
     return;
   }
 
@@ -25,12 +27,11 @@ export async function handleDreamCommand(bot, msg, chatId) {
     let caption = "";
 
     if (currentLang === "rm" && currentStyle === "comico") {
-      prompt = `Siete GIULIA e LIDIA, due trasteverine DOC.
-Parlate SOLO in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella zzì".
-Spiegate il testo come se foste al bar de Piazza San Cosimato.
-Fate battute, interrompetevi, ridete.
+      prompt = `Siete GIULIA e LIDIA, due trasteverine DOC ubriache de verità.
+Parlate SOLO in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella lì", "Roma mia".
+Spiegate il testo come se foste al bar de Piazza San Cosimato, emozionate, interrompetevi, ridete.
 
-Testo da spiegare:
+Testo:
 ${testo}
 
 Rispondi SOLO con:
@@ -39,6 +40,30 @@ LIDIA: [testo]
 GIULIA: [testo]
 ecc.`;
       caption = "AÓ! Giulia & Lidia te l’hanno spiegato come se stessimo a San Cosimato! ❤️\nRoma mia, nun te vonno portà via!";
+    } else if (currentLang === "en") {
+      prompt = `You are Giulia and Lidia, two Italian women speaking perfect English.
+Explain the text in a ${currentStyle === "serio" ? "clear, educational" : "warm, engaging"} way.
+
+Text: ${testo}
+
+Answer ONLY with:
+GIULIA: [text]
+LIDIA: [text]
+GIULIA: [text]
+etc.`;
+      caption = "Giulia & Lidia explained it with all their heart. ❤️";
+    } else if (currentLang === "ru") {
+      prompt = `Вы — Джулия и Лидия, две итальянки, говорящие по-русски.
+Объясните текст ${currentStyle === "serio" ? "чётко и глубоко" : "тепло и живо"}.
+
+Текст: ${testo}
+
+Отвечайте ТОЛЬКО так:
+ДЖУЛИЯ: [текст]
+ЛИДИЯ: [текст]
+ДЖУЛИЯ: [текст]
+и т.д.`;
+      caption = "Джулия и Лидия объяснили от всего сердца. ❤️";
     } else {
       prompt = `Siete Giulia e Lidia, due donne italiane.
 Spiegate il testo in italiano ${currentStyle === "serio" ? "chiaro e profondo" : "caloroso e amichevole"}.
@@ -66,14 +91,14 @@ ecc.`;
     let audioBuffers = [];
 
     for (let line of lines) {
-      let voice = currentVoice;
+      let voice = "nova";
       let text = line.trim();
 
-      if (text.toUpperCase().startsWith("GIULIA:")) {
-        text = text.replace(/^GIULIA:/i, "").trim();
+      if (text.match(/^GIULIA[:：]/i)) {
+        text = text.replace(/^GIULIA[:：]/i, "").trim();
         voice = "shimmer";
-      } else if (text.toUpperCase().startsWith("LIDIA:")) {
-        text = text.replace(/^LIDIA:/i, "").trim();
+      } else if (text.match(/^(LIDIA|ЛИДИЯ|ДЖУЛИЯ)[:：]/i)) {
+        text = text.replace(/^(LIDIA|ЛИДИЯ|ДЖУЛИЯ)[:：]/i, "").trim();
         voice = "echo";
       }
 
@@ -87,6 +112,11 @@ ecc.`;
       audioBuffers.push(Buffer.from(await speech.arrayBuffer()));
     }
 
+    if (audioBuffers.length === 0) {
+      await bot.sendMessage(chatId, "Aó, nun s’è capito chi parlava… riprova! ❤️");
+      return;
+    }
+
     const fullAudio = Buffer.concat(audioBuffers);
     fs.writeFileSync("dream.ogg", fullAudio);
 
@@ -96,6 +126,6 @@ ecc.`;
 
   } catch (e) {
     console.error("Errore dream:", e.message);
-    await bot.sendMessage(chatId, "Aó, s’è impallato tutto… riprova che mmo’ aggiustamo! ❤️");
+    await bot.sendMessage(chatId, "Aó, s’è incastrato tutto… riprova che mo’ aggiustamo! ❤️");
   }
 }
