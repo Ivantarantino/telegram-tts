@@ -1,40 +1,24 @@
-// core/voice_lang_manager.js – Solo ciò che funziona ORA
-import { handleDreamCommand } from "./dream_manager.js";
+// core/voice_lang_manager.js – 23.11.2025
+import { setLang, setStyle } from "./dream_manager.js";
 
-let currentVoice = "nova";
 let currentLang = "it";
 let currentStyle = "comico";
 
-export function getVoice() { return currentVoice; }
 export function getLang() { return currentLang; }
 export function getStyle() { return currentStyle; }
 
-export function setVoice(v) { currentVoice = v; }
-export function setLang(l) { currentLang = l; }
-export function setStyle(s) { currentStyle = s; }
-
-export async function handleVoiceLangCommand(bot, msg, text, chat1) {
+export async function handleVoiceLangCommand(bot, msg, text, chatId) {
   const parts = text.split(" ");
   const cmd = parts[0].toLowerCase();
 
-  if (cmd === "/voice") {
-    const v = parts[1]?.toLowerCase();
-    if (["nova","alloy","echo","fable","onyx","shimmer"].includes(v)) {
-      setVoice(v);
-      await bot.sendMessage(chat1, `Voce cambiata: *${v.toUpperCase()}* 🎤`, { parse_mode: "Markdown" });
-    } else {
-      await bot.sendMessage(chat1, "Voci disponibili: nova, alloy, echo, fable, onyx, shimmer");
-    }
-    return true;
-  }
-
   if (cmd === "/lang") {
     const l = parts[1]?.toLowerCase();
-    if (["it","rm"].includes(l)) {
+    if (["it","en","ru","rm"].includes(l)) {
+      currentLang = l;
       setLang(l);
-      await bot.sendMessage(chat1, `Lingua: *${l === "rm" ? "ROMANESCA PURA" : "ITALIANO"}* 🌍`, { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, `Lingua: *${l === "rm" ? "ROMANESCA PURA" : l.toUpperCase()}* 🌍`, { parse_mode: "Markdown" });
     } else {
-      await bot.sendMessage(chat1, "/lang it | rm (romanesco)");
+      await bot.sendMessage(chatId, "Lingue: /lang it | en | ru | rm (romanesco)");
     }
     return true;
   }
@@ -42,8 +26,9 @@ export async function handleVoiceLangCommand(bot, msg, text, chat1) {
   if (cmd === "/style") {
     const s = parts[1]?.toLowerCase();
     if (["serio","comico"].includes(s)) {
+      currentStyle = s;
       setStyle(s);
-      await bot.sendMessage(chat1, `Stile: *${s === "comico" ? "COATTO" : "SERIO"}* 🎭`, { parse_mode: "Markdown" });
+      await bot.sendMessage(chatId, `Stile: *${s === "comico" ? "COATTO" : "SERIO"}* 🎭`, { parse_mode: "Markdown" });
     }
     return true;
   }
