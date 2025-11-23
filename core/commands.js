@@ -33,8 +33,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/kristalize – lascio andare i ricordi non risonanti\n" +
       "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n" +
       "/voice [nova|alloy|echo|fable|onyx|shimmer]\n" +
-      "/lang it|rm (romanesco)\n" +
-      "/style serio|comico\n\n" +
+      "/lang it|en|ru|rm\n" +
+      "/style serio|comico\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
