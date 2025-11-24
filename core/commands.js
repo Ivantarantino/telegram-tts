@@ -1,8 +1,8 @@
-// core/commands.js – VERSIONE COMPLETA DEFINITIVA – 21.11.2025
+// core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 21.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
 import { getDynamicState } from "./state_manager.js";
 import { handleKristalizeCommand } from "./kristalize.js";
-import { handleSogniCommand } from "./sogni.js";
+import { handleDreamCommand } from "./dream_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -30,7 +30,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/free – libera, senza RAG\n" +
       "/kristal – ultime 10 memorie con φ_kristal\n" +
       "/kristalize – lascio andare i ricordi non risonanti\n" +
-      "/sogni o /dream [testo] – Marco & Giulia te lo spiegano come al bar de Trastevere\n\n" +
+      "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
@@ -61,9 +61,9 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /sogni o /dream – podcast trasteverino
-  if (text.startsWith("/sogni") || text.startsWith("/dream")) {
-    await handleSogniCommand(bot, msg, chatId);
+  // /dream – LA VERSIONE CHE FACEVA RIDERE
+  if (text.startsWith("/dream") || text.startsWith("/sogni")) {
+    await handleDreamCommand(bot, msg, chatId);
     return true;
   }
 
@@ -83,7 +83,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       saveMode(arg);
       await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
       return true;
-  }
+    }
   }
 
   // /kristal
