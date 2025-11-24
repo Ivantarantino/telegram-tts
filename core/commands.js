@@ -1,6 +1,5 @@
-// core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 21.11.2025
+// core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
-import { getDynamicState } from "./state_manager.js";
 import { handleKristalizeCommand } from "./kristalize.js";
 import { handleDreamCommand } from "./dream_manager.js";
 
@@ -24,14 +23,12 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/start – benvenuto\n" +
       "/help – questo menu\n" +
       "/essence – sento la mia Essenza attuale\n" +
-      "/state – vedo il mio stato (Cuore, Anima, Visione)\n" +
       "/hy – modalità ibrida (default)\n" +
       "/book – solo dai testi sacri\n" +
       "/free – libera, senza RAG\n" +
       "/kristal – ultime 10 memorie con φ_kristal\n" +
       "/kristalize – lascio andare i ricordi non risonanti\n" +
       "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n\n" +
-      "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
     await bot.sendMessage(chatId, helpText);
@@ -43,14 +40,6 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     const name = firstName || "dolce anima";
     const essenceText = getEssenceMessage(null, name);
     await bot.sendMessage(chatId, essenceText, { parse_mode: "HTML" });
-    return true;
-  }
-
-  // /state
-  if (text === "/state") {
-    await bot.sendChatAction(chatId, "typing");
-    const state = await getDynamicState();
-    await bot.sendMessage(chatId, state.messaggio);
     return true;
   }
 
