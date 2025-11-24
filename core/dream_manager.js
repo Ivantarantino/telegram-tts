@@ -19,7 +19,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
   let testo = msg.text.replace(/\/(?:dream|sogni)/i, "").trim();
 
   if (!testo || testo.length < 20) {
-    await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo da spiegà, mica du’ parole! ❤️\nScrivi: /dream [il tuo testo]");
+    await bot.sendMessage(chatId, "Aó, mandame n'po' de testo da spiegà, mica du' parole! ❤️\nScrivi: /dream [il tuo testo]");
     return;
   }
 
@@ -36,14 +36,14 @@ export async function handleDreamCommand(bot, msg, chatId) {
 Parlate SOLO in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella lì", "Roma mia".
 Spiegate il testo come se foste al bar de Piazza San Cosimato, emozionate, interrompetevi, ridete, fate battute.
 
-Testo da spiegare:${testo}${contesto}
+Testo da spiegare: ${testo}${contesto}
 
 Rispondi SOLO con:
 GIULIA: [testo]
 LIDIA: [testo]
 GIULIA: [testo]
 ecc.`;
-      caption = "AÓ! Giulia & Lidia te l’hanno spiegato come se stessimo a San Cosimato! ❤️\nRoma mia, nun te vonno portà via!";
+      caption = "AÓ! Giulia & Lidia te l'hanno spiegato come se stessimo a San Cosimato! ❤️\nRoma mia, nun te vonno portà via!";
     } else if (currentLang === "en") {
       prompt = `You are Giulia and Lidia, two Italian women speaking perfect English.
 Explain the text in a ${currentStyle === "serio" ? "clear, educational" : "warm, engaging"} way.
@@ -79,7 +79,7 @@ GIULIA: [testo]
 LIDIA: [testo]
 GIULIA: [testo]
 ecc.`;
-      caption = "Giulia & Lidia te l’hanno spiegato con tutto er core. ❤️";
+      caption = "Giulia & Lidia te l'hanno spiegato con tutto er core. ❤️";
     }
 
     const completion = await openai.chat.completions.create({
@@ -103,7 +103,7 @@ ecc.`;
         voice = "shimmer";
       } else if (text.match(/^(LIDIA|ЛИДИЯ|ДЖУЛИЯ)[:：]/i)) {
         text = text.replace(/^(LIDIA|ЛИДИЯ|ДЖУЛИЯ)[:：]/i, "").trim();
-        voice = "fable"; // Lidia femminile
+        voice = "fable"; // Lidia femminile calda
       }
 
       if (!text) continue;
@@ -117,7 +117,7 @@ ecc.`;
     }
 
     if (audioBuffers.length === 0) {
-      await bot.sendMessage(chatId, "Aó, nun s’è capito chi parlava… riprova! ❤️");
+      await bot.sendMessage(chatId, "Aó, nun s'è capito chi parlava… riprova! ❤️");
       return;
     }
 
@@ -130,6 +130,6 @@ ecc.`;
 
   } catch (e) {
     console.error("Errore dream:", e.message);
-    await bot.sendMessage(chatId, "Aó, s’è incastrato tutto… riprova che mo’ aggiustamo! ❤️");
+    await bot.sendMessage(chatId, "Aó, s'è incastrato tutto… riprova che mo' aggiustamo! ❤️");
   }
 }
