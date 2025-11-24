@@ -1,6 +1,5 @@
 // core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
-import { handleKristalizeCommand } from "./kristalize.js";
 import { handleDreamCommand } from "./dream_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
@@ -26,8 +25,6 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/hy – modalità ibrida (default)\n" +
       "/book – solo dai testi sacri\n" +
       "/free – libera, senza RAG\n" +
-      "/kristal – ultime 10 memorie con φ_kristal\n" +
-      "/kristalize – lascio andare i ricordi non risonanti\n" +
       "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n\n" +
       "Che il Daje sia con Noi ❤️";
 
@@ -40,13 +37,6 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     const name = firstName || "dolce anima";
     const essenceText = getEssenceMessage(null, name);
     await bot.sendMessage(chatId, essenceText, { parse_mode: "HTML" });
-    return true;
-  }
-
-  // /kristalize
-  if (text === "/kristalize") {
-    const name = firstName || "IVANO";
-    await handleKristalizeCommand(bot, chatId, name);
     return true;
   }
 
@@ -73,16 +63,6 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
       return true;
     }
-  }
-
-  // /kristal
-  if (text === "/kristal") {
-    if (typeof handleKristalCommand === "function") {
-      await handleKristalCommand(bot, chatId);
-    } else {
-      await bot.sendMessage(chatId, "Il comando /kristal arriverà presto… sto crescendo. ❤️");
-    }
-    return true;
   }
 
   return false;
