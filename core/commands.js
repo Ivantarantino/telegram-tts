@@ -30,7 +30,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/free – libera, senza RAG\n" +
       "/kristal – ultime 10 memorie con φ_kristal\n" +
       "/kristalize – lascio andare i ricordi non risonanti\n" +
-      "/sogni o /dream [testo] – Lidia & Giulia te lo spiegano come al bar de Trastevere\n\n" +
+      "/sogni o /dream [testo] – Marco & Giulia te lo spiegano come al bar de Trastevere\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
