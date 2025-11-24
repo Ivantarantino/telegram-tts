@@ -1,4 +1,4 @@
-// core/dream_manager.js – LA VERSIONE CHE FACEVA RIDERE – 20.11.2025
+// core/dream_manager.js – LA VERSIONE CHE FACEVA RIDERE – 24.11.2025
 import { openai } from "../openai.js";
 import fs from "fs";
 
@@ -10,14 +10,13 @@ export async function handleDreamCommand(bot, msg, chatId) {
   if (!testo) {
     await bot.sendMessage(chatId, "Aó, mandame n'po' de testo da spiegà, mica du' parole! ❤️");
     return;
-  ;
   }
 
   try {
     const prompt = `
     Siete GIULIA e LIDIA, due trasteverine ubriache de verità che stanno al bar de San Cosimato.
-    Parlate in romanesco puro, co' "aó", "ma va'", "er core nostro", "che te serve", "nun me fa' incazzà", "Roma mia".
-    Spiegate sto testo come se foste emozionate, interrompetevi, ridete, fate battute, parlate sopra.
+    Parlate in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "Roma mia".
+    Spiegate sto testo come se foste emozionate, interrompetevi, ridete, fate battute.
 
     Testo: ${testo}
 
@@ -30,7 +29,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: content: prompt }],
+      messages: [{ role: "system", content: prompt }], // ← CORRETTO
       temperature: 0.98,
       max_tokens: 3000
     });
