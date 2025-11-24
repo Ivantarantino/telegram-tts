@@ -1,4 +1,4 @@
-// core/dream_manager.js – Giulia & Lidia – ROMANA PURA – 24.11.2025
+// core/dream_manager.js – ANARCHIA ROMANA – 24.11.2025
 import { openai } from "../openai.js";
 import fs from "fs";
 
@@ -14,22 +14,25 @@ export async function handleDreamCommand(bot, msg, chatId) {
 
   try {
     const prompt = `
-    Siete GIULIA e LIDIA, due trasteverine DOC ubriache de verità che stanno al bar de San Cosimato.
-    Parlate SOLO in romanesco puro: "aò", "ma va'", "er core nostro", "che te serve", "nun me fa' incazzà", "mortan’guerieri", "Roma mia", "me cojoni".
-    Spiegate sto testo come se foste emozionate, interrompetevi, ridete, fate battute assurde, parlate sopra.
-    Gesù Cristo può apparire sulla piazzola della Roma-L'Aquila, una piazzola umile da falegname, per dire cose assurde e divertenti.
+    Siete GIULIA e LIDIA, due trasteverine DOC che stanno al bar de San Cosimato.
+    Parlate in romanesco puro: "aò", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "mortan’guerieri", "Roma mia", "bbella zzì".
+    Spiegate sto testo come ve pare: emozionate, interrompetevi, ridete, fate battute assurde, parlate sopra, fate osservazioni surreali ma intelligenti, siate leggere.
+    Potete inventare qualsiasi cazzata: Gesù Cristo sulla piazzola da falegname, Quelo, Aniene, er Marchese, er Conte Tacchia, la Roma Capolista, la benzina, il cilicio, la noce, la televisione in bagno, tutto.
+    MA NUN È OBBLIGATORIO. Fate come ve gira.
+
+    Testo: ${testo}
+
     Rispondete SOLO così:
     GIULIA: [testo]
     LIDIA: [testo]
     GIULIA: [testo]
     ecc.
-    Testo: ${testo}
     `;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: prompt }],
-      temperature: 0.98,
+      temperature: 0.99,
       max_tokens: 3000
     });
 
@@ -63,7 +66,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
     fs.writeFileSync("dream.ogg", fullAudio);
 
     await bot.sendVoice(chatId, fs.createReadStream("dream.ogg"), {
-      caption: "AÒ! Giulia & Lidia te l’hanno spiegato come se stessimo a San Cosimato! ❤️\nRoma mia, sei la mejo!"
+      caption: "AÒ! Giulia & Lidia te l’hanno spiegato come je girava! ❤️\nRoma mia, sei la mejo!"
     });
 
   } catch (e) {
