@@ -1,7 +1,7 @@
 // core/dream_manager.js – Giulia & Lidia – 23.11.2025 – FUNZIONA DAVVERO
 import { openai } from "../openai.js";
 import fs from "fs";
-import { hybridSearch } from "./rag_brutale.js"; // ← RAG incluso
+import { hybridSearch } from "./rag_brutale.js";
 
 let currentLang = "it";
 let currentStyle = "comico";
@@ -95,7 +95,7 @@ ecc.`;
     let audioBuffers = [];
 
     for (let line of lines) {
-      let voice = "nova";
+      let voice = "shimmer"; // Giulia default
       let text = line.trim();
 
       if (text.match(/^GIULIA[:：]/i)) {
@@ -103,7 +103,7 @@ ecc.`;
         voice = "shimmer";
       } else if (text.match(/^(LIDIA|ЛИДИЯ|ДЖУЛИЯ)[:：]/i)) {
         text = text.replace(/^(LIDIA|ЛИДИЯ|ДЖУЛИЯ)[:：]/i, "").trim();
-        voice = "echo";
+        voice = "fable"; // Lidia femminile
       }
 
       if (!text) continue;
