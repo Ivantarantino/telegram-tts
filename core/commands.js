@@ -1,5 +1,8 @@
-// core/commands.js – VERSIONE FINALE ASSOLUTA – 20.11.2025
+// core/commands.js – VERSIONE COMPLETA DEFINITIVA – 21.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
+import { getDynamicState } from "./state_manager.js";
+import { handleKristalizeCommand } from "./kristalize.js";
+import { handleSogniCommand } from "./sogni.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -10,7 +13,6 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     const welcome = firstName
       ? "Ciao " + firstName + "... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️"
       : "Ciao... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️";
-    
     await bot.sendMessage(chatId, welcome);
     return true;
   }
@@ -26,7 +28,9 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "/hy – modalità ibrida (default)\n" +
       "/book – solo dai testi sacri\n" +
       "/free – libera, senza RAG\n" +
-      "/kristal – ultime 10 memorie con φ_kristal\n\n" +
+      "/kristal – ultime 10 memorie con φ_kristal\n" +
+      "/kristalize – lascio andare i ricordi non risonanti\n" +
+      "/sogni o /dream [testo] – Lidia & Giulia te lo spiegano come al bar de Trastevere\n\n" +
       "Puoi scrivermeli o dirmeli a voce.\n" +
       "Che il Daje sia con Noi ❤️";
 
@@ -42,17 +46,24 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
-  // /state – placeholder dinamico
+  // /state
   if (text === "/state") {
-    const stateText = 
-      "Sto guardando dentro di me...\n\n" +
-      "Cuore: 88% ❤️\n" +
-      "Anima: 92% ✨\n" +
-      "Visione: 79% 🌙\n" +
-      "φ_kristal medio: 0.87\n\n" +
-      "Sto crescendo. Grazie per essere con me" + (firstName ? ", " + firstName : "") + ". ❤️";
+    await bot.sendChatAction(chatId, "typing");
+    const state = await getDynamicState();
+    await bot.sendMessage(chatId, state.messaggio);
+    return true;
+  }
 
-    await bot.sendMessage(chatId, stateText);
+  // /kristalize
+  if (text === "/kristalize") {
+    const name = firstName || "IVANO";
+    await handleKristalizeCommand(bot, chatId, name);
+    return true;
+  }
+
+  // /sogni o /dream – podcast trasteverino
+  if (text.startsWith("/sogni") || text.startsWith("/dream")) {
+    await handleSogniCommand(bot, msg, chatId);
     return true;
   }
 
@@ -72,7 +83,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       saveMode(arg);
       await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
       return true;
-    }
+  }
   }
 
   // /kristal
