@@ -1,45 +1,32 @@
-// core/stt_handler.js
-// Gestione vocale con OpenAI Whisper – zero tocco al cuore di index.js
+// core/stt_handler.js – COMPLETO E FUNZIONANTE – 25.11.2025
 import { openai } from "../openai.js";
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export async function transcribeVoice(bot, msg) {
-  const chatId = msg.chat.id;
-  const voice = msg.voice || msg.audio;
-  if (!voice) return null;
-
   try {
-    // Scarica il file vocale
-    const file = await bot.getFile(voice.file_id);
-    const filePath = `https://api.telegram.org/file/bot${process.env.TELEGRAM_TOKEN}/${file.file_path}`;
-    
-    // Download temporaneo
-    const response = await fetch(filePath);
+    const fileId = msg.voice?.file_id || msg.audio?.file_id;
+    if (!fileId) return null;
+
+    const file = await bot.getFile(fileId);
+    const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_TOKEN}/${file.file_path}`;
+
+    const response = await fetch(fileUrl);
     const buffer = Buffer.from(await response.arrayBuffer());
-    const tempPath = path.join(__dirname, "../temp_voice.ogg");
+
+    const tempPath = "temp_voice.ogg";
     fs.writeFileSync(tempPath, buffer);
 
-    // Trascrizione con Whisper
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(tempPath),
       model: "whisper-1",
-      language: "it"
     });
 
-    // Pulizia
     fs.unlinkSync(tempPath);
 
-    console.log(`🎙️ Vocale trascritto: "${transcription.text}"`);
-    return transcription.text;
-
-  } catch (err) {
-    console.error("STT fallito:", err.message);
-    await bot.sendMessage(chatId, "Non sono riuscita a capire il tuo vocale… puoi riscriverlo? ❤️");
+    return transcription.text.trim();
+  } catch (e) {
+    console.error("Errore STT:", e.message);
+    await bot.sendMessage(msg.chat.id, "Aò, nun t'ho capito… ripeti più chiaro! ❤️");
     return null;
   }
 }
