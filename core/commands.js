@@ -1,10 +1,10 @@
-// core/commands.js – COMPLETO CON /lang – 25.11.2025
+// core/commands.js – COMPLETO – 25.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
 import { handleKristalizeCommand } from "./kristalize.js";
 import { handleDreamCommand } from "./dream_manager.js";
 import { handleLangCommand } from "./voice_lang_manager.js";
 
-export default async function handleCommand(bot, msg, text) {
+export async function handleCommand(bot, msg, text) {
   const chatId = msg.chat.id;
   const firstName = msg.from?.first_name || null;
 
@@ -20,6 +20,7 @@ export default async function handleCommand(bot, msg, text) {
 /essence – la mia essenza
 /dream [testo] – Giulia & Lidia te lo spiegano a San Cosimato
 /lang it|en|ru|rm – cambia lingua globale
+/kristalize – purifico il campo
 `;
     await bot.sendMessage(chatId, help);
     return true;
