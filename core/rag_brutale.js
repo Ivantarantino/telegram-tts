@@ -1,4 +1,4 @@
-// core/rag_brutale.js – COMPLETO E FUNZIONANTE – 25.11.2025
+// core/rag_brutale.js – COMPLETO E CORRETTO – 25.11.2025
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { openai } from "../openai.js";
 
@@ -45,4 +45,29 @@ export async function hybridSearch(query, recentMemory = [], limit = 5) {
 
 export async function ragSearch(query, limit = 8) {
   return hybridSearch(query, [], limit);
+}
+
+// Aggiunto per salvare la conversazione (era mancante)
+export async function saveConversationToQdrant(userText, irisReply, userName = "IVANO") {
+  try {
+    const embedding = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: `${userText} ${irisReply}`,
+    });
+
+    const vector = embedding.data[0].embedding;
+
+    const payload = {
+      user: userText,
+      iris: irisReply,
+      userName,
+      timestamp: new Date().toISOString(),
+    };
+
+    await qdrant.upsert("iris_chat_history", {
+      points: [{ id: Date.now() + Math.random(), vector, payload }],
+    });
+  } catch (e) {
+    console.error("Errore salvataggio conversazione:", e.message);
+  }
 }
