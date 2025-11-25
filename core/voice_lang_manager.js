@@ -1,5 +1,5 @@
-// core/voice_lang_manager.js – NUOVO – 25.11.2025
-let currentLang = "it"; // default italiano
+// core/voice_lang_manager.js – COMPLETO – 25.11.2025
+let currentLang = "it";
 
 export function getLang() {
   return currentLang;
