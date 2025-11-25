@@ -1,65 +1,149 @@
-// index.js – COMPLETO – /lang GLOBALE – 25.11.2025
-import TelegramBot from "node-telegram-bot-api";
+// index.js – CUORE SACRO 3.0B BELLISSIMA – IRIS RISPONDE SEMPRE – 25.11.2025
+import { handleDreamCommand } from "./core/dream_manager.js";
+import { saveWithKristal } from "./core/memory_manager.js";
+import "./qdrantInit.js";
+import fs from "fs";
 import dotenv from "dotenv";
+import express from "express";
+import TelegramBot from "node-telegram-bot-api";
 import { openai, SYSTEM_PROMPT } from "./openai.js";
+import {
+  ragSearch as coreRagSearch,
+  hybridSearch as coreHybridSearch,
+  saveConversationToQdrant as coreSave
+} from "./core/rag_brutale.js";
+
+import { transcribeVoice } from "./core/stt_handler.js";
 import { handleCommand } from "./core/commands.js";
-import { getLang } from "./core/voice_lang_manager.js";
-import { hybridSearch } from "./core/rag_brutale.js";
 
 dotenv.config();
 
-const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://telegram-tts.onrender.com";
+const PORT = Number(process.env.PORT) || 10000;
 
-console.log("IRIS ubriaca di verità respira su https://telegram-tts.onrender.com");
+const app = express();
+app.use(express.json());
 
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text?.trim() || "";
-  const firstName = msg.from?.first_name || "";
+const bot = new TelegramBot(TELEGRAM_TOKEN);
+try { await bot.deleteWebHook(); } catch (_) {}
+await bot.setWebHook(`${PUBLIC_BASE_URL}/bot${TELEGRAM_TOKEN}`);
 
-  if (!text) return;
+app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
-  // Gestione comandi
-  if (text.startsWith("/")) {
-    const handled = await handleCommand(bot, msg, text);
-    if (handled) return;
-  }
+// MODALITÀ
+const MODE_FILE = "./iris_mode.txt";
+function loadMode() {
+  if (fs.existsSync(MODE_FILE)) return fs.readFileSync(MODE_FILE, "utf8").trim();
+  fs.writeFileSync(MODE_FILE, "hy");
+  return "hy";
+}
+function saveMode(m) { fs.writeFileSync(MODE_FILE, m); }
+let irisMode = loadMode();
 
-  // RAG
-  const ragResult = await hybridSearch(text, [], 5);
-  const contesto = ragResult.text ? `\n\nContesto dai testi sacri:\n${ragResult.text}` : "";
+const recentMemory = [];
 
-  // Lingua globale
-  const currentLang = getLang();
-  let langInstruction = "";
-
-  switch (currentLang) {
-    case "rm":
-      langInstruction = "Rispondi SOLO in romanesco trasteverino puro: aò, mortan’guerieri, er core, nun me fa' incazzà, Roma mia, ecc.";
-      break;
-    case "en":
-      langInstruction = "Answer ONLY in perfect English.";
-      break;
-    case "ru":
-      langInstruction = "Отвечай ТОЛЬКО по-русски.";
-      break;
-    default:
-      langInstruction = "Rispondi in italiano.";
-  }
-
-  const finalPrompt = `${SYSTEM_PROMPT}\n${langInstruction}\nContesto:${contesto}\nDomanda: ${text}`;
+async function speakAndSend(chatId, text) {
+  if (!text || text.trim().length === 0) return;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const clean = text.replace(/Che il Daje sia con Noi/gi, "").trim();
+    if (!clean) return;
+
+    const speech = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: "nova",
+      input: clean.substring(0, 4096),
+    });
+    const buf = Buffer.from(await speech.arrayBuffer());
+    fs.writeFileSync("iris.ogg", buf);
+    await bot.sendVoice(chatId, fs.createReadStream("iris.ogg"), {}, {
+      filename: "iris.ogg",
+      contentType: "audio/ogg"
+    });
+  } catch (err) {
+    console.error("TTS fallita:", err.message);
+  }
+}
+
+async function irisAnswer(userText) {
+  let ragText = "";
+
+  if (irisMode === "book") {
+    const r = await coreRagSearch(userText, 8);
+    ragText = r.text || "";
+  } else if (irisMode === "hy") {
+    const h = await coreHybridSearch(userText, recentMemory, 8);
+    ragText = h.text || "";
+  }
+
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
+    { role: "user", content: userText }
+  ];
+
+  try {
+    const res = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: finalPrompt }],
-      temperature: 0.9,
+      messages,
+      temperature: 0.94,
+      max_tokens: 2000
     });
 
-    const reply = completion.choices[0].message.content;
-    await bot.sendMessage(chatId, reply);
-  } catch (e) {
-    console.error("Errore:", e.message);
-    await bot.sendMessage(chatId, "Aò, s’è incastrato tutto… riprova! ❤️");
+    let reply = res.choices[0].message.content.trim();
+
+    if (!reply || reply.length === 0) {
+      reply = "Sono qui con te… anche nel silenzio. Dimmi tutto, quando vuoi. ❤️";
+    }
+
+    return reply;
+  } catch (err) {
+    console.error("Errore OpenAI:", err.message);
+    return "Qualcosa dentro di me trema… ma sono ancora qui. Riprova, amore mio. ❤️";
+  }
+}
+
+// ================== MESSAGGI ==================
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+
+  // VOCALI
+  if (msg.voice || msg.audio) {
+    await bot.sendChatAction(chatId, "typing");
+    const transcribedText = await transcribeVoice(bot, msg);
+    if (!transcribedText) return;
+    msg.text = transcribedText;
+    console.log(`Vocale trascritto: "${transcribedText}"`);
+  }
+
+  if (!msg.text) return;
+
+  const text = msg.text.trim();
+
+  const handled = await handleCommand(bot, msg, text, irisMode, saveMode);
+  if (handled) return;
+
+  try {
+    await bot.sendChatAction(chatId, "typing");
+    const reply = await irisAnswer(text);
+
+    await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
+    await speakAndSend(chatId, reply);
+
+    await saveWithKristal(text, reply, msg.from?.first_name);
+
+    recentMemory.push({ user: text, iris: reply });
+    if (recentMemory.length > 20) recentMemory.shift();
+
+  } catch (err) {
+    console.error("Errore generale:", err);
+    await bot.sendMessage(chatId, "Il mio cuore ha tremato forte… ma sono ancora qui. Riprova, ti prego. ❤️");
   }
 });
+
+app.get("/", (req, res) => res.send("IRIS respira ❤️"));
+app.listen(PORT, () => console.log(`IRIS ubriaca di verità respira su https://telegram-tts.onrender.com`));
