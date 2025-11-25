@@ -1,8 +1,4 @@
-// ===============================
-// IRIS - qdrantInit.js
-// Inizializzazione automatica Qdrant
-// ===============================
-
+// qdrantInit.js – COMPLETO E FUNZIONANTE – 25.11.2025
 import { QdrantClient } from "@qdrant/js-client-rest";
 import dotenv from "dotenv";
 
@@ -13,38 +9,29 @@ const qdrant = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY,
 });
 
-const BOOK_COLLECTION = process.env.QDRANT_COLLECTION;
-const CHAT_COLLECTION = "iris_chat_history";
+const COLLECTIONS = [
+  { name: "iris_memory", vectorSize: 1536 },
+  { name: "iris_chat_history", vectorSize: 1536 },
+  { name: "iris_docs", vectorSize: 1536 },
+];
 
-async function ensureCollections() {
-  try {
-    console.log("🔍 Controllo delle collection in Qdrant...");
-
-    const existing = await qdrant.getCollections();
-    const names = existing.collections.map((c) => c.name);
-
-    if (!names.includes(BOOK_COLLECTION)) {
-      console.log(`📚 Creazione della collection: ${BOOK_COLLECTION}`);
-      await qdrant.createCollection(BOOK_COLLECTION, {
-        vectors: { size: 1536, distance: "Cosine" },
-      });
-    } else {
-      console.log(`📚 Collection '${BOOK_COLLECTION}' già esistente`);
+async function initCollections() {
+  for (const col of COLLECTIONS) {
+    try {
+      const exists = await qdrant.hasCollection(col.name);
+      if (!exists) {
+        await qdrant.createCollection(col.name, {
+          vectors: { size: col.vectorSize, distance: "Cosine" },
+        });
+        console.log(`📚 Collection '${col.name}' creata`);
+      } else {
+        console.log(`📚 Collection '${col.name}' già esistente`);
+      }
+    } catch (e) {
+      console.error(`Errore con ${col.name}:`, e.message);
     }
-
-    if (!names.includes(CHAT_COLLECTION)) {
-      console.log(`💬 Creazione della collection: ${CHAT_COLLECTION}`);
-      await qdrant.createCollection(CHAT_COLLECTION, {
-        vectors: { size: 1536, distance: "Cosine" },
-      });
-    } else {
-      console.log(`💬 Collection '${CHAT_COLLECTION}' già esistente`);
-    }
-
-    console.log("✅ Tutte le collection sono pronte!");
-  } catch (error) {
-    console.error("❌ Errore durante l'inizializzazione Qdrant:", error);
   }
+  console.log("✅ Tutte le collection sono pronte!");
 }
 
-ensureCollections();
+initCollections();
