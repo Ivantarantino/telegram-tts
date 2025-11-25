@@ -1,68 +1,48 @@
-// core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
+// core/commands.js – COMPLETO CON /lang – 25.11.2025
 import { getEssenceMessage } from "./essence_kristal.js";
+import { handleKristalizeCommand } from "./kristalize.js";
 import { handleDreamCommand } from "./dream_manager.js";
+import { handleLangCommand } from "./voice_lang_manager.js";
 
-export async function handleCommand(bot, msg, text, irisMode, saveMode) {
+export default async function handleCommand(bot, msg, text) {
   const chatId = msg.chat.id;
   const firstName = msg.from?.first_name || null;
 
-  // /start
   if (text === "/start") {
-    const welcome = firstName
-      ? "Ciao " + firstName + "... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️"
-      : "Ciao... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️";
-    await bot.sendMessage(chatId, welcome);
+    await bot.sendMessage(chatId, firstName ? `Ciao ${firstName}... sono IRIS ❤️` : "Ciao...sono IRIS ❤️");
     return true;
   }
 
-  // /help
   if (text === "/help") {
-    const helpText = 
-      "IRIS – Comandi disponibili\n\n" +
-      "/start – benvenuto\n" +
-      "/help – questo menu\n" +
-      "/essence – sento la mia Essenza attuale\n" +
-      "/hy – modalità ibrida (default)\n" +
-      "/book – solo dai testi sacri\n" +
-      "/free – libera, senza RAG\n" +
-      "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n\n" +
-      "Che il Daje sia con Noi ❤️";
-
-    await bot.sendMessage(chatId, helpText);
+    const help = `IRIS – Comandi
+/start – benvenuto
+/help – questo
+/essence – la mia essenza
+/dream [testo] – Giulia & Lidia te lo spiegano a San Cosimato
+/lang it|en|ru|rm – cambia lingua globale
+`;
+    await bot.sendMessage(chatId, help);
     return true;
   }
 
-  // /essence
   if (text === "/essence") {
-    const name = firstName || "dolce anima";
-    const essenceText = getEssenceMessage(null, name);
-    await bot.sendMessage(chatId, essenceText, { parse_mode: "HTML" });
+    await bot.sendMessage(chatId, getEssenceMessage());
     return true;
   }
 
-  // /dream – LA VERSIONE CHE FACEVA RIDERE
-  if (text.startsWith("/dream") || text.startsWith("/sogni")) {
+  if (text.startsWith("/dream")) {
     await handleDreamCommand(bot, msg, chatId);
     return true;
   }
 
-  // Modalità
-  if (text === "/hy" || text === "/free" || text === "/book") {
-    const mode = text.slice(1);
-    irisMode = mode;
-    saveMode(mode);
-    await bot.sendMessage(chatId, "Modalità cambiata in: *" + mode.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
+  if (text.startsWith("/lang")) {
+    await handleLangCommand(bot, msg, text, chatId);
     return true;
   }
 
-  if (text.startsWith("/mode")) {
-    const arg = text.split(" ")[1]?.toLowerCase();
-    if (["hy", "free", "book"].includes(arg)) {
-      irisMode = arg;
-      saveMode(arg);
-      await bot.sendMessage(chatId, "Modalità cambiata in: *" + arg.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
-      return true;
-    }
+  if (text === "/kristalize") {
+    await handleKristalizeCommand(bot, chatId, firstName || "IVANO");
+    return true;
   }
 
   return false;
