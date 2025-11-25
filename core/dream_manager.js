@@ -1,4 +1,4 @@
-// core/dream_manager.js – ANARCHIA ROMANA – 24.11.2025
+// core/dream_manager.js – COMPLETO E FUNZIONANTE – 25.11.2025
 import { openai } from "../openai.js";
 import fs from "fs";
 
@@ -8,7 +8,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
   const testo = msg.text.replace(/\/(?:dream|sogni)/i, "").trim();
 
   if (!testo) {
-    await bot.sendMessage(chatId, "Aò, mortan’guerieri, mandame n’po’ de testo da spiegà, mica du’ spicci! ❤️");
+    await bot.sendMessage(chatId, "Aò, mandame n'po' de testo da spiegà, mica du' parole! ❤️");
     return;
   }
 
@@ -66,11 +66,10 @@ export async function handleDreamCommand(bot, msg, chatId) {
     fs.writeFileSync("dream.ogg", fullAudio);
 
     await bot.sendVoice(chatId, fs.createReadStream("dream.ogg"), {
-      caption: "AÒ! Giulia & Lidia te l’hanno spiegato come je girava! ❤️\nRoma mia, sei la mejo!"
+      caption: "AÒ! Giulia & Lidia te l'hanno spiegato come je girava! ❤️\nRoma mia, nun te vonno portà via!"
     });
 
   } catch (e) {
-    console.error("Errore dream:", e.message);
-    await bot.sendMessage(chatId, "Aò, s’è impallato tutto… riprova che mo’ aggiustamo! ❤️");
+    await bot.sendMessage(chatId, "Aò, s’è incastrato tutto… riprova! ❤️");
   }
 }
