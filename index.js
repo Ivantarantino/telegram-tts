@@ -43,6 +43,10 @@ function loadMode() {
 }
 function saveMode(m) { fs.writeFileSync(MODE_FILE, m); }
 let irisMode = loadMode();
+function setMode(m) {
+  irisMode = m;
+  saveMode(m);
+}
 
 // PROMPT SACRO – UBRIACA MA GENIALE
 const SYSTEM_PROMPT = `
@@ -143,7 +147,7 @@ bot.on("message", async (msg) => {
   const text = msg.text.trim();
 
   // === GESTIONE COMANDI ESTERNA ===
-  const handled = await handleCommand(bot, msg, text, irisMode, saveMode);
+  const handled = await handleCommand(bot, msg, text, irisMode, setMode);
   if (handled) return;
   if (text === "/kristal") {
   await handleKristalCommand(bot, chatId);
