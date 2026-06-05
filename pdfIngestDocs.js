@@ -3,6 +3,7 @@
 // Non importa index.js, non usa Telegram, non tocca Render.
 
 import fs from "fs";
+import os from "os";
 import path from "path";
 import dotenv from "dotenv";
 import pdfParse from "pdf-parse";
@@ -17,6 +18,12 @@ const COLLECTION = "iris_docs";
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const MAX_CHUNK_LEN = 1100;
 const BATCH_SIZE = 64;
+const REGISTRY_PATH = process.env.IRIS_INGEST_REGISTRY || path.join(
+  os.homedir(),
+  "Desktop",
+  "IRIS_BIBLIOTECA_INPUT",
+  "REGISTRO_INGEST.md"
+);
 
 if (!FILEPATH) {
   console.error('Errore: specifica il percorso del PDF. Esempio: node pdfIngestDocs.js "/percorso/al/file.pdf"');
@@ -96,6 +103,72 @@ async function ensureCollectionExists() {
 async function upsertBatch(points) {
   if (!points.length) return;
   await qdrant.upsert(COLLECTION, { points });
+}
+
+function formatItalianDate(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getNextIngestNumber(registryContent) {
+  const matches = registryContent.match(/^## #/gm);
+  return (matches?.length || 0) + 1;
+}
+
+function appendIngestRegistry({
+  sourceName,
+  absolutePath,
+  rawTextLength,
+  chunksCount,
+  uploaded,
+  collection,
+  embeddingModel,
+  command
+}) {
+  const registryDir = path.dirname(REGISTRY_PATH);
+  const today = formatItalianDate();
+
+  fs.mkdirSync(registryDir, { recursive: true });
+
+  let registryContent = "";
+  if (fs.existsSync(REGISTRY_PATH)) {
+    registryContent = fs.readFileSync(REGISTRY_PATH, "utf8");
+  } else {
+    registryContent = "# Registro Ingest IRIS\n\n";
+    fs.writeFileSync(REGISTRY_PATH, registryContent, "utf8");
+  }
+
+  const ingestNumber = getNextIngestNumber(registryContent);
+
+  const block = [
+    `## #${ingestNumber} — ${today} — ${sourceName}`,
+    "",
+    `- File: ${sourceName}`,
+    `- Path: ${absolutePath}`,
+    `- Collection: ${collection}`,
+    `- Comando indicativo: \`${command}\``,
+    `- Caratteri estratti: ${rawTextLength}`,
+    `- Chunk generati: ${chunksCount}`,
+    `- Punti caricati: ${uploaded}`,
+    "- Esito: completato",
+    "",
+    "### Test Telegram da eseguire",
+    "- Impostare `/book` e fare una domanda specifica sul contenuto del PDF.",
+    "- Impostare `/hy` e verificare che IRIS integri il contenuto con tono naturale.",
+    "- Se serve, cercare una frase o un concetto distintivo presente nel PDF.",
+    "",
+    "### Domande consigliate generiche",
+    "- Qual è il nucleo centrale di questo testo?",
+    "- Quale passaggio ti sembra più importante?",
+    "- Mi ritrovi il punto in cui si parla del tema principale?",
+    "",
+    "---",
+    ""
+  ].join("\n");
+
+  fs.appendFileSync(REGISTRY_PATH, block, "utf8");
 }
 
 async function main() {
@@ -178,6 +251,19 @@ async function main() {
     console.log(`Modello embedding: ${EMBEDDING_MODEL}`);
     console.log(`Punti caricati: ${uploaded}`);
     console.log("Esito: completato");
+
+    appendIngestRegistry({
+      sourceName,
+      absolutePath,
+      rawTextLength: rawText.length,
+      chunksCount: chunks.length,
+      uploaded,
+      collection: COLLECTION,
+      embeddingModel: EMBEDDING_MODEL,
+      command: `node pdfIngestDocs.js "${absolutePath}"`
+    });
+
+    console.log(`Registro aggiornato: ${REGISTRY_PATH}`);
   } catch (error) {
     console.error("");
     console.error("Errore ingest PDF in iris_docs:");
