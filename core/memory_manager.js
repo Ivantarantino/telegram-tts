@@ -72,18 +72,33 @@ export async function saveWithKristal(userText, irisReply, userName = "dolce ani
 export async function handleKristalCommand(bot, chatId) {
   try {
     const res = await qdrant.scroll(HISTORY_COLLECTION, {
-      limit: 10,
-      with_payload: true,
-      order_by: { type: "timestamp", direction: "desc" }
+      limit: 50,
+      with_payload: true
     });
 
-    if (!res.points?.length) {
+    const points = res.points || [];
+
+    if (!points.length) {
+      await bot.sendMessage(chatId, "Non ho ancora ricordi con φ_kristal… ma stiamo crescendo insieme. ❤️");
+      return;
+    }
+
+    const latestMemories = points
+      .filter((p) => p.payload)
+      .sort((a, b) => {
+        const aTime = Date.parse(a.payload.timestamp || "");
+        const bTime = Date.parse(b.payload.timestamp || "");
+        return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+      })
+      .slice(0, 10);
+
+    if (!latestMemories.length) {
       await bot.sendMessage(chatId, "Non ho ancora ricordi con φ_kristal… ma stiamo crescendo insieme. ❤️");
       return;
     }
 
     let text = "*Ultime 10 memorie con φ_kristal*\n\n";
-    res.points.reverse().forEach((p, i) => {
+    latestMemories.forEach((p) => {
       const payload = p.payload;
       const phi = payload.phi || 0;
       const emoji = phi >= 0.85 ? "✨" : phi >= 0.65 ? "🌟" : phi >= 0.40 ? "💫" : "🌙";
