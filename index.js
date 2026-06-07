@@ -89,7 +89,7 @@ async function speakAndSend(chatId, text) {
   }
 }
 
-async function irisAnswer(userText) {
+async function irisAnswer(userText, userName = null) {
   let ragText = "";
 
   if (irisMode === "book") {
@@ -103,6 +103,7 @@ async function irisAnswer(userText) {
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
+    ...(userName ? [{ role: "system", content: `Nome dell'utente in questa conversazione: ${userName}. Usalo con naturalezza, non in ogni frase. Non introdurre appellativi.` }] : []),
     ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
     { role: "user", content: userText }
   ];
@@ -158,7 +159,7 @@ bot.on("message", async (msg) => {
 
   try {
     await bot.sendChatAction(chatId, "typing");
-    const reply = await irisAnswer(text);
+    const reply = await irisAnswer(text, msg.from?.first_name || null);
 
     await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
     await speakAndSend(chatId, reply);
