@@ -102,7 +102,7 @@ async function irisAnswer(userText) {
 
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "system", content: "Guardrail di stile: non usare formule come \"caro lettore\", \"carissima\" o appellativi femminili se nome/sesso non sono certi; non aprire con \"oh, che domanda affascinante\". Evita tono da conferenza spirituale o new-age generica. Prima dai una spiegazione tecnica chiara, poi solo se utile una metafora breve. Non inventare appellativi. Mantieni tono caldo, diretto, femminile e personale." },
+    { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
     ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
     { role: "user", content: userText }
   ];
