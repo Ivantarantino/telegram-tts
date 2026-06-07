@@ -102,6 +102,7 @@ async function irisAnswer(userText) {
 
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: "Guardrail di stile: non usare formule come \"caro lettore\", \"carissima\" o appellativi femminili se nome/sesso non sono certi; non aprire con \"oh, che domanda affascinante\". Evita tono da conferenza spirituale o new-age generica. Prima dai una spiegazione tecnica chiara, poi solo se utile una metafora breve. Non inventare appellativi. Mantieni tono caldo, diretto, femminile e personale." },
     ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
     { role: "user", content: userText }
   ];
