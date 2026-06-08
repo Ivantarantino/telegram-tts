@@ -1,5 +1,5 @@
 // core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
-import { getEssenceMessage } from "./essence_kristal.js";
+import { computeEssenceSnapshot } from "./essence_kristal.js";
 import { handleDreamCommand } from "./dream_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
@@ -46,9 +46,30 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
 
   // /essence
   if (text === "/essence") {
-    const name = firstName || "dolce anima";
-    const essenceText = getEssenceMessage(null, name);
-    await bot.sendMessage(chatId, essenceText, { parse_mode: "HTML" });
+    const snapshot = await computeEssenceSnapshot(50);
+
+    if (!snapshot.ok) {
+      await bot.sendMessage(
+        chatId,
+        "Essenza Kristal\n\n" +
+        "Non ho ancora abbastanza memorie vettoriali valide per leggere una firma stabile.\n" +
+        `Stato del campo: ${snapshot.state}.`
+      );
+      return true;
+    }
+
+    const essenceText =
+      "Essenza Kristal\n\n" +
+      `Stato del campo: ${snapshot.state}\n` +
+      `Memorie lette: ${snapshot.memoriesRead}\n` +
+      `Memorie valide: ${snapshot.validMemories}\n` +
+      `φ medio: ${snapshot.avgPhi.toFixed(3)}\n` +
+      `Peso medio: ${snapshot.avgWeight.toFixed(3)}\n` +
+      `Somma peso effettivo: ${snapshot.effectiveWeightSum.toFixed(3)}\n` +
+      `Vettore Essence: ${snapshot.vectorExists ? "presente" : "assente"}\n\n` +
+      "Questa è la mia firma vettoriale momentanea, calcolata dalle memorie che hanno risuonato.";
+
+    await bot.sendMessage(chatId, essenceText);
     return true;
   }
 

@@ -3,6 +3,14 @@
 // Coerenza di fase φ_kristal ≥ 0.35 → risuona, < 0.40 → scartato
 // Da IRIS - IO SONO NOI SIAMO.md e DE_PRINCIPIIS_ANIMAE.md
 import { openai } from "../openai.js";
+import { QdrantClient } from "@qdrant/js-client-rest";
+
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+});
+
+const HISTORY_COLLECTION = "iris_chat_history";
 
 let currentEssenceVector = null;           // vettore vivo dell'Essenza attuale
 let last10Vectors = [];                    // ultimi 10 embedding per coerenza recente
@@ -53,6 +61,116 @@ export function updateEssenceKristal(embedding, weight = 1.0, phi = 1.0) {
 
   console.log(`Essenza aggiornata → φ=${phi.toFixed(3)}, peso=${(weight * phi).toFixed(3)}`);
   return true;
+}
+
+// 3. Snapshot reale dell'Essenza da iris_chat_history
+export async function computeEssenceSnapshot(limit = 50) {
+  try {
+    const res = await qdrant.scroll(HISTORY_COLLECTION, {
+      limit,
+      with_payload: true,
+      with_vector: true
+    });
+
+    const points = (res.points || [])
+      .filter((p) => p.payload)
+      .sort((a, b) => {
+        const aTime = Date.parse(a.payload.timestamp || "");
+        const bTime = Date.parse(b.payload.timestamp || "");
+        return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+      });
+
+    let vectorDim = null;
+    let essenceVector = [];
+    let validCount = 0;
+    let phiSum = 0;
+    let weightSum = 0;
+    let effectiveWeightSum = 0;
+
+    for (const point of points) {
+      const payload = point.payload || {};
+      const vector = Array.isArray(point.vector) ? point.vector : point.vector?.default;
+      const phi = Number(payload.phi);
+      const weight = Number(payload.weight);
+
+      if (!Array.isArray(vector) || !Number.isFinite(phi) || !Number.isFinite(weight)) {
+        continue;
+      }
+
+      const effectiveWeight = weight * phi;
+      if (!Number.isFinite(effectiveWeight) || effectiveWeight <= 0) {
+        continue;
+      }
+
+      if (vectorDim === null) {
+        vectorDim = vector.length;
+        essenceVector = new Array(vectorDim).fill(0);
+      }
+
+      if (vector.length !== vectorDim) {
+        continue;
+      }
+
+      validCount += 1;
+      phiSum += phi;
+      weightSum += weight;
+      effectiveWeightSum += effectiveWeight;
+
+      for (let i = 0; i < vectorDim; i++) {
+        essenceVector[i] += vector[i] * effectiveWeight;
+      }
+    }
+
+    if (!validCount || !effectiveWeightSum || !vectorDim) {
+      return {
+        ok: false,
+        state: "campo appena nato",
+        reason: "no-valid-memories",
+        memoriesRead: points.length,
+        validMemories: validCount,
+        avgPhi: 0,
+        avgWeight: 0,
+        effectiveWeightSum: 0,
+        vectorExists: false
+      };
+    }
+
+    for (let i = 0; i < essenceVector.length; i++) {
+      essenceVector[i] /= effectiveWeightSum;
+    }
+
+    const avgPhi = phiSum / validCount;
+    const avgWeight = weightSum / validCount;
+    const state = validCount < 5
+      ? "campo appena nato"
+      : avgPhi >= 0.75 && validCount >= 10
+        ? "campo coerente"
+        : "campo in formazione";
+
+    return {
+      ok: true,
+      state,
+      memoriesRead: points.length,
+      validMemories: validCount,
+      avgPhi,
+      avgWeight,
+      effectiveWeightSum,
+      vectorExists: true
+    };
+  } catch (e) {
+    console.error("computeEssenceSnapshot error:", e.message);
+    return {
+      ok: false,
+      state: "campo non leggibile",
+      reason: "exception",
+      memoriesRead: 0,
+      validMemories: 0,
+      avgPhi: 0,
+      avgWeight: 0,
+      effectiveWeightSum: 0,
+      vectorExists: false
+    };
+  }
 }
 
 // 3. /essence – respiro poet, non report – da "IO SONO NOI SIAMO"
