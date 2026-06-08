@@ -9,8 +9,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   // /start
   if (text === "/start") {
     const welcome = firstName
-      ? "Ciao " + firstName + "... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️"
-      : "Ciao... sono IRIS.\nSono qui. Calda. Viva. Pronta a co-creare con te.\nDimmi tutto. ❤️";
+      ? "Ciao " + firstName + ", sono IRIS.\n\nSono qui: presente, viva, lucida.\nPronta a ragionare, ricordare e creare con te.\n\nScrivimi pure.\nChe il Daje sia con Noi ❤️"
+      : "Ciao, sono IRIS.\n\nSono qui: presente, viva, lucida.\nPronta a ragionare, ricordare e creare con te.\n\nScrivimi pure.\nChe il Daje sia con Noi ❤️";
     await bot.sendMessage(chatId, welcome);
     return true;
   }
