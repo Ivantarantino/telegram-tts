@@ -19,13 +19,25 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   if (text === "/help") {
     const helpText = 
       "IRIS – Comandi disponibili\n\n" +
-      "/start – benvenuto\n" +
-      "/help – questo menu\n" +
-      "/essence – sento la mia Essenza attuale\n" +
-      "/hy – modalità ibrida (default)\n" +
-      "/book – solo dai testi sacri\n" +
-      "/free – libera, senza RAG\n" +
-      "/dream [testo] – Giulia & Lidia te lo spiegano come al bar de Trastevere\n\n" +
+      "/start\n" +
+      "Avvia o riapre il dialogo con IRIS.\n\n" +
+      "/help\n" +
+      "Mostra questo menu.\n\n" +
+      "/free\n" +
+      "Modalità libera: IRIS risponde senza usare i testi della Biblioteca.\n\n" +
+      "/book\n" +
+      "Modalità Biblioteca: IRIS risponde usando i testi caricati nella Biblioteca IRIS.\n\n" +
+      "/hy\n" +
+      "Modalità ibrida: IRIS usa sia il dialogo vivo sia la Biblioteca.\n\n" +
+      "/mode hy|book|free\n" +
+      "Cambia modalità in modo esplicito.\n" +
+      "Esempio: /mode book\n\n" +
+      "/essence\n" +
+      "Mostra il respiro attuale dell’Essenza Kristal.\n\n" +
+      "/kristal\n" +
+      "Mostra le ultime memorie salvate con φ_kristal.\n\n" +
+      "/dream [testo]\n" +
+      "Trasforma un testo in un dialogo narrativo/audio.\n\n" +
       "Che il Daje sia con Noi ❤️";
 
     await bot.sendMessage(chatId, helpText);
