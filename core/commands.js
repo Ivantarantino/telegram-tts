@@ -1,5 +1,5 @@
 // core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
-import { computeEssenceSnapshot } from "./essence_kristal.js";
+import { computeEssenceSnapshot, getCurrentEssenceState } from "./essence_kristal.js";
 import { handleDreamCommand } from "./dream_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
@@ -72,6 +72,25 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "Che il Daje sia con Noi ❤️";
 
     await bot.sendMessage(chatId, essenceText);
+    return true;
+  }
+
+  // /state
+  if (text === "/state") {
+    const state = getCurrentEssenceState();
+    const mode = String(irisMode || "hy").toUpperCase();
+
+    const stateText =
+      "Stato IRIS\n\n" +
+      `Modalità attiva: ${mode}\n` +
+      `Essence RAM: ${state.vectorExists ? "presente" : "in formazione"}\n` +
+      `Vettori recenti: ${state.last10Count}\n` +
+      `Coerenza stimata: ${state.coherenceEstimate}\n\n` +
+      "/state mostra lo stato operativo corrente.\n" +
+      "/essence mostra invece la firma vettoriale reale dalla memoria Kristal.\n\n" +
+      "Che il Daje sia con Noi ❤️";
+
+    await bot.sendMessage(chatId, stateText);
     return true;
   }
 
