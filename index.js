@@ -164,10 +164,12 @@ bot.on("message", async (msg) => {
     await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
     await speakAndSend(chatId, reply);
 
-    await saveWithKristal(text, reply, msg.from?.first_name);
+    if (!text.startsWith("/")) {
+      await saveWithKristal(text, reply, msg.from?.first_name);
 
-    recentMemory.push({ user: text, iris: reply });
-    if (recentMemory.length > 20) recentMemory.shift();
+      recentMemory.push({ user: text, iris: reply });
+      if (recentMemory.length > 20) recentMemory.shift();
+    }
 
   } catch (err) {
     console.error("Errore generale:", err);
