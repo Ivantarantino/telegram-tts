@@ -8,7 +8,8 @@
     "init:qdrant": "node qdrantInit.js",
     "set:webhook": "node index.js --set-webhook",
     "delete:webhook": "node index.js --delete-webhook",
-    "ingest:pdf": "node pdfIngest.js"
+    "ingest:pdf": "node pdfIngest.js",
+    "set:commands": "node telegramSetCommands.js"
   },
   "engines": {
     "node": "20.x"
