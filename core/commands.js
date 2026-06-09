@@ -90,6 +90,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       `Coerenza stimata: ${state.coherenceEstimate}\n\n` +
       "/state mostra lo stato operativo corrente.\n" +
       "/essence mostra invece la firma vettoriale reale dalla memoria Kristal.\n\n" +
+      "Nota: la RAM si azzera a ogni riavvio; /essence legge la memoria persistente.\n\n" +
       "Che il Daje sia con Noi ❤️";
 
     await bot.sendMessage(chatId, stateText);
