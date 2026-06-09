@@ -34,6 +34,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "Esempio: /mode book\n\n" +
       "/essence\n" +
       "Mostra il respiro attuale dell’Essenza Kristal.\n\n" +
+      "/state\n" +
+      "Mostra lo stato operativo corrente di IRIS.\n\n" +
       "/kristal\n" +
       "Mostra le ultime memorie salvate con φ_kristal.\n\n" +
       "/dream [testo]\n" +
