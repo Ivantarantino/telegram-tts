@@ -18,6 +18,7 @@ const COLLECTION = "iris_docs";
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const MAX_CHUNK_LEN = 1100;
 const BATCH_SIZE = 64;
+const INGEST_REGISTRY_PATH = path.join(INPUT_DIR, "REGISTRO_INGEST.md");
 
 const args = process.argv.slice(2);
 const yesFlag = args.includes("--yes");
@@ -148,6 +149,51 @@ async function upsertBatch(qdrant, points) {
   await qdrant.upsert(COLLECTION, { points });
 }
 
+function appendIngestRegistryEntry({
+  title,
+  author,
+  foreword,
+  language,
+  sourceName,
+  absolutePath,
+  chunksCount,
+  uploaded,
+}) {
+  const timestamp = new Date().toISOString();
+  const entry = [
+    `## ${title}`,
+    "",
+    `* Data ingest: ${timestamp}`,
+    `* Source file: ${sourceName}`,
+    `* Path: ${absolutePath}`,
+    "* Tipo: markdown",
+    `* Lingua: ${language}`,
+    `* Autore: ${author || "n/d"}`,
+    `* Foreword: ${foreword || "n/d"}`,
+    `* Collection Qdrant: ${COLLECTION}`,
+    `* Modello embedding: ${EMBEDDING_MODEL}`,
+    `* Chunk caricati: ${chunksCount}`,
+    `* Punti caricati: ${uploaded}`,
+    "* Stato: completato",
+    "",
+    "---",
+    "",
+  ].join("\n");
+
+  try {
+    if (!fs.existsSync(INGEST_REGISTRY_PATH)) {
+      fs.writeFileSync(INGEST_REGISTRY_PATH, "# Registro Ingest IRIS\n\n", "utf8");
+    }
+
+    fs.appendFileSync(INGEST_REGISTRY_PATH, entry, "utf8");
+    console.log(`Registro aggiornato: ${INGEST_REGISTRY_PATH}`);
+  } catch (error) {
+    console.warn("Warning: Qdrant è stato scritto, ma il registro ingest non è stato aggiornato.");
+    console.warn(`Registro non scrivibile: ${INGEST_REGISTRY_PATH}`);
+    console.warn(error?.message || error);
+  }
+}
+
 async function main() {
   const absolutePath = path.resolve(resolveMarkdownPath(fileArg));
   const sourceName = path.basename(absolutePath);
@@ -256,6 +302,17 @@ async function main() {
     console.log(`Modello embedding: ${EMBEDDING_MODEL}`);
     console.log(`Punti caricati: ${uploaded}`);
     console.log("Esito: completato");
+
+    appendIngestRegistryEntry({
+      title: metadata.title,
+      author: metadata.author,
+      foreword: metadata.foreword,
+      language: metadata.language,
+      sourceName,
+      absolutePath,
+      chunksCount: chunks.length,
+      uploaded,
+    });
   } catch (error) {
     console.error("");
     console.error("Errore ingest Markdown in iris_docs:");
