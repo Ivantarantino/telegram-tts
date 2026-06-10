@@ -9,6 +9,7 @@
     "set:webhook": "node index.js --set-webhook",
     "delete:webhook": "node index.js --delete-webhook",
     "ingest:pdf": "node pdfIngest.js",
+    "ingest:md": "node mdIngestDocs.js",
     "set:commands": "node telegramSetCommands.js"
   },
   "engines": {
