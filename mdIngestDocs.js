@@ -160,6 +160,12 @@ function appendIngestRegistryEntry({
   uploaded,
 }) {
   const timestamp = new Date().toISOString();
+  const now = new Date();
+  const localDate = [
+    String(now.getDate()).padStart(2, "0"),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    now.getFullYear(),
+  ].join("/");
   const entry = [
     `## ${title}`,
     "",
@@ -181,11 +187,24 @@ function appendIngestRegistryEntry({
   ].join("\n");
 
   try {
+    let registryContent = "";
+
     if (!fs.existsSync(INGEST_REGISTRY_PATH)) {
       fs.writeFileSync(INGEST_REGISTRY_PATH, "# Registro Ingest IRIS\n\n", "utf8");
+    } else {
+      registryContent = fs.readFileSync(INGEST_REGISTRY_PATH, "utf8");
     }
 
-    fs.appendFileSync(INGEST_REGISTRY_PATH, entry, "utf8");
+    const existingNumbers = [...registryContent.matchAll(/^## #(\d+)/gm)]
+      .map((match) => Number(match[1]))
+      .filter(Number.isFinite);
+    const nextNumber = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+    const numberedEntry = entry.replace(
+      `## ${title}`,
+      `## #${nextNumber} — ${localDate} — ${sourceName}`
+    );
+
+    fs.appendFileSync(INGEST_REGISTRY_PATH, numberedEntry, "utf8");
     console.log(`Registro aggiornato: ${INGEST_REGISTRY_PATH}`);
   } catch (error) {
     console.warn("Warning: Qdrant è stato scritto, ma il registro ingest non è stato aggiornato.");
