@@ -113,8 +113,11 @@ function formatItalianDate(date = new Date()) {
 }
 
 function getNextIngestNumber(registryContent) {
-  const matches = registryContent.match(/^## #/gm);
-  return (matches?.length || 0) + 1;
+  const existingNumbers = [...registryContent.matchAll(/^## #(\d+)/gm)]
+    .map((match) => Number(match[1]))
+    .filter(Number.isFinite);
+
+  return existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
 }
 
 function appendIngestRegistry({
