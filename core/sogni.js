@@ -4,6 +4,46 @@ import fs from "fs";
 
 const VOCE_LIDIA = "nova";     // rauca, romana, un po’ incazzata ma bonacciona
 const VOCE_GIULIA = "shimmer";  // dolce ma co’ carattere, trasteverina verace
+const TTS_TIMEOUT_MS = 45_000;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`TTS timeout after ${ms}ms`)), ms);
+    })
+  ]);
+}
+
+async function createSpeechBufferWithRetry({ speaker, voice, text, lineIndex }) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const speech = await withTimeout(
+        openai.audio.speech.create({
+          model: "tts-1",
+          voice,
+          input: text
+        }),
+        TTS_TIMEOUT_MS
+      );
+
+      return Buffer.from(await speech.arrayBuffer());
+    } catch (e) {
+      console.error("[SOGNI] tts attempt failed", {
+        lineIndex,
+        speaker,
+        attempt,
+        error: e.message
+      });
+    }
+  }
+
+  console.error("[SOGNI] tts skipped after retries", {
+    lineIndex,
+    speaker
+  });
+  return null;
+}
 
 export async function handleSogniCommand(bot, msg, chatId) {
   await bot.sendChatAction(chatId, "typing");
@@ -68,12 +108,19 @@ export async function handleSogniCommand(bot, msg, chatId) {
           speaker: "Lidia",
           textLength: text.length
         });
-        const speech = await openai.audio.speech.create({
-          model: "tts-1",
+        const buffer = await createSpeechBufferWithRetry({
+          speaker: "Lidia",
           voice: VOCE_LIDIA,
-          input: text
+          text,
+          lineIndex: i
         });
-        const buffer = Buffer.from(await speech.arrayBuffer());
+        if (!buffer) {
+          console.error("[SOGNI] tts skipped", {
+            lineIndex: i,
+            speaker: "Lidia"
+          });
+          continue;
+        }
         audioBuffers.push(buffer);
         console.log("[SOGNI] tts done", {
           lineIndex: i,
@@ -87,12 +134,19 @@ export async function handleSogniCommand(bot, msg, chatId) {
           speaker: "Giulia",
           textLength: text.length
         });
-        const speech = await openai.audio.speech.create({
-          model: "tts-1",
+        const buffer = await createSpeechBufferWithRetry({
+          speaker: "Giulia",
           voice: VOCE_GIULIA,
-          input: text
+          text,
+          lineIndex: i
         });
-        const buffer = Buffer.from(await speech.arrayBuffer());
+        if (!buffer) {
+          console.error("[SOGNI] tts skipped", {
+            lineIndex: i,
+            speaker: "Giulia"
+          });
+          continue;
+        }
         audioBuffers.push(buffer);
         console.log("[SOGNI] tts done", {
           lineIndex: i,
@@ -104,6 +158,11 @@ export async function handleSogniCommand(bot, msg, chatId) {
     console.log("[SOGNI] tts loop done", {
       audioBuffersLength: audioBuffers.length
     });
+    if (audioBuffers.length === 0) {
+      console.error("[SOGNI] no audio buffers generated");
+      await bot.sendMessage(chatId, "Aó, Lidia e Giulia stavolta s’erano incartate co’ l’audio… riprova tra poco, fratè! ❤️");
+      return;
+    }
     const fullAudio = Buffer.concat(audioBuffers);
     console.log("[SOGNI] audio concat done", {
       fullAudioLength: fullAudio.length
