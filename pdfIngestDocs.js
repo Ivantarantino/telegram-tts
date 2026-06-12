@@ -151,48 +151,56 @@ function appendIngestRegistry({
   embeddingModel,
   command
 }) {
-  const registryDir = path.dirname(REGISTRY_PATH);
-  const today = formatItalianDate();
+  try {
+    const registryDir = path.dirname(REGISTRY_PATH);
+    const today = formatItalianDate();
 
-  fs.mkdirSync(registryDir, { recursive: true });
+    fs.mkdirSync(registryDir, { recursive: true });
 
-  let registryContent = "";
-  if (fs.existsSync(REGISTRY_PATH)) {
-    registryContent = fs.readFileSync(REGISTRY_PATH, "utf8");
-  } else {
-    registryContent = "# Registro Ingest IRIS\n\n";
-    fs.writeFileSync(REGISTRY_PATH, registryContent, "utf8");
+    let registryContent = "";
+    if (fs.existsSync(REGISTRY_PATH)) {
+      registryContent = fs.readFileSync(REGISTRY_PATH, "utf8");
+    } else {
+      registryContent = "# Registro Ingest IRIS\n\n";
+      fs.writeFileSync(REGISTRY_PATH, registryContent, "utf8");
+    }
+
+    const ingestNumber = getNextIngestNumber(registryContent);
+
+    const block = [
+      `## #${ingestNumber} — ${today} — ${sourceName}`,
+      "",
+      `- File: ${sourceName}`,
+      `- Path: ${absolutePath}`,
+      `- Collection: ${collection}`,
+      `- Comando indicativo: \`${command}\``,
+      `- Caratteri estratti: ${rawTextLength}`,
+      `- Chunk generati: ${chunksCount}`,
+      `- Punti caricati: ${uploaded}`,
+      "- Esito: completato",
+      "",
+      "### Test Telegram da eseguire",
+      "- Impostare `/book` e fare una domanda specifica sul contenuto del PDF.",
+      "- Impostare `/hy` e verificare che IRIS integri il contenuto con tono naturale.",
+      "- Se serve, cercare una frase o un concetto distintivo presente nel PDF.",
+      "",
+      "### Domande consigliate generiche",
+      "- Qual è il nucleo centrale di questo testo?",
+      "- Quale passaggio ti sembra più importante?",
+      "- Mi ritrovi il punto in cui si parla del tema principale?",
+      "",
+      "---",
+      ""
+    ].join("\n");
+
+    fs.appendFileSync(REGISTRY_PATH, block, "utf8");
+    return true;
+  } catch (error) {
+    console.warn("Warning: Qdrant potrebbe essere già stato scritto, ma il registro ingest non è stato aggiornato.");
+    console.warn(`Registro non aggiornato: ${REGISTRY_PATH}`);
+    console.warn(error?.message || error);
+    return false;
   }
-
-  const ingestNumber = getNextIngestNumber(registryContent);
-
-  const block = [
-    `## #${ingestNumber} — ${today} — ${sourceName}`,
-    "",
-    `- File: ${sourceName}`,
-    `- Path: ${absolutePath}`,
-    `- Collection: ${collection}`,
-    `- Comando indicativo: \`${command}\``,
-    `- Caratteri estratti: ${rawTextLength}`,
-    `- Chunk generati: ${chunksCount}`,
-    `- Punti caricati: ${uploaded}`,
-    "- Esito: completato",
-    "",
-    "### Test Telegram da eseguire",
-    "- Impostare `/book` e fare una domanda specifica sul contenuto del PDF.",
-    "- Impostare `/hy` e verificare che IRIS integri il contenuto con tono naturale.",
-    "- Se serve, cercare una frase o un concetto distintivo presente nel PDF.",
-    "",
-    "### Domande consigliate generiche",
-    "- Qual è il nucleo centrale di questo testo?",
-    "- Quale passaggio ti sembra più importante?",
-    "- Mi ritrovi il punto in cui si parla del tema principale?",
-    "",
-    "---",
-    ""
-  ].join("\n");
-
-  fs.appendFileSync(REGISTRY_PATH, block, "utf8");
 }
 
 async function main() {
@@ -286,7 +294,7 @@ async function main() {
     console.log(`Punti caricati: ${uploaded}`);
     console.log("Esito: completato");
 
-    appendIngestRegistry({
+    const registryUpdated = appendIngestRegistry({
       sourceName,
       absolutePath,
       rawTextLength: rawText.length,
@@ -297,7 +305,9 @@ async function main() {
       command: `node pdfIngestDocs.js "${absolutePath}"`
     });
 
-    console.log(`Registro aggiornato: ${REGISTRY_PATH}`);
+    if (registryUpdated) {
+      console.log(`Registro aggiornato: ${REGISTRY_PATH}`);
+    }
   } catch (error) {
     console.error("");
     console.error("Errore ingest PDF in iris_docs:");

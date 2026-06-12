@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
-const INPUT_DIR = "/Users/ivano/Desktop/IRIS_BIBLIOTECA_INPUT";
+const INPUT_DIR = process.env.IRIS_BIBLIOTECA_INPUT || "/Users/ivano/Desktop/IRIS_BIBLIOTECA_INPUT";
 const COLLECTION = "iris_docs";
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const MAX_CHUNK_LEN = 1100;
