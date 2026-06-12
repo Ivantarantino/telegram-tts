@@ -22,8 +22,7 @@ async function createSpeechBufferWithRetry({ speaker, voice, text, lineIndex }) 
         openai.audio.speech.create({
           model: "tts-1",
           voice,
-          input: text,
-          response_format: "opus"
+          input: text
         }),
         TTS_TIMEOUT_MS
       );
@@ -173,17 +172,9 @@ export async function handleSogniCommand(bot, msg, chatId) {
     console.log("[SOGNI] audio file written");
 
     console.log("[SOGNI] sendVoice start");
-    await bot.sendVoice(
-      chatId,
-      fs.createReadStream("sogno.ogg"),
-      {
-        caption: "AÓ, eccolo er podcast! Lidia e Giulia te l’hanno spiegato come se stessimo a San Cosimato. ❤️\nRoma mia, nun te vonno portà via!"
-      },
-      {
-        filename: "sogno.ogg",
-        contentType: "audio/ogg"
-      }
-    );
+    await bot.sendVoice(chatId, fs.createReadStream("sogno.ogg"), {
+      caption: "AÓ, eccolo er podcast! Lidia e Giulia te l’hanno spiegato come se stessimo a San Cosimato. ❤️\nRoma mia, nun te vonno portà via!"
+    });
     console.log("[SOGNI] sendVoice done");
 
   } catch (e) {
