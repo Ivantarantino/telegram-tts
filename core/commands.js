@@ -1,6 +1,6 @@
 // core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
 import { computeEssenceSnapshot, getCurrentEssenceState } from "./essence_kristal.js";
-import { handleDreamCommand } from "./dream_manager.js";
+import { handleSogniCommand } from "./sogni.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -99,7 +99,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
 
   // /dream – LA VERSIONE CHE FACEVA RIDERE
   if (text.startsWith("/dream") || text.startsWith("/sogni")) {
-    await handleDreamCommand(bot, msg, chatId);
+    await handleSogniCommand(bot, msg, chatId);
     return true;
   }
 

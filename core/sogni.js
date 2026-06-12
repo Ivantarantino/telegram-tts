@@ -8,7 +8,7 @@ const VOCE_GIULIA = "shimmer";  // dolce ma co’ carattere, trasteverina verace
 export async function handleSogniCommand(bot, msg, chatId) {
   await bot.sendChatAction(chatId, "typing");
 
-  const testo = msg.text.replace("/sogni", "").trim();
+  const testo = msg.text.replace(/^\/(sogni|dream)\s*/i, "").trim();
 
   if (!testo || testo.length < 20) {
     await bot.sendMessage(chatId, "Aó, ma che me combini? Mandame n’po’ de testo, mica du’ parole! ❤️");
