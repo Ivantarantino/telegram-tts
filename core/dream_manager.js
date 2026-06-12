@@ -13,12 +13,10 @@ export async function handleDreamCommand(bot, msg, chatId) {
   }
 
   try {
-    const prompt = `
+    const systemPrompt = `
     Siete GIULIA e LIDIA, due trasteverine ubriache de verità che stanno al bar de San Cosimato.
     Parlate in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "Roma mia".
     Spiegate sto testo come se foste emozionate, interrompetevi, ridete, fate battute.
-
-    Testo: ${testo}
 
     Rispondete SOLO così:
     GIULIA: [testo]
@@ -29,7 +27,10 @@ export async function handleDreamCommand(bot, msg, chatId) {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: prompt }], // ← CORRETTO
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: testo }
+      ],
       temperature: 0.98,
       max_tokens: 3000
     });
