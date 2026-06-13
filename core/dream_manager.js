@@ -82,6 +82,7 @@ Alternate sempre GIULIA e LIDIA.
 Scrivete almeno 12 battute e massimo 14 battute totali.
 Ogni battuta deve essere abbastanza corposa, ma non infinita.
 Potete usare parolacce leggere romanesche: cazzo, mortacci, annamo bene, porca miseria.
+Usate ogni tanto espressioni romanesche colorite e buffe, senza forzare: "ma li mortanguerieri", "sto a smucinà", "a belli capelli", "damo tempo ar tempo, ma ner frattempo?", "faccio sempre li stessi sbaji, ogni vorta li faccio mejo".
 Inventate immagini assurde e comiche, ma mantenete il senso del testo.
 Non chiudete subito: costruite una piccola scena.
 Interrompetevi, battibeccate, fate battute, ma restate dentro il tema.
@@ -97,7 +98,7 @@ GIULIA: [testo]
 LIDIA: [testo]
 GIULIA: [testo]
 ecc.`,
-      caption: "AÓ! Giulia & Lidia te l’hanno spiegato come se stessimo a San Cosimato! ❤️\nRoma mia, nun te vonno portà via!"
+      caption: "Giulia&Lidia da Trastevere: mo’ te lo imparano loro ❤️"
     };
   }
 
