@@ -153,6 +153,13 @@ export async function handleDreamCommand(bot, msg, chatId) {
   await bot.sendChatAction(chatId, "typing");
 
   const testo = msg.text.replace(/^\/(dream|sogni)(@\w+)?\s*/i, "").trim();
+  console.log("[DREAM] start", {
+    chatId,
+    msgTextLength: msg.text?.length || 0,
+    testoLength: testo.length,
+    currentLang,
+    currentStyle
+  });
 
   if (!testo || testo.length < 20) {
     await bot.sendMessage(chatId, "Aó, mandame n’po’ de testo da spiegà, mica du’ parole! ❤️\nScrivi: /dream [il tuo testo]");
@@ -162,6 +169,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
   try {
     const { prompt, caption } = buildPromptAndCaption(testo);
 
+    console.log("[DREAM] chat completion start");
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: prompt }],
@@ -170,16 +178,42 @@ export async function handleDreamCommand(bot, msg, chatId) {
     });
 
     const dialogo = completion.choices[0].message.content;
+    console.log("[DREAM] chat completion done", {
+      dialogoLength: dialogo.length
+    });
+
     const lines = dialogo.split("\n").filter(l => l.trim());
+    console.log("[DREAM] lines parsed raw", {
+      linesLength: lines.length
+    });
+
     const audioBuffers = [];
+    let parsedLines = 0;
+    let skippedLines = 0;
+    let giuliaLines = 0;
+    let lidiaLines = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const parsed = parseSpeakerLine(lines[i]);
 
       if (!parsed || !parsed.text) {
+        skippedLines++;
         continue;
       }
 
+      parsedLines++;
+      if (parsed.speaker === "Giulia") {
+        giuliaLines++;
+      }
+      if (parsed.speaker === "Lidia") {
+        lidiaLines++;
+      }
+
+      console.log("[DREAM] tts start", {
+        lineIndex: i,
+        speaker: parsed.speaker,
+        textLength: parsed.text.length
+      });
       const buffer = await createSpeechBufferWithRetry({
         speaker: parsed.speaker,
         voice: parsed.voice,
@@ -192,7 +226,20 @@ export async function handleDreamCommand(bot, msg, chatId) {
       }
 
       audioBuffers.push(buffer);
+      console.log("[DREAM] tts done", {
+        lineIndex: i,
+        speaker: parsed.speaker,
+        bufferLength: buffer.length
+      });
     }
+
+    console.log("[DREAM] tts loop done", {
+      audioBuffersLength: audioBuffers.length,
+      parsedLines,
+      skippedLines,
+      giuliaLines,
+      lidiaLines
+    });
 
     if (audioBuffers.length === 0) {
       await bot.sendMessage(chatId, "Aó, nun s’è capito chi parlava… riprova! ❤️");
@@ -200,11 +247,20 @@ export async function handleDreamCommand(bot, msg, chatId) {
     }
 
     const fullAudio = Buffer.concat(audioBuffers);
+    console.log("[DREAM] write audio start", {
+      audioBuffersLength: audioBuffers.length
+    });
     fs.writeFileSync("dream.ogg", fullAudio);
+    console.log("[DREAM] write audio done", {
+      file: "dream.ogg",
+      fullAudioLength: fullAudio.length
+    });
 
+    console.log("[DREAM] sendVoice start");
     await bot.sendVoice(chatId, fs.createReadStream("dream.ogg"), {
       caption
     });
+    console.log("[DREAM] sendVoice done");
   } catch (e) {
     console.error("Errore dream:", e.message);
     console.error("Stack dream:", e.stack);
