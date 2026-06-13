@@ -316,9 +316,15 @@ export async function handleDreamCommand(bot, msg, chatId) {
     });
 
     console.log("[DREAM] sendVoice start");
-    await bot.sendVoice(chatId, fs.createReadStream("dream.ogg"), {
-      caption
-    });
+    await bot.sendVoice(
+      chatId,
+      fs.createReadStream("dream.ogg"),
+      { caption },
+      {
+        filename: "dream.ogg",
+        contentType: "audio/ogg"
+      }
+    );
     console.log("[DREAM] sendVoice done");
   } catch (e) {
     console.error("Errore dream:", e.message);
