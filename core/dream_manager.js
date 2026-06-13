@@ -141,7 +141,7 @@ function parseSpeakerLine(line) {
   if (text.match(/^(LIDIA|ЛИДИЯ)[:：]/i)) {
     return {
       speaker: "Lidia",
-      voice: "echo",
+      voice: "nova",
       text: text.replace(/^(LIDIA|ЛИДИЯ)[:：]/i, "").trim()
     };
   }
