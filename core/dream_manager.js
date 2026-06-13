@@ -196,7 +196,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
       linesLength: lines.length
     });
 
-    const audioBuffers = [];
+    const parsedItems = [];
     let parsedLines = 0;
     let skippedLines = 0;
     let giuliaLines = 0;
@@ -218,36 +218,61 @@ export async function handleDreamCommand(bot, msg, chatId) {
         lidiaLines++;
       }
 
-      console.log("[DREAM] tts start", {
+      parsedItems.push({
         lineIndex: i,
-        speaker: parsed.speaker,
-        textLength: parsed.text.length
-      });
-      const buffer = await createSpeechBufferWithRetry({
         speaker: parsed.speaker,
         voice: parsed.voice,
-        text: parsed.text,
-        lineIndex: i
-      });
-
-      if (!buffer) {
-        continue;
-      }
-
-      audioBuffers.push(buffer);
-      console.log("[DREAM] tts done", {
-        lineIndex: i,
-        speaker: parsed.speaker,
-        bufferLength: buffer.length
+        text: parsed.text
       });
     }
+
+    const results = new Array(parsedItems.length);
+    let nextIndex = 0;
+    const concurrency = 2;
+
+    async function worker(workerId) {
+      while (nextIndex < parsedItems.length) {
+        const itemIndex = nextIndex++;
+        const item = parsedItems[itemIndex];
+
+        console.log("[DREAM] tts start", {
+          lineIndex: item.lineIndex,
+          speaker: item.speaker,
+          textLength: item.text.length,
+          workerId
+        });
+
+        const buffer = await createSpeechBufferWithRetry({
+          speaker: item.speaker,
+          voice: item.voice,
+          text: item.text,
+          lineIndex: item.lineIndex
+        });
+
+        results[itemIndex] = buffer || null;
+
+        if (buffer) {
+          console.log("[DREAM] tts done", {
+            lineIndex: item.lineIndex,
+            speaker: item.speaker,
+            bufferLength: buffer.length,
+            workerId
+          });
+        }
+      }
+    }
+
+    await Promise.all([worker(1), worker(2)]);
+
+    const audioBuffers = results.filter(Boolean);
 
     console.log("[DREAM] tts loop done", {
       audioBuffersLength: audioBuffers.length,
       parsedLines,
       skippedLines,
       giuliaLines,
-      lidiaLines
+      lidiaLines,
+      concurrency
     });
 
     if (audioBuffers.length === 0) {
