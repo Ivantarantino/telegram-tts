@@ -1,6 +1,7 @@
 // core/dream_manager.js – Dream Romana – Giulia & Lidia
 import { openai } from "../openai.js";
 import fs from "fs";
+import { getDreamRagContext } from "./dream_rag_context.js";
 
 let currentLang = "rm";
 let currentStyle = "comico";
@@ -58,7 +59,20 @@ async function createSpeechBufferWithRetry({ speaker, voice, text, lineIndex }) 
   return null;
 }
 
-function buildPromptAndCaption(testo) {
+function buildPromptAndCaption(testo, dreamRagContext = "") {
+  const ragSection = dreamRagContext
+    ? `
+
+Contesto breve dalla Biblioteca IRIS, da usare come seme narrativo.
+Non citarlo rigidamente. Non trasformare la scena in una lezione.
+Usalo per dare profondità, ma resta Giulia/Lidia vive, romanesche, comiche.
+
+---
+
+${dreamRagContext}
+---`
+    : "";
+
   if (currentLang === "rm" && currentStyle === "comico") {
     return {
       prompt: `Siete GIULIA e LIDIA, due trasteverine DOC ubriache de verità.
@@ -76,6 +90,7 @@ Ogni riga deve iniziare SOLO con GIULIA: o LIDIA:
 
 Testo:
 ${testo}
+${ragSection}
 
 Rispondi SOLO con:
 GIULIA: [testo]
@@ -93,6 +108,7 @@ Explain the text in a ${currentStyle === "serio" ? "clear, educational" : "warm,
 
 Text:
 ${testo}
+${ragSection}
 
 Answer ONLY with:
 GIULIA: [text]
@@ -110,6 +126,7 @@ etc.`,
 
 Текст:
 ${testo}
+${ragSection}
 
 Отвечайте ТОЛЬКО так:
 ДЖУЛИЯ: [текст]
@@ -126,6 +143,7 @@ Spiegate il testo in italiano ${currentStyle === "serio" ? "chiaro e profondo" :
 
 Testo:
 ${testo}
+${ragSection}
 
 Rispondi SOLO con:
 GIULIA: [testo]
@@ -176,7 +194,14 @@ export async function handleDreamCommand(bot, msg, chatId) {
   }
 
   try {
-    const { prompt, caption } = buildPromptAndCaption(testo);
+    console.log("[DREAM] rag context start");
+    const dreamRagContext = await getDreamRagContext(testo);
+    console.log("[DREAM] rag context done", {
+      hasContext: dreamRagContext.length > 0,
+      contextLength: dreamRagContext.length
+    });
+
+    const { prompt, caption } = buildPromptAndCaption(testo, dreamRagContext);
 
     console.log("[DREAM] chat completion start");
     const completion = await openai.chat.completions.create({
