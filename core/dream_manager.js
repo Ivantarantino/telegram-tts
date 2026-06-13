@@ -63,7 +63,16 @@ function buildPromptAndCaption(testo) {
     return {
       prompt: `Siete GIULIA e LIDIA, due trasteverine DOC ubriache de verità.
 Parlate SOLO in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella lì", "Roma mia".
-Spiegate il testo come se foste al bar de Piazza San Cosimato, emozionate, interrompetevi, ridete, fate battute.
+Fate una scenetta viva, non una spiegazione breve.
+Alternate sempre GIULIA e LIDIA.
+Scrivete almeno 12 battute e massimo 14 battute totali.
+Ogni battuta deve essere abbastanza corposa, ma non infinita.
+Potete usare parolacce leggere romanesche: cazzo, mortacci, annamo bene, porca miseria.
+Inventate immagini assurde e comiche, ma mantenete il senso del testo.
+Non chiudete subito: costruite una piccola scena.
+Interrompetevi, battibeccate, fate battute, ma restate dentro il tema.
+Non inserite righe narrative senza speaker.
+Ogni riga deve iniziare SOLO con GIULIA: o LIDIA:
 
 Testo:
 ${testo}
