@@ -1,6 +1,6 @@
 // core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
 import { computeEssenceSnapshot, getCurrentEssenceState } from "./essence_kristal.js";
-import { handleSogniCommand } from "./sogni.js";
+import { handleDreamCommand, setLang, setStyle } from "./dream_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -97,9 +97,45 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
+  // /lang
+  if (text.startsWith("/lang")) {
+    const lang = text.split(/\s+/)[1]?.toLowerCase();
+
+    if (["it", "en", "ru", "rm"].includes(lang)) {
+      setLang(lang);
+      await bot.sendMessage(
+        chatId,
+        "Lingua /dream impostata su: *" + (lang === "rm" ? "ROMANESCO" : lang.toUpperCase()) + "* ❤️",
+        { parse_mode: "Markdown" }
+      );
+      return true;
+    }
+
+    await bot.sendMessage(chatId, "Lingue disponibili per /dream: /lang it | en | ru | rm");
+    return true;
+  }
+
+  // /style
+  if (text.startsWith("/style")) {
+    const style = text.split(/\s+/)[1]?.toLowerCase();
+
+    if (["serio", "comico"].includes(style)) {
+      setStyle(style);
+      await bot.sendMessage(
+        chatId,
+        "Stile /dream impostato su: *" + style.toUpperCase() + "* ❤️",
+        { parse_mode: "Markdown" }
+      );
+      return true;
+    }
+
+    await bot.sendMessage(chatId, "Stili disponibili per /dream: /style serio | comico");
+    return true;
+  }
+
   // /dream – LA VERSIONE CHE FACEVA RIDERE
   if (text.startsWith("/dream") || text.startsWith("/sogni")) {
-    await handleSogniCommand(bot, msg, chatId);
+    await handleDreamCommand(bot, msg, chatId);
     return true;
   }
 
