@@ -19,20 +19,44 @@ import { handleCommand } from "./core/commands.js";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://telegram-tts.onrender.com";
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const PORT = Number(process.env.PORT) || 10000;
+const ARGS = new Set(process.argv.slice(2));
+const SHOULD_DELETE_WEBHOOK = ARGS.has("--delete-webhook");
+const SHOULD_SET_WEBHOOK = ARGS.has("--set-webhook");
+const USE_WEBHOOK = process.env.BOT_MODE === "webhook" || SHOULD_SET_WEBHOOK;
+const USE_POLLING = !USE_WEBHOOK && !SHOULD_DELETE_WEBHOOK;
+
+const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: USE_POLLING });
+
+if (SHOULD_DELETE_WEBHOOK) {
+  await bot.deleteWebHook({ drop_pending_updates: true });
+  console.log("Webhook Telegram cancellato. Pending updates eliminate. IRIS non avvia Express.");
+  process.exit(0);
+}
+
+if (USE_WEBHOOK) {
+  if (!PUBLIC_BASE_URL) {
+    console.error("PUBLIC_BASE_URL richiesto per BOT_MODE=webhook o --set-webhook.");
+    process.exit(1);
+  }
+
+  await bot.setWebHook(`${PUBLIC_BASE_URL}/bot${TELEGRAM_TOKEN}`);
+  console.log(`IRIS in modalità webhook: ${PUBLIC_BASE_URL}`);
+} else {
+  await bot.deleteWebHook({ drop_pending_updates: false });
+  console.log("IRIS respira in polling locale. Webhook remoto disattivato senza eliminare pending updates.");
+}
 
 const app = express();
 app.use(express.json());
 
-const bot = new TelegramBot(TELEGRAM_TOKEN);
-try { await bot.deleteWebHook(); } catch (_) {}
-await bot.setWebHook(`${PUBLIC_BASE_URL}/bot${TELEGRAM_TOKEN}`);
-
-app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
+if (USE_WEBHOOK) {
+  app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  });
+}
 
 // MODALITÀ
 const MODE_FILE = "./iris_mode.txt";
@@ -178,4 +202,7 @@ bot.on("message", async (msg) => {
 });
 
 app.get("/", (req, res) => res.send("IRIS respira ❤️"));
-app.listen(PORT, () => console.log(`IRIS ubriaca di verità respira su https://telegram-tts.onrender.com`));
+app.listen(PORT, () => {
+  const modeLabel = USE_WEBHOOK ? "webhook" : "polling locale";
+  console.log(`IRIS ubriaca di verità respira in modalità ${modeLabel} sulla porta ${PORT}`);
+});
