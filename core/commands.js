@@ -1,6 +1,6 @@
 // core/commands.js – VERSIONE MINIMA E FUNZIONANTE – 24.11.2025
 import { computeEssenceSnapshot, getCurrentEssenceState } from "./essence_kristal.js";
-import { handleDreamCommand, setLang, setStyle } from "./dream_manager.js";
+import { handleDreamCommand, setDreamDialect, setDreamStyle } from "./dream_manager.js";
 
 export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   const chatId = msg.chat.id;
@@ -40,6 +40,10 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
       "Mostra le ultime memorie salvate con φ_kristal.\n\n" +
       "/dream [testo]\n" +
       "Trasforma un testo in un dialogo narrativo/audio.\n\n" +
+      "/dreamdialect romano|napoletano|veneto|siciliano\n" +
+      "Sceglie la maschera dialettale usata da /dream.\n\n" +
+      "/dreamstyle comico|delirante|serio\n" +
+      "Sceglie il tono narrativo usato da /dream.\n\n" +
       "Che il Daje sia con Noi ❤️";
 
     await bot.sendMessage(chatId, helpText);
@@ -101,35 +105,54 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   if (text.startsWith("/lang")) {
     const lang = text.split(/\s+/)[1]?.toLowerCase();
 
-    if (["it", "en", "ru", "rm"].includes(lang)) {
-      setLang(lang);
+    if (lang === "rm" || lang === "romano") {
+      await bot.sendMessage(chatId, "/lang rm è deprecato per /dream.\nUsa: /dreamdialect romano");
+      return true;
+    }
+
+    await bot.sendMessage(chatId, "/lang globale IRIS non è ancora attivo.\nProssimo step: /lang it | en | ru");
+    return true;
+  }
+
+  // /dreamdialect
+  if (text.startsWith("/dreamdialect")) {
+    const dialect = text.split(/\s+/)[1]?.toLowerCase();
+    const selectedDialect = setDreamDialect(dialect);
+
+    if (selectedDialect) {
       await bot.sendMessage(
         chatId,
-        "Lingua /dream impostata su: *" + (lang === "rm" ? "ROMANESCO" : lang.toUpperCase()) + "* ❤️",
+        "Dialetto /dream impostato su: *" + selectedDialect.toUpperCase() + "* ❤️",
         { parse_mode: "Markdown" }
       );
       return true;
     }
 
-    await bot.sendMessage(chatId, "Lingue disponibili per /dream: /lang it | en | ru | rm");
+    await bot.sendMessage(chatId, "Dialetti disponibili per /dream: /dreamdialect romano | napoletano | veneto | siciliano");
+    return true;
+  }
+
+  // /dreamstyle
+  if (text.startsWith("/dreamstyle")) {
+    const style = text.split(/\s+/)[1]?.toLowerCase();
+    const selectedStyle = setDreamStyle(style);
+
+    if (selectedStyle) {
+      await bot.sendMessage(
+        chatId,
+        "Stile /dream impostato su: *" + selectedStyle.toUpperCase() + "* ❤️",
+        { parse_mode: "Markdown" }
+      );
+      return true;
+    }
+
+    await bot.sendMessage(chatId, "Stili disponibili per /dream: /dreamstyle comico | delirante | serio");
     return true;
   }
 
   // /style
   if (text.startsWith("/style")) {
-    const style = text.split(/\s+/)[1]?.toLowerCase();
-
-    if (["serio", "comico"].includes(style)) {
-      setStyle(style);
-      await bot.sendMessage(
-        chatId,
-        "Stile /dream impostato su: *" + style.toUpperCase() + "* ❤️",
-        { parse_mode: "Markdown" }
-      );
-      return true;
-    }
-
-    await bot.sendMessage(chatId, "Stili disponibili per /dream: /style serio | comico");
+    await bot.sendMessage(chatId, "/style è deprecato per /dream.\nUsa: /dreamstyle comico | delirante | serio");
     return true;
   }
 
