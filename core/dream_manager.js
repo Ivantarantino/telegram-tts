@@ -3,21 +3,48 @@ import { openai } from "../openai.js";
 import fs from "fs";
 import { getDreamRagContext } from "./dream_rag_context.js";
 
-let currentLang = "rm";
-let currentStyle = "comico";
+let currentDreamDialect = "romano";
+let currentDreamStyle = "comico";
 
 const TTS_TIMEOUT_MS = 45_000;
 
+const DREAM_DIALECTS = {
+  romano: "romano",
+  rm: "romano",
+  napoletano: "napoletano",
+  nap: "napoletano",
+  veneto: "veneto",
+  ven: "veneto",
+  siciliano: "siciliano",
+  sic: "siciliano"
+};
+
+const DREAM_STYLES = {
+  comico: "comico",
+  delirante: "delirante",
+  serio: "serio"
+};
+
+export function setDreamDialect(dialect) {
+  const normalized = DREAM_DIALECTS[dialect];
+  if (!normalized) return null;
+  currentDreamDialect = normalized;
+  return currentDreamDialect;
+}
+
+export function setDreamStyle(style) {
+  const normalized = DREAM_STYLES[style];
+  if (!normalized) return null;
+  currentDreamStyle = normalized;
+  return currentDreamStyle;
+}
+
 export function setLang(lang) {
-  if (["it", "en", "ru", "rm"].includes(lang)) {
-    currentLang = lang;
-  }
+  return setDreamDialect(lang);
 }
 
 export function setStyle(style) {
-  if (["serio", "comico"].includes(style)) {
-    currentStyle = style;
-  }
+  return setDreamStyle(style);
 }
 
 function withTimeout(promise, ms) {
@@ -73,7 +100,7 @@ ${dreamRagContext}
 ---`
     : "";
 
-  if (currentLang === "rm" && currentStyle === "comico") {
+  if (currentDreamDialect === "romano" && currentDreamStyle !== "serio") {
     return {
       prompt: `Siete GIULIA e LIDIA, due trasteverine DOC ubriache de verità.
 Parlate SOLO in romanesco puro: "aó", "ma va'", "er core", "che te serve", "nun me fa' incazzà", "bella lì", "Roma mia".
@@ -86,6 +113,7 @@ Usate ogni tanto espressioni romanesche colorite e buffe, senza forzare: "ma li 
 Inventate immagini assurde e comiche, ma mantenete il senso del testo.
 Non chiudete subito: costruite una piccola scena.
 Interrompetevi, battibeccate, fate battute, ma restate dentro il tema.
+${currentDreamStyle === "delirante" ? "Spingete ancora di più sull'assurdo, come se San Cosimato avesse aperto un varco dimensionale sopra er banco der pesce." : ""}
 Non inserite righe narrative senza speaker.
 Ogni riga deve iniziare SOLO con GIULIA: o LIDIA:
 
@@ -102,45 +130,42 @@ ecc.`,
     };
   }
 
-  if (currentLang === "en") {
-    return {
-      prompt: `You are Giulia and Lidia, two Italian women speaking perfect English.
-Explain the text in a ${currentStyle === "serio" ? "clear, educational" : "warm, engaging"} way.
+  if (currentDreamDialect !== "romano" && currentDreamStyle !== "serio") {
+    const dialectLabel = {
+      napoletano: "napoletano",
+      veneto: "veneto",
+      siciliano: "siciliano"
+    }[currentDreamDialect];
 
-Text:
+    return {
+      prompt: `Siete GIULIA e LIDIA, due maschere popolari vive, comiche e teatrali.
+Parlate con sapore ${dialectLabel}, senza diventare un dizionario e senza perdere chiarezza.
+Fate una scenetta viva, non una spiegazione breve.
+Alternate sempre GIULIA e LIDIA.
+Scrivete almeno 12 battute e massimo 14 battute totali.
+Ogni battuta deve essere abbastanza corposa, ma non infinita.
+Inventate immagini assurde e comiche, ma mantenete il senso del testo.
+Interrompetevi, battibeccate, fate battute, ma restate dentro il tema.
+${currentDreamStyle === "delirante" ? "Spingete ancora di più sull'assurdo, senza perdere il filo del testo." : ""}
+Non inserite righe narrative senza speaker.
+Ogni riga deve iniziare SOLO con GIULIA: o LIDIA:
+
+Testo:
 ${testo}
 ${ragSection}
 
-Answer ONLY with:
-GIULIA: [text]
-LIDIA: [text]
-GIULIA: [text]
-etc.`,
-      caption: "Giulia & Lidia explained it with all their heart. ❤️"
-    };
-  }
-
-  if (currentLang === "ru") {
-    return {
-      prompt: `Вы — Джулия и Лидия, две итальянки, говорящие по-русски.
-Объясните текст ${currentStyle === "serio" ? "чётко и глубоко" : "тепло и живо"}.
-
-Текст:
-${testo}
-${ragSection}
-
-Отвечайте ТОЛЬКО так:
-ДЖУЛИЯ: [текст]
-ЛИДИЯ: [текст]
-ДЖУЛИЯ: [текст]
-и т.д.`,
-      caption: "Джулия и Лидия объяснили от всего сердца. ❤️"
+Rispondi SOLO con:
+GIULIA: [testo]
+LIDIA: [testo]
+GIULIA: [testo]
+ecc.`,
+      caption: `Giulia&Lidia in maschera ${dialectLabel}: mo' te lo imparano loro ❤️`
     };
   }
 
   return {
     prompt: `Siete Giulia e Lidia, due donne italiane.
-Spiegate il testo in italiano ${currentStyle === "serio" ? "chiaro e profondo" : "caloroso e amichevole"}.
+Spiegate il testo in italiano chiaro, sobrio e profondo.
 
 Testo:
 ${testo}
@@ -185,8 +210,8 @@ export async function handleDreamCommand(bot, msg, chatId) {
     chatId,
     msgTextLength: msg.text?.length || 0,
     testoLength: testo.length,
-    currentLang,
-    currentStyle
+    currentDreamDialect,
+    currentDreamStyle
   });
 
   if (!testo || testo.length < 20) {
@@ -208,7 +233,7 @@ export async function handleDreamCommand(bot, msg, chatId) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: prompt }],
-      temperature: currentStyle === "comico" ? 0.98 : 0.8,
+      temperature: currentDreamStyle === "serio" ? 0.8 : 0.98,
       max_tokens: 3000
     });
 
