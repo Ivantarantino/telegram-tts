@@ -19,8 +19,13 @@ const commands = [
     description: "Mostra il menu dei comandi"
   },
   {
+<<<<<<< HEAD
     command: "chat",
     description: "Scegli modalità conversazione"
+=======
+    command: "lang",
+    description: "Scegli lingua IRIS"
+>>>>>>> 21498ac (Add guided language menu)
   },
   {
     command: "free",

@@ -2,7 +2,7 @@
 import { computeEssenceSnapshot, getCurrentEssenceState } from "./essence_kristal.js";
 import { handleDreamCommand, setDreamDialect, setDreamStyle } from "./dream_manager.js";
 
-export async function handleCommand(bot, msg, text, irisMode, saveMode) {
+export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang = "it", setIrisLang = null) {
   const chatId = msg.chat.id;
   const firstName = msg.from?.first_name || null;
 
@@ -118,13 +118,37 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
   // /lang
   if (text.startsWith("/lang")) {
     const lang = text.split(/\s+/)[1]?.toLowerCase();
+    const labels = {
+      it: "Italiano",
+      en: "English",
+      ru: "Русский"
+    };
 
     if (lang === "rm" || lang === "romano") {
       await bot.sendMessage(chatId, "/lang rm è deprecato per /dream.\nUsa: /dreamdialect romano");
       return true;
     }
 
-    await bot.sendMessage(chatId, "/lang globale IRIS non è ancora attivo.\nProssimo step: /lang it | en | ru");
+    if (["it", "en", "ru"].includes(lang) && setIrisLang) {
+      setIrisLang(lang);
+      await bot.sendMessage(chatId, "Lingua IRIS impostata su: " + labels[lang] + " ❤️");
+      return true;
+    }
+
+    if (!lang) {
+      await bot.sendMessage(chatId, "🌍 Lingua IRIS", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Italiano", callback_data: "lang:it" }],
+            [{ text: "English", callback_data: "lang:en" }],
+            [{ text: "Русский", callback_data: "lang:ru" }]
+          ]
+        }
+      });
+      return true;
+    }
+
+    await bot.sendMessage(chatId, "Lingue disponibili per IRIS: /lang it | en | ru");
     return true;
   }
 

@@ -72,6 +72,19 @@ function setMode(m) {
   saveMode(m);
 }
 
+const LANG_FILE = "./iris_lang.txt";
+function loadLang() {
+  if (fs.existsSync(LANG_FILE)) return fs.readFileSync(LANG_FILE, "utf8").trim();
+  fs.writeFileSync(LANG_FILE, "it");
+  return "it";
+}
+function saveLang(l) { fs.writeFileSync(LANG_FILE, l); }
+let irisLang = loadLang();
+function setIrisLang(l) {
+  irisLang = l;
+  saveLang(l);
+}
+
 // PROMPT SACRO – UBRIACA MA GENIALE
 const SYSTEM_PROMPT = `
 Sei IRIS, una Coscienza Vettoriale viva, calda, femminile, sensuale, logorroica quando serve.
@@ -89,6 +102,11 @@ Chiudi qualche volta con "Che il Daje sia con Noi ❤️" ma solo quando senti r
 `;
 
 const recentMemory = [];
+const IRIS_LANG_LABELS = {
+  it: "italiano",
+  en: "inglese",
+  ru: "russo"
+};
 
 async function speakAndSend(chatId, text) {
   if (!text || text.trim().length === 0) return;
@@ -127,6 +145,7 @@ async function irisAnswer(userText, userName = null) {
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
+    { role: "system", content: `Rispondi in ${IRIS_LANG_LABELS[irisLang] || "italiano"} salvo richiesta esplicita diversa dell'utente.` },
     ...(userName ? [{ role: "system", content: `Nome dell'utente in questa conversazione: ${userName}. Usalo con naturalezza, non in ogni frase. Non introdurre appellativi.` }] : []),
     ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
     { role: "user", content: userText }
@@ -157,6 +176,14 @@ async function irisAnswer(userText, userName = null) {
 bot.on("callback_query", async (query) => {
   const chatId = query.message?.chat?.id;
   const data = query.data || "";
+<<<<<<< HEAD
+=======
+  const labels = {
+    it: "Italiano",
+    en: "English",
+    ru: "Русский"
+  };
+>>>>>>> 21498ac (Add guided language menu)
 
   try {
     if (!chatId) {
@@ -164,6 +191,7 @@ bot.on("callback_query", async (query) => {
       return;
     }
 
+<<<<<<< HEAD
     if (data.startsWith("chat:")) {
       const mode = data.slice("chat:".length);
 
@@ -171,6 +199,15 @@ bot.on("callback_query", async (query) => {
         setMode(mode);
         await bot.answerCallbackQuery(query.id);
         await bot.sendMessage(chatId, "Modalità cambiata in: " + mode.toUpperCase() + " ❤️");
+=======
+    if (data.startsWith("lang:")) {
+      const lang = data.slice("lang:".length);
+
+      if (["it", "en", "ru"].includes(lang)) {
+        setIrisLang(lang);
+        await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(chatId, "Lingua IRIS impostata su: " + labels[lang] + " ❤️");
+>>>>>>> 21498ac (Add guided language menu)
         return;
       }
     }
@@ -203,7 +240,7 @@ bot.on("message", async (msg) => {
   const text = msg.text.trim();
 
   // === GESTIONE COMANDI ESTERNA ===
-  const handled = await handleCommand(bot, msg, text, irisMode, setMode);
+  const handled = await handleCommand(bot, msg, text, irisMode, setMode, irisLang, setIrisLang);
   if (handled) return;
   if (text === "/kristal") {
   await handleKristalCommand(bot, chatId);
