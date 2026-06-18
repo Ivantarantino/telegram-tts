@@ -35,24 +35,12 @@ const commands = [
     description: "Mostra l’Essenza Kristal"
   },
   {
-    command: "state",
-    description: "Mostra lo stato operativo di IRIS"
-  },
-  {
     command: "kristal",
     description: "Mostra le ultime memorie Kristal"
   },
   {
     command: "dream",
     description: "Crea un dialogo narrativo/audio"
-  },
-  {
-    command: "dreamdialect",
-    description: "Scegli il dialetto di Dream"
-  },
-  {
-    command: "dreamstyle",
-    description: "Scegli lo stile di Dream"
   }
 ];
 
