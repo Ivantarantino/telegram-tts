@@ -154,6 +154,36 @@ async function irisAnswer(userText, userName = null) {
   }
 }
 
+bot.on("callback_query", async (query) => {
+  const chatId = query.message?.chat?.id;
+  const data = query.data || "";
+
+  try {
+    if (!chatId) {
+      await bot.answerCallbackQuery(query.id);
+      return;
+    }
+
+    if (data.startsWith("chat:")) {
+      const mode = data.slice("chat:".length);
+
+      if (["free", "book", "hy"].includes(mode)) {
+        setMode(mode);
+        await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(chatId, "Modalità cambiata in: " + mode.toUpperCase() + " ❤️");
+        return;
+      }
+    }
+
+    await bot.answerCallbackQuery(query.id);
+  } catch (err) {
+    console.error("Errore callback_query:", err.message);
+    try {
+      await bot.answerCallbackQuery(query.id);
+    } catch (_) {}
+  }
+});
+
 // ================== MESSAGGI – ECO CURATA ==================
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
