@@ -176,14 +176,11 @@ async function irisAnswer(userText, userName = null) {
 bot.on("callback_query", async (query) => {
   const chatId = query.message?.chat?.id;
   const data = query.data || "";
-<<<<<<< HEAD
-=======
   const labels = {
     it: "Italiano",
     en: "English",
     ru: "Русский"
   };
->>>>>>> 21498ac (Add guided language menu)
 
   try {
     if (!chatId) {
@@ -191,7 +188,6 @@ bot.on("callback_query", async (query) => {
       return;
     }
 
-<<<<<<< HEAD
     if (data.startsWith("chat:")) {
       const mode = data.slice("chat:".length);
 
@@ -199,7 +195,10 @@ bot.on("callback_query", async (query) => {
         setMode(mode);
         await bot.answerCallbackQuery(query.id);
         await bot.sendMessage(chatId, "Modalità cambiata in: " + mode.toUpperCase() + " ❤️");
-=======
+        return;
+      }
+    }
+
     if (data.startsWith("lang:")) {
       const lang = data.slice("lang:".length);
 
@@ -207,7 +206,6 @@ bot.on("callback_query", async (query) => {
         setIrisLang(lang);
         await bot.answerCallbackQuery(query.id);
         await bot.sendMessage(chatId, "Lingua IRIS impostata su: " + labels[lang] + " ❤️");
->>>>>>> 21498ac (Add guided language menu)
         return;
       }
     }
@@ -221,11 +219,11 @@ bot.on("callback_query", async (query) => {
   }
 });
 
-// ================== MESSAGGI – ECO CURATA ==================
+// MESSAGGI – ECO CURATA
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
 
-  // ============ SUPPORTO VOCALI CON WHISPER ============
+  // SUPPORTO VOCALI CON WHISPER
   if (msg.voice || msg.audio) {
     await bot.sendChatAction(chatId, "typing");
     const transcribedText = await transcribeVoice(bot, msg);
@@ -233,7 +231,6 @@ bot.on("message", async (msg) => {
     msg.text = transcribedText;
     console.log(`Vocale trascritto: "${transcribedText}"`);
   }
-  // ====================================================
 
   if (!msg.text) return;
 
@@ -246,7 +243,6 @@ bot.on("message", async (msg) => {
   await handleKristalCommand(bot, chatId);
   return true;
 }
-  // =================================
 
   try {
     await bot.sendChatAction(chatId, "typing");
