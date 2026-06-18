@@ -19,6 +19,10 @@ const commands = [
     description: "Mostra il menu dei comandi"
   },
   {
+    command: "chat",
+    description: "Scegli modalità conversazione"
+  },
+  {
     command: "free",
     description: "Modalità libera, senza Biblioteca"
   },

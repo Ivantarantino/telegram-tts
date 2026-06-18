@@ -50,6 +50,20 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode) {
     return true;
   }
 
+  // /chat
+  if (text === "/chat") {
+    await bot.sendMessage(chatId, "💬 Modalità Conversazione", {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Libera", callback_data: "chat:free" }],
+          [{ text: "Biblioteca", callback_data: "chat:book" }],
+          [{ text: "Ibrida", callback_data: "chat:hy" }]
+        ]
+      }
+    });
+    return true;
+  }
+
   // /essence
   if (text === "/essence") {
     const snapshot = await computeEssenceSnapshot(50);
