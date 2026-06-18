@@ -145,7 +145,7 @@ async function irisAnswer(userText, userName = null) {
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
-    { role: "system", content: `Rispondi in ${IRIS_LANG_LABELS[irisLang] || "italiano"} salvo richiesta esplicita diversa dell'utente.` },
+    { role: "system", content: `Lingua globale attiva di IRIS: ${IRIS_LANG_LABELS[irisLang] || "italiano"}.\nPer tutte le risposte normali di IRIS rispondi sempre in ${IRIS_LANG_LABELS[irisLang] || "italiano"}, indipendentemente dalla lingua usata dall'utente.\nNon cambiare lingua salvo nuovo comando /lang.` },
     ...(userName ? [{ role: "system", content: `Nome dell'utente in questa conversazione: ${userName}. Usalo con naturalezza, non in ogni frase. Non introdurre appellativi.` }] : []),
     ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
     { role: "user", content: userText }
