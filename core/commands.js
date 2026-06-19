@@ -196,6 +196,17 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
 
   // /dream – LA VERSIONE CHE FACEVA RIDERE
   if (text.startsWith("/dream") || text.startsWith("/sogni")) {
+    if (/^\/dream(@\w+)?$/i.test(text)) {
+      await bot.sendMessage(chatId, "🎭 Dream", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🚀 Avvia Dream", callback_data: "dream:start" }]
+          ]
+        }
+      });
+      return true;
+    }
+
     await handleDreamCommand(bot, msg, chatId);
     return true;
   }
