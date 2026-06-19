@@ -14,7 +14,7 @@ import {
 } from "./core/rag_brutale.js";
 
 import { transcribeVoice } from "./core/stt_handler.js";
-import { handleCommand } from "./core/commands.js";
+import { handleCommand, sendEssenceSnapshot, sendStateSnapshot } from "./core/commands.js";
 import { handleDreamCommand, setDreamDialect, setDreamStyle } from "./core/dream_manager.js";
 
 dotenv.config();
@@ -222,6 +222,24 @@ bot.on("callback_query", async (query) => {
         await bot.sendMessage(chatId, "Lingua IRIS impostata su: " + labels[lang] + " ❤️");
         return;
       }
+    }
+
+    if (data === "essence:snapshot") {
+      await bot.answerCallbackQuery(query.id);
+      await sendEssenceSnapshot(bot, chatId);
+      return;
+    }
+
+    if (data === "essence:kristal") {
+      await bot.answerCallbackQuery(query.id);
+      await handleKristalCommand(bot, chatId);
+      return;
+    }
+
+    if (data === "essence:state") {
+      await bot.answerCallbackQuery(query.id);
+      await sendStateSnapshot(bot, chatId, irisMode);
+      return;
     }
 
     if (data === "dream:start") {
