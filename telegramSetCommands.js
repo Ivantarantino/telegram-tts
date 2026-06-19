@@ -27,24 +27,8 @@ const commands = [
     description: "Scegli lingua IRIS"
   },
   {
-    command: "free",
-    description: "Modalità libera, senza Biblioteca"
-  },
-  {
-    command: "book",
-    description: "Modalità Biblioteca"
-  },
-  {
-    command: "hy",
-    description: "Modalità ibrida"
-  },
-  {
     command: "essence",
     description: "Mostra l’Essenza Kristal"
-  },
-  {
-    command: "kristal",
-    description: "Mostra le ultime memorie Kristal"
   },
   {
     command: "dream",
