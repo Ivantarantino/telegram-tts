@@ -40,7 +40,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
       "Mostra le ultime memorie salvate con φ_kristal.\n\n" +
       "/dream [testo]\n" +
       "Trasforma un testo in un dialogo narrativo/audio.\n\n" +
-      "/dreamdialect romano|napoletano|veneto|siciliano\n" +
+      "/dreamdialect romano|napoletano|veneto|siciliano|ciociaro\n" +
       "Sceglie la maschera dialettale usata da /dream.\n\n" +
       "/dreamstyle comico|delirante|serio\n" +
       "Sceglie il tono narrativo usato da /dream.\n\n" +
@@ -166,7 +166,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
       return true;
     }
 
-    await bot.sendMessage(chatId, "Dialetti disponibili per /dream: /dreamdialect romano | napoletano | veneto | siciliano");
+    await bot.sendMessage(chatId, "Dialetti disponibili per /dream: /dreamdialect romano | napoletano | veneto | siciliano | ciociaro");
     return true;
   }
 
@@ -200,6 +200,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
       await bot.sendMessage(chatId, "🎭 Dream", {
         reply_markup: {
           inline_keyboard: [
+            [{ text: "🎭 Dialetto", callback_data: "dream:dialect" }],
+            [{ text: "🎨 Stile", callback_data: "dream:style" }],
             [{ text: "🚀 Avvia Dream", callback_data: "dream:start" }]
           ]
         }

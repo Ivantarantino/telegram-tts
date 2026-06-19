@@ -16,7 +16,9 @@ const DREAM_DIALECTS = {
   veneto: "veneto",
   ven: "veneto",
   siciliano: "siciliano",
-  sic: "siciliano"
+  sic: "siciliano",
+  ciociaro: "ciociaro",
+  cio: "ciociaro"
 };
 
 const DREAM_STYLES = {
@@ -134,7 +136,8 @@ ecc.`,
     const dialectLabel = {
       napoletano: "napoletano",
       veneto: "veneto",
-      siciliano: "siciliano"
+      siciliano: "siciliano",
+      ciociaro: "ciociaro"
     }[currentDreamDialect];
 
     return {
