@@ -197,12 +197,14 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   // /dream – LA VERSIONE CHE FACEVA RIDERE
   if (text.startsWith("/dream") || text.startsWith("/sogni")) {
     if (/^\/dream(@\w+)?$/i.test(text)) {
-      await bot.sendMessage(chatId, "🎭 Dream", {
+      await bot.sendMessage(chatId, "🎭 Scegli il dialetto Dream", {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "🎭 Dialetto", callback_data: "dream:dialect" }],
-            [{ text: "🎨 Stile", callback_data: "dream:style" }],
-            [{ text: "🚀 Avvia Dream", callback_data: "dream:start" }]
+            [{ text: "Romano", callback_data: "dream:dialect:romano" }],
+            [{ text: "Napoletano", callback_data: "dream:dialect:napoletano" }],
+            [{ text: "Veneto", callback_data: "dream:dialect:veneto" }],
+            [{ text: "Siciliano", callback_data: "dream:dialect:siciliano" }],
+            [{ text: "Ciociaro", callback_data: "dream:dialect:ciociaro" }]
           ]
         }
       });

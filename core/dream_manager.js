@@ -143,6 +143,8 @@ ecc.`,
     return {
       prompt: `Siete GIULIA e LIDIA, due maschere popolari vive, comiche e teatrali.
 Parlate con sapore ${dialectLabel}, senza diventare un dizionario e senza perdere chiarezza.
+Scrivete la scenetta usando cadenza, lessico e colore del dialetto scelto, senza diventare italiano standard.
+Non usate romano se il dialetto scelto non è romano.
 Fate una scenetta viva, non una spiegazione breve.
 Alternate sempre GIULIA e LIDIA.
 Scrivete almeno 12 battute e massimo 14 battute totali.
