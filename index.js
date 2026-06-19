@@ -183,6 +183,18 @@ bot.on("callback_query", async (query) => {
     en: "English",
     ru: "Русский"
   };
+  const dreamDialectLabels = {
+    romano: "Romano",
+    napoletano: "Napoletano",
+    veneto: "Veneto",
+    siciliano: "Siciliano",
+    ciociaro: "Ciociaro"
+  };
+  const dreamStyleLabels = {
+    comico: "Comico",
+    delirante: "Delirante",
+    serio: "Serio"
+  };
 
   try {
     if (!chatId) {
@@ -242,14 +254,19 @@ bot.on("callback_query", async (query) => {
       await bot.answerCallbackQuery(query.id);
 
       if (selectedDialect) {
-        const dialectLabels = {
-          romano: "Romano",
-          napoletano: "Napoletano",
-          veneto: "Veneto",
-          siciliano: "Siciliano",
-          ciociaro: "Ciociaro"
-        };
-        await bot.sendMessage(chatId, "Dialetto Dream impostato su: " + dialectLabels[selectedDialect] + " ❤️");
+        pendingActions.set(chatId, {
+          type: "dream_settings",
+          dialect: selectedDialect
+        });
+        await bot.sendMessage(chatId, "🎨 Scegli lo stile Dream", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "Comico", callback_data: "dream:style:comico" }],
+              [{ text: "Delirante", callback_data: "dream:style:delirante" }],
+              [{ text: "Serio", callback_data: "dream:style:serio" }]
+            ]
+          }
+        });
         return;
       }
 
@@ -278,12 +295,24 @@ bot.on("callback_query", async (query) => {
       await bot.answerCallbackQuery(query.id);
 
       if (selectedStyle) {
-        const styleLabels = {
-          comico: "Comico",
-          delirante: "Delirante",
-          serio: "Serio"
-        };
-        await bot.sendMessage(chatId, "Stile Dream impostato su: " + styleLabels[selectedStyle] + " ❤️");
+        const pending = pendingActions.get(chatId);
+        const selectedDialect = pending?.type === "dream_settings" ? pending.dialect : "romano";
+
+        pendingActions.delete(chatId);
+
+        await bot.sendMessage(
+          chatId,
+          "✅ Dream pronto\n\n" +
+            "Dialetto: " + dreamDialectLabels[selectedDialect] + "\n" +
+            "Stile: " + dreamStyleLabels[selectedStyle],
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🚀 Avvia Dream", callback_data: "dream:start" }]
+              ]
+            }
+          }
+        );
         return;
       }
 
