@@ -15,6 +15,7 @@ import {
 
 import { transcribeVoice } from "./core/stt_handler.js";
 import { handleCommand } from "./core/commands.js";
+import { handleDreamCommand } from "./core/dream_manager.js";
 
 dotenv.config();
 
@@ -102,6 +103,7 @@ Chiudi qualche volta con "Che il Daje sia con Noi ❤️" ma solo quando senti r
 `;
 
 const recentMemory = [];
+const pendingActions = new Map();
 const IRIS_LANG_LABELS = {
   it: "italiano",
   en: "inglese",
@@ -210,6 +212,13 @@ bot.on("callback_query", async (query) => {
       }
     }
 
+    if (data === "dream:start") {
+      pendingActions.set(chatId, { type: "dream_waiting_text" });
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, "Mandami il testo da trasformare in Dream 🎭");
+      return;
+    }
+
     await bot.answerCallbackQuery(query.id);
   } catch (err) {
     console.error("Errore callback_query:", err.message);
@@ -235,6 +244,14 @@ bot.on("message", async (msg) => {
   if (!msg.text) return;
 
   const text = msg.text.trim();
+
+  const pending = pendingActions.get(chatId);
+  if (pending?.type === "dream_waiting_text") {
+    pendingActions.delete(chatId);
+    msg.text = "/dream " + text;
+    await handleDreamCommand(bot, msg, chatId);
+    return;
+  }
 
   // === GESTIONE COMANDI ESTERNA ===
   const handled = await handleCommand(bot, msg, text, irisMode, setMode, irisLang, setIrisLang);
