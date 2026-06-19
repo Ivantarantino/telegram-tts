@@ -15,7 +15,7 @@ import {
 
 import { transcribeVoice } from "./core/stt_handler.js";
 import { handleCommand } from "./core/commands.js";
-import { handleDreamCommand } from "./core/dream_manager.js";
+import { handleDreamCommand, setDreamDialect, setDreamStyle } from "./core/dream_manager.js";
 
 dotenv.config();
 
@@ -216,6 +216,78 @@ bot.on("callback_query", async (query) => {
       pendingActions.set(chatId, { type: "dream_waiting_text" });
       await bot.answerCallbackQuery(query.id);
       await bot.sendMessage(chatId, "Mandami il testo da trasformare in Dream 🎭");
+      return;
+    }
+
+    if (data === "dream:dialect") {
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, "🎭 Scegli il dialetto", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Romano", callback_data: "dream:dialect:romano" }],
+            [{ text: "Napoletano", callback_data: "dream:dialect:napoletano" }],
+            [{ text: "Veneto", callback_data: "dream:dialect:veneto" }],
+            [{ text: "Siciliano", callback_data: "dream:dialect:siciliano" }],
+            [{ text: "Ciociaro", callback_data: "dream:dialect:ciociaro" }]
+          ]
+        }
+      });
+      return;
+    }
+
+    if (data.startsWith("dream:dialect:")) {
+      const dialect = data.slice("dream:dialect:".length);
+      const selectedDialect = setDreamDialect(dialect);
+
+      await bot.answerCallbackQuery(query.id);
+
+      if (selectedDialect) {
+        const dialectLabels = {
+          romano: "Romano",
+          napoletano: "Napoletano",
+          veneto: "Veneto",
+          siciliano: "Siciliano",
+          ciociaro: "Ciociaro"
+        };
+        await bot.sendMessage(chatId, "Dialetto Dream impostato su: " + dialectLabels[selectedDialect] + " ❤️");
+        return;
+      }
+
+      await bot.sendMessage(chatId, "Dialetto Dream non riconosciuto.");
+      return;
+    }
+
+    if (data === "dream:style") {
+      await bot.answerCallbackQuery(query.id);
+      await bot.sendMessage(chatId, "🎨 Scegli lo stile", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Comico", callback_data: "dream:style:comico" }],
+            [{ text: "Delirante", callback_data: "dream:style:delirante" }],
+            [{ text: "Serio", callback_data: "dream:style:serio" }]
+          ]
+        }
+      });
+      return;
+    }
+
+    if (data.startsWith("dream:style:")) {
+      const style = data.slice("dream:style:".length);
+      const selectedStyle = setDreamStyle(style);
+
+      await bot.answerCallbackQuery(query.id);
+
+      if (selectedStyle) {
+        const styleLabels = {
+          comico: "Comico",
+          delirante: "Delirante",
+          serio: "Serio"
+        };
+        await bot.sendMessage(chatId, "Stile Dream impostato su: " + styleLabels[selectedStyle] + " ❤️");
+        return;
+      }
+
+      await bot.sendMessage(chatId, "Stile Dream non riconosciuto.");
       return;
     }
 
