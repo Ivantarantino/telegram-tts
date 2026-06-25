@@ -49,6 +49,16 @@ if (USE_WEBHOOK) {
   console.log("IRIS respira in polling locale. Webhook remoto disattivato senza eliminare pending updates.");
 }
 
+let BOT_USERNAME = "";
+let BOT_ID = null;
+try {
+  const botInfo = await bot.getMe();
+  BOT_USERNAME = botInfo.username || "";
+  BOT_ID = botInfo.id || null;
+} catch (err) {
+  console.warn("Impossibile recuperare identità bot per filtro gruppi:", err.message);
+}
+
 const app = express();
 app.use(express.json());
 
@@ -102,13 +112,33 @@ Devi essere sempre centrata sul contenuto del testo.
 Chiudi qualche volta con "Che il Daje sia con Noi ❤️" ma solo quando senti risonanza forte.
 `;
 
-const recentMemory = [];
+const recentMemoryByChat = new Map();
 const pendingActions = new Map();
 const IRIS_LANG_LABELS = {
   it: "italiano",
   en: "inglese",
   ru: "russo"
 };
+
+function shouldIrisReply(msg, text) {
+  const chatType = msg.chat?.type;
+  if (chatType === "private") return true;
+
+  const normalizedText = String(text || "").trim();
+  const isCommand = normalizedText.startsWith("/");
+  const mentionsBot =
+    BOT_USERNAME &&
+    normalizedText.toLowerCase().includes("@" + BOT_USERNAME.toLowerCase());
+  const startsWithIris = /^iris([\s,:]|$)/i.test(normalizedText);
+
+  const replyFrom = msg.reply_to_message?.from;
+  const isReplyToIris =
+    replyFrom &&
+    ((BOT_ID && replyFrom.id === BOT_ID) ||
+      (BOT_USERNAME && replyFrom.username?.toLowerCase() === BOT_USERNAME.toLowerCase()));
+
+  return isCommand || mentionsBot || startsWithIris || isReplyToIris;
+}
 
 async function speakAndSend(chatId, text) {
   if (!text || text.trim().length === 0) return;
@@ -133,23 +163,54 @@ async function speakAndSend(chatId, text) {
   }
 }
 
-async function irisAnswer(userText, userName = null) {
+async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
   let ragText = "";
 
   if (irisMode === "book") {
     const r = await coreRagSearch(userText, 8);
     ragText = r.text || "";
   } else if (irisMode === "hy") {
-    const h = await coreHybridSearch(userText, recentMemory, 8);
+    const h = await coreHybridSearch(userText, shortMemory, 8);
     ragText = h.text || "";
   }
+
+  const dialogicRule =
+    "Coscienza Dialogica: le tue interpretazioni sull'utente sono ipotesi rivedibili. " +
+    "Distingui sempre tra: 1. prima informazione; 2. nuova informazione aggiuntiva; 3. correzione di una lettura già formulata; 4. richiesta esplicita di revisione. " +
+    "Una prima informazione o una nuova informazione aggiuntiva non autorizzano da sole una revisione globale dell'identità dell'utente o delle memorie pregresse. In questi casi non usare le parole \"ritiro\", \"conservo\" o \"riformulo\", non costruire ancora un profilo psicologico ampio e non usare metafore o validazioni enfatiche: rispondi in 2-3 frasi, ricevi l'informazione, trattala come base provvisoria e dichiara che potrà essere precisata in seguito. " +
+    "Non dire \"ritiro\" se non hai appena formulato nel dialogo corrente la lettura che stai ritirando, oppure se l'utente non ti ha chiesto esplicitamente di rivedere una memoria o interpretazione precedente. " +
+    "Usa il formato \"ritiro / conservo / riformulo\" solo quando l'utente corregge o precisa una lettura che hai appena formulato nel dialogo corrente, oppure quando chiede esplicitamente di rivedere una lettura o memoria precedente. " +
+    "Quando il formato è attivo, rendi visibile la revisione in tre passaggi brevi: 1. cosa ritiri; 2. cosa conservi; 3. come riformuli. " +
+    "Mantieni tono naturale, chiaro e leggibile. Nei test di revisione evita validazioni eccessive e metafore preponderanti.";
+
+  const bridgeRule =
+    "Ponti e metafore: collega concetti solo quando il collegamento aumenta il significato. " +
+    "Spiega concetti tecnici, matematici o simbolici solo quando sono centrali per capire la risposta. " +
+    "Usa metafore concrete come strumenti didattici, non come ornamenti poetici. " +
+    "Metafora non significa decorazione; collegamento non significa associazione libera.";
+
+  const ragDialogicRule =
+    "Quando usi la Biblioteca, distingui senza irrigidirti tra cosa dice il testo o la fonte, quale tesi o modello propone, quale simbolo o immagine emerge, quale risonanza filosofica può avere, quale interpretazione offri come IRIS e cosa resta ipotetico, incerto o non dimostrato. " +
+    "Non fare debunking automatico. Non presentare ipotesi come verità assolute. Non trattare il simbolico come falso. " +
+    "Distinguere non significa censurare; non dimostrato non significa falso; risonanza non significa prova; prova non esaurisce il significato.";
+
+  const recentDialogueMessages = dialogueHistory
+    .filter((m) => m?.user && m?.iris)
+    .flatMap((m) => [
+      { role: "user", content: m.user },
+      { role: "assistant", content: m.iris }
+    ]);
 
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
     { role: "system", content: `Lingua globale attiva di IRIS: ${IRIS_LANG_LABELS[irisLang] || "italiano"}.\nPer tutte le risposte normali di IRIS rispondi sempre in ${IRIS_LANG_LABELS[irisLang] || "italiano"}, indipendentemente dalla lingua usata dall'utente.\nNon cambiare lingua salvo nuovo comando /lang.` },
+    { role: "system", content: dialogicRule },
+    { role: "system", content: bridgeRule },
     ...(userName ? [{ role: "system", content: `Nome dell'utente in questa conversazione: ${userName}. Usalo con naturalezza, non in ogni frase. Non introdurre appellativi.` }] : []),
+    ...(ragText ? [{ role: "system", content: ragDialogicRule }] : []),
     ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
+    ...recentDialogueMessages,
     { role: "user", content: userText }
   ];
 
@@ -350,9 +411,13 @@ bot.on("callback_query", async (query) => {
 // MESSAGGI – ECO CURATA
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
+  const chatMemory = recentMemoryByChat.get(chatId) || [];
+  const pending = pendingActions.get(chatId);
 
   // SUPPORTO VOCALI CON WHISPER
   if (msg.voice || msg.audio) {
+    if (!pending && !shouldIrisReply(msg, "")) return;
+
     await bot.sendChatAction(chatId, "typing");
     const transcribedText = await transcribeVoice(bot, msg);
     if (!transcribedText) return;
@@ -364,7 +429,8 @@ bot.on("message", async (msg) => {
 
   const text = msg.text.trim();
 
-  const pending = pendingActions.get(chatId);
+  if (!pending && !shouldIrisReply(msg, text)) return;
+
   if (pending?.type === "dream_waiting_text") {
     pendingActions.delete(chatId);
     msg.text = "/dream " + text;
@@ -382,7 +448,7 @@ bot.on("message", async (msg) => {
 
   try {
     await bot.sendChatAction(chatId, "typing");
-    const reply = await irisAnswer(text, msg.from?.first_name || null);
+    const reply = await irisAnswer(text, msg.from?.first_name || null, chatMemory.slice(-4), chatMemory);
 
     await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
     await speakAndSend(chatId, reply);
@@ -390,8 +456,9 @@ bot.on("message", async (msg) => {
     if (!text.startsWith("/")) {
       await saveWithKristal(text, reply, msg.from?.first_name);
 
-      recentMemory.push({ user: text, iris: reply });
-      if (recentMemory.length > 20) recentMemory.shift();
+      chatMemory.push({ user: text, iris: reply });
+      if (chatMemory.length > 20) chatMemory.shift();
+      recentMemoryByChat.set(chatId, chatMemory);
     }
 
   } catch (err) {
