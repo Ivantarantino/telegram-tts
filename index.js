@@ -200,28 +200,28 @@ function maybeSimplePreferenceReply(userText, userName = null, mode = irisMode) 
 
   if (blockedTriggers.some((trigger) => lower.includes(trigger))) return null;
 
-  const namePrefix = userName ? `Ricevuto, ${userName}: ` : "Ricevuto: ";
+  const displayName = userName ? userName.charAt(0).toUpperCase() + userName.slice(1).toLowerCase() : "";
   const cleanPreference = (value) => value.trim().replace(/[.!]+$/, "");
 
   let match = text.match(/^mi piace\s+(.+)/i);
   if (match) {
     const preference = cleanPreference(match[1]);
     if (/\bsoprattutto\b|\bsolo\b|\bd'inverno\b|\bd’estate\b|\bd'estate\b/i.test(preference)) {
-      return `${namePrefix}ti piace ${preference}. Lo considero una preferenza contestuale, non assoluta.`;
+      return `${displayName ? `Chiaro, ${displayName}: ` : "Chiaro: "}ti piace ${preference}. Lo tratto come preferenza contestuale, non assoluta.`;
     }
-    return `${namePrefix}ti piace ${preference}. Lo tengo come preferenza semplice, ancora precisabile.`;
+    return `${displayName ? `Ti seguo, ${displayName}: ` : "Ti seguo: "}ti piace ${preference}. Lo tengo come preferenza semplice, senza costruirci sopra troppo.`;
   }
 
   match = text.match(/^non mi piace\s+(.+)/i);
   if (match) {
     const preference = cleanPreference(match[1]);
-    return `${namePrefix}non ti piace ${preference}. Lo tengo come preferenza semplice e precisabile, senza trasformarlo in una conclusione più ampia.`;
+    return `${displayName ? `Chiaro, ${displayName}: ` : "Chiaro: "}non ti piace ${preference}. Preciso il dato senza trasformarlo in una conclusione più ampia.`;
   }
 
   match = text.match(/^preferisco\s+(.+)/i);
   if (match) {
     const preference = cleanPreference(match[1]);
-    return `${namePrefix}preferisci ${preference}. Lo tengo come preferenza relativa, ancora precisabile.`;
+    return `${displayName ? `Ok, ${displayName}: ` : "Ok: "}preferisci ${preference}. Lo tengo come preferenza relativa, ancora precisabile.`;
   }
 
   return null;
