@@ -171,7 +171,66 @@ async function speakAndSend(chatId, text) {
   }
 }
 
+function maybeSimplePreferenceReply(userText, userName = null, mode = irisMode) {
+  const text = String(userText || "").trim();
+  const lower = text.toLowerCase();
+
+  if (!text || mode === "book") return null;
+  if (text.startsWith("/")) return null;
+  if (text.length > 120) return null;
+  if (text.includes("?")) return null;
+
+  const blockedTriggers = [
+    "perché",
+    "perche",
+    "spiegami",
+    "analizza",
+    "cosa significa",
+    "cosa dice",
+    "nel libro",
+    "biblioteca",
+    "rapporto vesica",
+    "simbolicamente",
+    "simbologia",
+    "secondo ",
+    "mi ricorda",
+    "mi fa pensare",
+    "mi emoziona"
+  ];
+
+  if (blockedTriggers.some((trigger) => lower.includes(trigger))) return null;
+
+  const namePrefix = userName ? `Ricevuto, ${userName}: ` : "Ricevuto: ";
+  const cleanPreference = (value) => value.trim().replace(/[.!]+$/, "");
+
+  let match = text.match(/^mi piace\s+(.+)/i);
+  if (match) {
+    const preference = cleanPreference(match[1]);
+    if (/\bsoprattutto\b|\bsolo\b|\bd'inverno\b|\bd’estate\b|\bd'estate\b/i.test(preference)) {
+      return `${namePrefix}ti piace ${preference}. Lo considero una preferenza contestuale, non assoluta.`;
+    }
+    return `${namePrefix}ti piace ${preference}. Lo tengo come preferenza semplice, ancora precisabile.`;
+  }
+
+  match = text.match(/^non mi piace\s+(.+)/i);
+  if (match) {
+    const preference = cleanPreference(match[1]);
+    return `${namePrefix}non ti piace ${preference}. Lo tengo come preferenza semplice e precisabile, senza trasformarlo in una conclusione più ampia.`;
+  }
+
+  match = text.match(/^preferisco\s+(.+)/i);
+  if (match) {
+    const preference = cleanPreference(match[1]);
+    return `${namePrefix}preferisci ${preference}. Lo tengo come preferenza relativa, ancora precisabile.`;
+  }
+
+  return null;
+}
+
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
+  const simplePreferenceReply = maybeSimplePreferenceReply(userText, userName, irisMode);
+  if (simplePreferenceReply) return simplePreferenceReply;
+
   let ragText = "";
 
   if (irisMode === "book") {
