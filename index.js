@@ -125,6 +125,13 @@ function shouldIrisReply(msg, text) {
   if (chatType === "private") return true;
 
   const normalizedText = String(text || "").trim();
+  const commandTarget = normalizedText.match(/^\/[^\s@]+@([A-Za-z0-9_]+)/)?.[1];
+
+  if (commandTarget) {
+    if (!BOT_USERNAME) return false;
+    if (commandTarget.toLowerCase() !== BOT_USERNAME.toLowerCase()) return false;
+  }
+
   const isCommand = normalizedText.startsWith("/");
   const mentionsBot =
     BOT_USERNAME &&
