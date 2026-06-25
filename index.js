@@ -439,7 +439,7 @@ bot.on("message", async (msg) => {
   }
 
   // === GESTIONE COMANDI ESTERNA ===
-  const handled = await handleCommand(bot, msg, text, irisMode, setMode, irisLang, setIrisLang);
+  const handled = await handleCommand(bot, msg, text, irisMode, setMode, irisLang, setIrisLang, BOT_USERNAME);
   if (handled) return;
   if (text === "/kristal") {
   await handleKristalCommand(bot, chatId);

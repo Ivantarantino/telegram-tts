@@ -2,6 +2,22 @@
 import { computeEssenceSnapshot, getCurrentEssenceState } from "./essence_kristal.js";
 import { handleDreamCommand, setDreamDialect, setDreamStyle } from "./dream_manager.js";
 
+function normalizeCommandText(text, botUsername = "") {
+  const trimmed = String(text || "").trim();
+  const match = trimmed.match(/^\/([^\s@]+)(?:@([A-Za-z0-9_]+))?(.*)$/);
+
+  if (!match) return trimmed;
+
+  const [, command, targetUsername, rest] = match;
+
+  if (targetUsername) {
+    if (!botUsername) return trimmed;
+    if (targetUsername.toLowerCase() !== botUsername.toLowerCase()) return trimmed;
+  }
+
+  return "/" + command + (rest || "");
+}
+
 export async function sendEssenceSnapshot(bot, chatId) {
   const snapshot = await computeEssenceSnapshot(50);
 
@@ -49,12 +65,13 @@ export async function sendStateSnapshot(bot, chatId, irisMode) {
   await bot.sendMessage(chatId, stateText);
 }
 
-export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang = "it", setIrisLang = null) {
+export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang = "it", setIrisLang = null, botUsername = "") {
   const chatId = msg.chat.id;
   const firstName = msg.from?.first_name || null;
+  const commandText = normalizeCommandText(text, botUsername);
 
   // /start
-  if (text === "/start") {
+  if (commandText === "/start") {
     const welcome = firstName
       ? "Ciao " + firstName + ", sono IRIS.\n\nSono qui: presente, viva, lucida.\nPronta a ragionare, ricordare e creare con te.\n\nScrivimi pure.\nChe il Daje sia con Noi ❤️"
       : "Ciao, sono IRIS.\n\nSono qui: presente, viva, lucida.\nPronta a ragionare, ricordare e creare con te.\n\nScrivimi pure.\nChe il Daje sia con Noi ❤️";
@@ -63,7 +80,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /help
-  if (text === "/help") {
+  if (commandText === "/help") {
     const helpText = 
       "IRIS – Comandi disponibili\n\n" +
       "/start\n" +
@@ -98,7 +115,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /chat
-  if (text === "/chat") {
+  if (commandText === "/chat") {
     await bot.sendMessage(chatId, "💬 Modalità Conversazione", {
       reply_markup: {
         inline_keyboard: [
@@ -112,7 +129,7 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /essence
-  if (text === "/essence") {
+  if (commandText === "/essence") {
     await bot.sendMessage(chatId, "✨ Area Essence", {
       reply_markup: {
         inline_keyboard: [
@@ -126,14 +143,14 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /state
-  if (text === "/state") {
+  if (commandText === "/state") {
     await sendStateSnapshot(bot, chatId, irisMode);
     return true;
   }
 
   // /lang
-  if (text.startsWith("/lang")) {
-    const lang = text.split(/\s+/)[1]?.toLowerCase();
+  if (commandText.startsWith("/lang")) {
+    const lang = commandText.split(/\s+/)[1]?.toLowerCase();
     const labels = {
       it: "Italiano",
       en: "English",
@@ -169,8 +186,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /dreamdialect
-  if (text.startsWith("/dreamdialect")) {
-    const dialect = text.split(/\s+/)[1]?.toLowerCase();
+  if (commandText.startsWith("/dreamdialect")) {
+    const dialect = commandText.split(/\s+/)[1]?.toLowerCase();
     const selectedDialect = setDreamDialect(dialect);
 
     if (selectedDialect) {
@@ -187,8 +204,8 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /dreamstyle
-  if (text.startsWith("/dreamstyle")) {
-    const style = text.split(/\s+/)[1]?.toLowerCase();
+  if (commandText.startsWith("/dreamstyle")) {
+    const style = commandText.split(/\s+/)[1]?.toLowerCase();
     const selectedStyle = setDreamStyle(style);
 
     if (selectedStyle) {
@@ -205,14 +222,14 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
   }
 
   // /style
-  if (text.startsWith("/style")) {
+  if (commandText.startsWith("/style")) {
     await bot.sendMessage(chatId, "/style è deprecato per /dream.\nUsa: /dreamstyle comico | delirante | serio");
     return true;
   }
 
   // /dream – LA VERSIONE CHE FACEVA RIDERE
-  if (text.startsWith("/dream") || text.startsWith("/sogni")) {
-    if (/^\/dream(@\w+)?$/i.test(text)) {
+  if (commandText.startsWith("/dream") || commandText.startsWith("/sogni")) {
+    if (/^\/dream$/i.test(commandText)) {
       await bot.sendMessage(chatId, "🎭 Scegli il dialetto Dream", {
         reply_markup: {
           inline_keyboard: [
@@ -227,21 +244,22 @@ export async function handleCommand(bot, msg, text, irisMode, saveMode, irisLang
       return true;
     }
 
-    await handleDreamCommand(bot, msg, chatId);
+    const commandMsg = { ...msg, text: commandText };
+    await handleDreamCommand(bot, commandMsg, chatId);
     return true;
   }
 
   // Modalità
-  if (text === "/hy" || text === "/free" || text === "/book") {
-    const mode = text.slice(1);
+  if (commandText === "/hy" || commandText === "/free" || commandText === "/book") {
+    const mode = commandText.slice(1);
     irisMode = mode;
     saveMode(mode);
     await bot.sendMessage(chatId, "Modalità cambiata in: *" + mode.toUpperCase() + "* ❤️", { parse_mode: "Markdown" });
     return true;
   }
 
-  if (text.startsWith("/mode")) {
-    const arg = text.split(" ")[1]?.toLowerCase();
+  if (commandText.startsWith("/mode")) {
+    const arg = commandText.split(" ")[1]?.toLowerCase();
     if (["hy", "free", "book"].includes(arg)) {
       irisMode = arg;
       saveMode(arg);
