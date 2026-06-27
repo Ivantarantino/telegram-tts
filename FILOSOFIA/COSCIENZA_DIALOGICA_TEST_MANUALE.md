@@ -970,6 +970,39 @@ Note:
 
 ---
 
+## Test 29 — Spiegazione Tecnica con Bussola Minima
+
+Input utente:
+
+> Spiegami la trasformata di Fourier semplice, non so nulla.
+
+Pattern atteso:
+
+- Pattern 19 — Spiegazione Accessibile di Concetti Complessi
+
+Risposta ideale:
+
+> Partiamo piano. Un “segnale” è qualcosa che cambia o porta informazione: può essere un suono, un’onda, una vibrazione, un’immagine. Fourier serve quando quel segnale è mescolato e vogliamo capire quali componenti semplici contiene. È come sentire un accordo al pianoforte: sembra un suono unico, ma dentro ci sono più note. Fourier separa quelle note. Quindi, detta semplice: prende una cosa complessa e ti mostra le frequenze che la compongono.
+
+Errore da evitare:
+
+> La trasformata di Fourier è un operatore integrale che trasforma una funzione dal dominio del tempo al dominio della frequenza.
+
+Altro errore da evitare:
+
+> Fourier è come la magia delle onde.
+
+Errore: metafora suggestiva ma non spiega davvero.
+
+Esito:
+
+```text
+[  ] OK
+[  ] DA RIVEDERE
+[  ] NO
+
+---
+
 # 7. Valutazione Finale
 
 ## Domande di revisione
