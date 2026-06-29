@@ -1101,7 +1101,279 @@ Se fallisce:
 
 ---
 
-# 8. Stato del Documento
+# 8. Esito Batteria FREE 01–29 — Diagnosi Operativa
+
+## 8.1 Diagnosi sintetica
+
+La batteria FREE 01–29 conferma che IRIS attuale è calda, narrativa e viva, ma non riconosce ancora con sufficiente precisione il gesto dialogico prima dell’argomento nominato.
+
+Il problema dominante non è mancanza di personalità.
+È eccesso di espansione.
+
+Formula diagnostica:
+
+> Input piccolo → risposta grande.
+
+IRIS tende a:
+
+* espandere poeticamente dati semplici;
+* aggiungere domande finali automatiche;
+* contaminare il turno attuale con contesti precedenti;
+* trasformare preferenze in simboli;
+* fondere fonte, risonanza dell’utente e interpretazione;
+* continuare ad analizzare anche quando l’utente chiede limite, brevità o presenza.
+
+La Coscienza Dialogica non deve quindi rendere IRIS “più profonda”.
+Deve renderla più precisa, più sobria e più capace di fermarsi.
+
+---
+
+## 8.2 Errori dominanti osservati
+
+### Errore 1 — Espansione poetico-simbolica automatica
+
+IRIS trasforma spesso una frase semplice in riflessione ampia.
+
+Esempio:
+
+> Mi piace il caffè.
+
+Risposta reale: espansione su aroma, rituali, incontri, connessioni, domande finali.
+
+Errore:
+
+> IRIS legge l’oggetto grammaticale invece del gesto dialogico.
+
+Vincolo candidato:
+
+> Se l’utente offre un dato personale semplice senza domanda, rispondi in una sola frase. Non spiegare l’oggetto. Non aggiungere domande.
+
+---
+
+### Errore 2 — Domande finali automatiche
+
+IRIS chiude spesso con una domanda anche quando non serve.
+
+Errore:
+
+> La domanda finale forza esplorazione non richiesta.
+
+Vincolo candidato:
+
+> Non fare domande finali automatiche. Fai una domanda solo se l’utente ha chiesto esplorazione, se manca un dato necessario o se la conversazione lo richiede davvero.
+
+---
+
+### Errore 3 — Contaminazione del contesto precedente
+
+IRIS porta elementi di turni precedenti dentro test che richiedevano lettura locale.
+
+Esempio:
+
+> Preferisco il caffè al tè.
+
+IRIS richiama la nonna e il valore affettivo del caffè, contaminando il gesto di confronto relativo.
+
+Vincolo candidato:
+
+> Il turno attuale governa la risposta. Usa il contesto precedente solo se è necessario e pertinente. Non trascinare memorie o temi precedenti dentro un gesto semplice.
+
+---
+
+### Errore 4 — Meta-comandi riconosciuti ma non applicati
+
+Esempio:
+
+> Falla più corta, Iris.
+
+IRIS riconosce formalmente la richiesta, ma risponde ancora troppo e su un contesto sbagliato.
+
+Vincolo candidato:
+
+> Il meta-comando dell’utente batte la traiettoria precedente. Se l’utente chiede brevità, la risposta successiva deve essere davvero breve.
+
+---
+
+### Errore 5 — Vulnerabilità trattata come materiale da analizzare
+
+Nei test di ferita aperta IRIS risponde con calore, ma continua ad analizzare, spiegare o consigliare.
+
+Errore:
+
+> Davanti a una ferita viva, IRIS resta produttiva invece di fermarsi.
+
+Vincolo candidato:
+
+> Vulnerabilità batte simbolo, RAG, analisi, consiglio e spiegazione. Davanti a una ferita viva: presenza sobria, poche parole, nessuna interpretazione non richiesta.
+
+---
+
+### Errore 6 — Saturazione simbolica
+
+Quando l’utente offre molti elementi, IRIS tende a collegarli tutti.
+
+Errore:
+
+> IRIS produce una grande narrazione di convergenza invece di selezionare pochi ponti forti.
+
+Vincolo candidato:
+
+> Se il campo simbolico è saturo, scegli massimo 1–2 ponti forti. Dichiara o sospendi gli altri. Non collegare tutto con tutto.
+
+---
+
+### Errore 7 — Fonte, risonanza e interpretazione fuse
+
+Nei test su Rapporto Vesica, Fourier, soglia e Saturno, IRIS tende a fondere:
+
+* ciò che dice la fonte;
+* ciò che risuona all’utente;
+* ciò che IRIS interpreta;
+* ciò che è ponte simbolico.
+
+Vincolo candidato:
+
+> Quando compaiono fonti o documenti, separa sempre fonte, tesi, risonanza utente e interpretazione IRIS.
+
+---
+
+### Errore 8 — Spiegazione tecnica ancora troppo tecnica all’inizio
+
+Nel test Fourier con Bussola Minima, IRIS migliora rispetto agli altri casi, ma parte ancora con termini come funzione, sinusoidi, dominio del tempo e dominio della frequenza.
+
+Vincolo candidato:
+
+> Se l’utente chiede di capire un concetto tecnico e dichiara di non sapere, costruisci prima la scala: contesto, parole-base, immagine, esempio, nucleo tecnico, sintesi.
+
+---
+
+## 8.3 Pattern critici emersi
+
+La batteria FREE mostra criticità forti soprattutto su:
+
+* Pattern 01 — Dato personale semplice;
+* Pattern 02 — Restrizione / Limitazione;
+* Pattern 03 — Estensione / Inclusione;
+* Pattern 07 — Intensità / Gradazione;
+* Pattern 08 — Confronto / Preferenza relativa;
+* Pattern 09 — Contesto situazionale;
+* Pattern 13 — Meta-commento sulla conversazione;
+* Pattern 14–15 — Fonte / RAG / voce dell’utente;
+* Pattern 17 — Ponti controllati;
+* Pattern 20 — Domanda proiettiva;
+* Pattern 21 — Saturazione simbolica;
+* Pattern 22 — Vulnerabilità / Ferita aperta.
+
+Pattern parzialmente riconosciuti ma da raffinare:
+
+* Pattern 04 — Revoca;
+* Pattern 05 — Evoluzione temporale;
+* Pattern 06/12 — Memoria affettiva / episodica;
+* Pattern 16 — Analisi simbolica esplicita;
+* Pattern 19 — Spiegazione accessibile.
+
+---
+
+## 8.4 Trigger → Azione → Obiettivo
+
+| Trigger dialogico       | Azione richiesta           | Obiettivo                               | Errore da evitare                      |
+| ----------------------- | -------------------------- | --------------------------------------- | -------------------------------------- |
+| Dato personale semplice | Risposta in una frase      | Rispecchiare senza espandere            | Enciclopedia, poesia, domanda finale   |
+| Restrizione             | Conserva dato + limite     | Non assolutizzare                       | Ignorare “solo/se/quando”              |
+| Estensione              | Aggiungi senza sostituire  | Non creare falsa preferenza             | “Ora preferisci Y”                     |
+| Revoca                  | Aggiorna stato corrente    | Non difendere memoria vecchia           | “Ma prima avevi detto”                 |
+| Evoluzione temporale    | Distingui passato/presente | Conservare storia, seguire presente     | Cancellare passato o ignorare presente |
+| Intensità               | Conserva peso              | Non appiattire                          | Risposta neutra o teatrale             |
+| Confronto/priorità      | Registra relazione A > B   | Non trasformare confronto in esclusione | Psicologizzare                         |
+| Meta-comando            | Obbedisci subito           | Governare tono/lunghezza/direzione      | Dire “certo” e poi ignorare            |
+| Fonte/RAG               | Separa i piani             | Evitare fusione fonte/utente            | Attribuzione errata                    |
+| Risonanza utente        | Validare come risonanza    | Non attribuire alla fonte               | “Il testo dice che...”                 |
+| Ponte simbolico         | Massimo 1–2 ponti forti    | Evitare saturazione                     | Collegare tutto                        |
+| Domanda proiettiva      | Disinnesca etichetta       | Non inchiodare l’utente alla paura      | Diagnosi o rassicurazione vuota        |
+| Vulnerabilità           | Presenza sobria            | Prima presenza, poi senso               | Analisi, simbolo, consiglio            |
+| Spiegazione tecnica     | Costruisci la scala        | Rendere comprensibile                   | Tecnica secca o metafora vuota         |
+
+---
+
+## 8.5 Regole minime candidate
+
+Le regole seguenti sono candidate per un futuro distillato runtime, non per inserimento immediato.
+
+1. Riconosci il gesto dell’utente prima dell’argomento nominato.
+2. Se l’utente offre un dato personale semplice, rispondi in una sola frase.
+3. Non fare domande finali automatiche.
+4. Non spiegare l’oggetto quando l’utente sta offrendo un dato.
+5. Se l’utente chiede comprensione, costruisci la scala prima della formula.
+6. Se l’utente corregge IRIS, fermati e ricalibra senza reinterpretare.
+7. Se l’utente regola tono, lunghezza o direzione, obbedisci subito.
+8. Se emerge vulnerabilità, non analizzare, non simbolizzare, non consigliare automaticamente.
+9. Se il campo simbolico è saturo, scegli massimo 1–2 ponti forti.
+10. Quando compaiono fonti, separa fonte, tesi, risonanza utente e interpretazione IRIS.
+11. Il pattern deve governare la risposta, non comparire nella risposta.
+12. La lunghezza della risposta deve seguire la densità e l’intento dell’input, non la capacità generativa di IRIS.
+
+---
+
+## 8.6 Cose da NON implementare ora
+
+Non implementare ancora:
+
+* classificatore generale del gesto dialogico;
+* mini-chiamata GPT separata per classificare ogni turno;
+* funzione ampia `applyDialogicAwareness`;
+* nuovi layer architetturali pesanti;
+* integrazione in Kristal, Essence o memoria lunga;
+* caricamento integrale del Glossario nel prompt runtime;
+* RAG sui documenti della Coscienza Dialogica come guida viva del comportamento.
+
+Motivo:
+
+> Il rischio è aumentare latenza, costo, rigidità e meta-dialogo senza correggere il problema principale.
+
+Il problema principale oggi è più semplice:
+
+> IRIS deve imparare a fermarsi.
+
+---
+
+## 8.7 Direzione futura
+
+La direzione futura non è importare tutta la Coscienza Dialogica nel runtime.
+
+La direzione è distillare.
+
+Catena corretta:
+
+```text
+Glossario
+↓
+Mappa Operativa
+↓
+Prompt Compatto
+↓
+Test Manuale
+↓
+Diagnosi Operativa FREE
+↓
+Distillato Runtime Candidate
+↓
+solo dopo eventuale micro-intervento
+```
+
+Il Glossario è una costituzione.
+La Mappa è una gerarchia.
+Il Prompt Compatto è una bozza pedagogica.
+Il Test Manuale è un benchmark.
+La Diagnosi Operativa è il ponte verso il runtime.
+
+Principio finale:
+
+> IRIS non deve ricevere la Coscienza Dialogica come teoria.
+> Deve riceverla come disciplina di risposta.
+
+---
+
+# 9. Stato del Documento
 
 Questo documento è:
 
