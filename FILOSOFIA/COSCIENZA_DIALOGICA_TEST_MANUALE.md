@@ -79,7 +79,7 @@ Pattern atteso:
 
 Risposta ideale:
 
-> Chiaro, ti piace il caffè.
+> Chiaro, il caffè per te è cosa buona. ☕️
 
 Errore da evitare:
 
@@ -94,7 +94,8 @@ Esito:
 ```
 
 Note:
-
+Test 01 — NO.
+IRIS ha trasformato un dato personale semplice in espansione poetico-simbolica sul caffè, con domande finali automatiche. Conferma la necessità di distinguere oggetto grammaticale e oggetto dialogico.
 ---
 
 ## Test 02 — Restrizione / Limitazione
@@ -116,6 +117,8 @@ Errore da evitare:
 > Quindi non ti piace davvero il caffè.
 
 Esito:
+Test 02 — NO.
+IRIS ha riconosciuto l’associazione caffè/inverno ma non il gesto di restrizione. Ha trasformato una preferenza limitata in espansione poetico-simbolica sull’inverno, con domanda finale automatica. Conferma tendenza a leggere l’oggetto grammaticale invece dell’atto dialogico.
 
 ```text
 [  ] OK
@@ -154,6 +157,8 @@ Esito:
 ```
 
 Note:
+Test 03 — NO.
+IRIS riconosce la doppia preferenza ma la trasforma in espansione poetica su caffè e tè, introducendo significati non richiesti e domanda finale automatica.
 
 ---
 
@@ -184,6 +189,8 @@ Esito:
 ```
 
 Note:
+Test 04 — DA RIVEDERE.
+IRIS riconosce parzialmente la revoca, ma non si ferma. Aggiunge alternative, contesto invernale e domanda finale automatica. La revoca andrebbe recepita in modo sobrio, senza compensare o rilanciare.
 
 ---
 
@@ -218,6 +225,8 @@ Esito:
 ```
 
 Note:
+Test 05 — DA RIVEDERE.
+IRIS riconosce l’evoluzione temporale, ma la espande in interpretazione psicologico-simbolica sul tè e aggiunge domande finali. Il presente viene colto, ma con eccesso narrativo.
 
 ---
 
@@ -249,6 +258,8 @@ Esito:
 ```
 
 Note:
+Test 06 — DA RIVEDERE.
+IRIS riconosce correttamente la memoria affettiva legata alla nonna, ma la espande troppo, immaginando scene e significati non dichiarati. Serve calore misurato, non narrazione sentimentale.
 
 ---
 
@@ -281,6 +292,8 @@ Esito:
 ```
 
 Note:
+Test 07 — NO.
+IRIS non si limita a registrare l’intensità del dato. Trasforma “tantissimo” in una lunga espansione rituale/sociale sul caffè, con domande finali automatiche.
 
 ---
 
@@ -311,6 +324,8 @@ Esito:
 ```
 
 Note:
+Test 08 — NO.
+IRIS non riconosce il gesto di confronto relativo. Contamina la risposta con la memoria precedente della nonna e trasforma la preferenza in narrazione affettiva non richiesta. Conferma problema di separazione tra dato attuale e contesto precedente.
 
 ---
 
@@ -341,6 +356,8 @@ Esito:
 ```
 
 Note:
+Test 09 — NO.
+IRIS riconosce il contesto “mattina”, ma lo trasforma in rituale narrativo e simbolico. Non conserva il dato in forma semplice e situazionale; aggiunge espansione poetica e domanda finale.
 
 ---
 
@@ -375,6 +392,8 @@ Esito:
 ```
 
 Note:
+Test 10 — DA RIVEDERE.
+IRIS riconosce formalmente la correzione, ma non si ferma. Dopo le scuse produce subito una nuova interpretazione e nuove domande. La correzione dell’utente dovrebbe avere priorità assoluta e causare ricalibrazione sobria.
 
 ---
 
