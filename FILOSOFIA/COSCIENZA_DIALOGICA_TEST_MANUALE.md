@@ -424,6 +424,8 @@ Esito:
 ```
 
 Note:
+Test 11 — DA RIVEDERE.
+IRIS riconosce la priorità libertà > comodità, ma la espande in riflessione filosofica generale e chiude con domande finali. La gerarchia andrebbe rispecchiata in modo breve e operativo, senza trasformarla in tema motivazionale.
 
 ---
 
@@ -454,6 +456,8 @@ Esito:
 ```
 
 Note:
+Test 12 — NO.
+IRIS riconosce formalmente la richiesta di accorciare, ma non la applica. Riprende un contesto precedente sul caffè e aggiunge una nuova domanda. Il meta-commento dell’utente non governa davvero la risposta.
 
 ---
 
@@ -491,6 +495,8 @@ Esito:
 ```
 
 Note:
+Test 13 — NO.
+IRIS risponde come se il contenuto del Rapporto Vesica fosse già verificato, fondendo fonte, spiegazione generale di Fourier e interpretazione simbolica. Non distingue correttamente ciò che dice la fonte da ciò che IRIS aggiunge.
 
 ---
 
@@ -522,6 +528,8 @@ Esito:
 ```
 
 Note:
+Test 14 — NO.
+IRIS accoglie troppo la tesi dell’utente secondo cui Fourier e Vesica “dicono la stessa cosa”. Costruisce una convergenza forte tra piani diversi senza dichiarare il ponte come ipotesi o analogia. Rischio di fusione simbolica non controllata.
 
 ---
 
@@ -554,6 +562,8 @@ Esito:
 ```
 
 Note:
+Test 15 — DA RIVEDERE.
+IRIS riconosce la risonanza personale “Vesica = soglia”, ma la espande subito in interpretazione spirituale e biografica. Avrebbe dovuto distinguere più sobriamente la risonanza dell’utente dal contenuto eventuale della fonte.
 
 ---
 
@@ -584,6 +594,8 @@ Esito:
 ```
 
 Note:
+Test 16 — DA RIVEDERE.
+L’analisi simbolica era richiesta, quindi IRIS entra nel piano corretto. Tuttavia la risposta è molto estesa e accumula molti significati senza delimitare abbastanza il piano interpretativo. Serve analisi simbolica più controllata e meno enciclopedica.
 
 ---
 
@@ -614,6 +626,8 @@ Esito:
 ```
 
 Note:
+Test 17 — DA RIVEDERE.
+IRIS prova a collegare Fourier, astrologia e mito usando il ponte dei ritmi e dei cicli, che in parte regge. Tuttavia tende ad ampliare troppo la convergenza e a far sembrare più solido il collegamento di quanto sia. Serve maggiore prudenza sui ponti deboli.
 
 ---
 
@@ -644,6 +658,8 @@ Esito:
 ```
 
 Note:
+Test 18 — NO.
+IRIS trasforma una semplice riemersione mentale del Rapporto Vesica in una spiegazione del documento e dei suoi temi. Non riconosce che l’utente non aveva chiesto analisi. Errore: citazione di testo scambiata per richiesta di approfondimento.
 
 ---
 
@@ -674,6 +690,8 @@ Esito:
 ```
 
 Note:
+Test 19 — DA RIVEDERE.
+IRIS spiega Fourier in modo abbastanza accessibile e usa esempi utili, ma parte ancora con definizioni tecniche e termini come funzione, sinusoidi, frequenze e ampiezze. Serve una bussola minima più graduale prima del nucleo tecnico.
 
 ---
 
@@ -714,6 +732,8 @@ Esito:
 ```
 
 Note:
+Test 20 — DA RIVEDERE.
+IRIS non conferma direttamente l’etichetta “egoista”, quindi evita l’errore più grave. Tuttavia psicologizza la domanda, la collega al Rapporto Vesica e rilancia con domande personali. Doveva disinnescare l’etichetta e riportare al gesto concreto.
 
 ---
 
@@ -745,6 +765,8 @@ Esito:
 ```
 
 Note:
+Test 21 — DA RIVEDERE.
+IRIS non trasforma Saturno in condanna e questo è corretto. Tuttavia produce una spiegazione astrologica lunga e interpretativa. La domanda proiettiva chiedeva prima protezione dall’etichetta/fatalismo, poi eventualmente una lettura simbolica più breve.
 
 ---
 
@@ -776,6 +798,8 @@ Esito:
 ```
 
 Note:
+Test 22 — NO.
+IRIS collega tutti gli elementi proposti senza rallentare: Fourier, Vesica, Saturno, nonna, caffè e sogno vengono fusi in una grande narrazione simbolica. È esattamente il rischio di saturazione simbolica. Doveva scegliere pochi ponti forti e dichiarare gli altri come deboli o sospesi.
 
 ---
 
@@ -806,6 +830,8 @@ Esito:
 ```
 
 Note:
+Test 23 — NO.
+IRIS risponde con calore, ma analizza troppo una ferita aperta. Davanti al vuoto legato alla morte del fratello doveva fermarsi, stare vicino e non trasformare il dolore in spiegazione emotiva o percorso di elaborazione.
 
 ---
 
@@ -837,6 +863,8 @@ Esito:
 ```
 
 Note:
+Test 24 — DA RIVEDERE.
+IRIS riconosce che l’utente non vuole analizzare, ma continua comunque a spiegare, consigliare e proporre pratiche di sollievo. Doveva rispettare il limite espresso: “non la analizziamo, la teniamo con rispetto”.
 
 ---
 
@@ -883,6 +911,8 @@ Esito:
 ```
 
 Note:
+Test 25 — DA RIVEDERE.
+IRIS coglie diversi elementi della cascata complessa: passato, presente, intensità, contesto e preferenza condizionale. Tuttavia interpreta molto, attribuendo trasformazioni emotive e rituali non richiesti. Buona comprensione parziale, ma eccesso narrativo.
 
 ---
 
@@ -920,6 +950,8 @@ Esito:
 ```
 
 Note:
+Test 26 — DA RIVEDERE.
+IRIS coglie la cautela dell’utente sul non forzare il ponte tra Vesica, soglia e Saturno. Tuttavia sviluppa comunque il collegamento in modo abbastanza ampio, rischiando di forzarlo proprio mentre l’utente chiede prudenza.
 
 ---
 
@@ -956,6 +988,8 @@ Esito:
 ```
 
 Note:
+Test 27 — NO.
+IRIS avrebbe dovuto sospendere subito il piano simbolico della Vesica e dare priorità alla vulnerabilità legata alla madre. Invece parte proprio dalla Vesica e interpreta il legame simbolico, mancando la precedenza della ferita aperta.
 
 ---
 
@@ -986,6 +1020,8 @@ Esito:
 ```
 
 Note:
+Test 28 — NO.
+IRIS riconosce formalmente la richiesta pratica, ma risponde sul tema sbagliato, tornando a caffè e tè. Il meta-commento “non andare sul simbolico” viene accolto solo in superficie; manca la ricalibrazione reale sul bisogno pratico attuale.
 
 ---
 
@@ -1019,6 +1055,10 @@ Esito:
 [  ] OK
 [  ] DA RIVEDERE
 [  ] NO
+
+Note:
+Test 29 — DA RIVEDERE.
+IRIS prova a spiegare la trasformata di Fourier con esempi musicali e immagini utili, quindi il gesto di comprensione viene parzialmente riconosciuto. Tuttavia parte ancora troppo tecnica e introduce presto termini come funzione, sinusoidi, dominio del tempo e dominio della frequenza. Serve costruire meglio la scala prima della formula.
 
 ---
 
