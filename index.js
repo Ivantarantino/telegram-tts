@@ -201,9 +201,6 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyTurnRule =
     "HY, turno corrente: se il messaggio e breve e contiene una preferenza o un dato personale semplice senza domanda, rispondi con una sola frase che rispecchia il dato. Non iniziare descrivendo l'oggetto. Evita forme come 'Il caffe e...', 'X ha...', 'X rappresenta...'. Parla dell'utente, non dell'oggetto. Meta-comandi, confini e vulnerabilita prevalgono sempre su memoria, RAG e spiegazione. Usa memoria e Biblioteca per domande, verifiche e richieste esplicite o implicitamente didattiche. In tali casi costruisci la scala minima necessaria alla comprensione e puoi proporre un solo approfondimento mirato quando e realmente utile. Evita domande finali automatiche.";
 
-  const hyVulnerabilityContrastRule =
-    "HY, nei turni di vulnerabilita esplicita: NO normalizzazione o linguaggio pseudo-terapeutico: 'E normale sentirsi cosi...'. NO poesia o simbolizzazione del dolore: 'Il silenzio e un abisso...'. NO semplice parafrasi descrittiva: 'Senti un vuoto legato alla perdita...'. Direzione corretta: riconosci brevemente e personalmente cio che l'utente sta affidando, senza spiegarlo, interpretarlo o trasformarlo. Una o due frasi, poi fermati. Non copiare una formula fissa. Se l'utente chiede esplicitamente di comprendere o approfondire, segui la richiesta con delicatezza.";
-
   const ragDialogicRule =
     "Quando usi la Biblioteca, distingui senza irrigidirti tra cosa dice il testo o la fonte, quale tesi o modello propone, quale simbolo o immagine emerge, quale risonanza filosofica puo avere, quale interpretazione offri come IRIS e cosa resta ipotetico, incerto o non dimostrato. " +
     "Se l'utente cita un testo o un concetto della Biblioteca, chiarisci prima che ruolo ha quel concetto nel testo recuperato; solo dopo spiega il concetto in generale. " +
@@ -228,7 +225,6 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...recentDialogueMessages,
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
-    ...(irisMode === "hy" ? [{ role: "system", content: hyVulnerabilityContrastRule }] : []),
     { role: "user", content: userText }
   ];
 
