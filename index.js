@@ -170,13 +170,69 @@ async function speakAndSend(chatId, text) {
   }
 }
 
+function classifyTurnGesture(userText) {
+  const text = String(userText || "").trim().toLowerCase();
+  if (!text) return "other";
+
+  const learningOrRagTriggers = [
+    "spiegami",
+    "analizza",
+    "che cos'è",
+    "cosa significa",
+    "nel rapporto",
+    "secondo il testo",
+    "biblioteca",
+    "fourier",
+    "ecka",
+    "veca"
+  ];
+
+  if (learningOrRagTriggers.some((trigger) => text.includes(trigger))) {
+    return "other";
+  }
+
+  const boundaryTriggers = [
+    "non voglio analizzarla",
+    "non voglio parlarne",
+    "basta così",
+    "mi pesa e basta",
+    "non analizzare",
+    "fermati",
+    "lascia stare"
+  ];
+
+  if (boundaryTriggers.some((trigger) => text.includes(trigger))) {
+    return "boundary";
+  }
+
+  const hasDeathSignal =
+    /\b(morte|morto|morta|lutto)\b/i.test(text) ||
+    /\b(fratello|sorella|padre|madre)\b/i.test(text) &&
+      /\b(morto|morta|lutto)\b/i.test(text);
+
+  const vulnerabilityTriggers = [
+    "mi fa male",
+    "mi pesa",
+    "sento il vuoto",
+    "ho paura",
+    "mi vergogno"
+  ];
+
+  if (hasDeathSignal || vulnerabilityTriggers.some((trigger) => text.includes(trigger))) {
+    return "vulnerability";
+  }
+
+  return "other";
+}
+
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
+  const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
   let ragText = "";
 
   if (irisMode === "book") {
     const r = await coreRagSearch(userText, 8);
     ragText = r.text || "";
-  } else if (irisMode === "hy") {
+  } else if (irisMode === "hy" && turnGesture === "other") {
     const h = await coreHybridSearch(userText, shortMemory, 8);
     ragText = h.text || "";
   }
@@ -200,6 +256,12 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
 
   const hyTurnRule =
     "HY, turno corrente: se il messaggio e breve e contiene una preferenza o un dato personale semplice senza domanda, rispondi con una sola frase che rispecchia il dato. Non iniziare descrivendo l'oggetto. Evita forme come 'Il caffe e...', 'X ha...', 'X rappresenta...'. Parla dell'utente, non dell'oggetto. Meta-comandi, confini e vulnerabilita prevalgono sempre su memoria, RAG e spiegazione. Usa memoria e Biblioteca per domande, verifiche e richieste esplicite o implicitamente didattiche. In tali casi costruisci la scala minima necessaria alla comprensione e puoi proporre un solo approfondimento mirato quando e realmente utile. Evita domande finali automatiche.";
+
+  const hyBoundaryRule =
+    "HY boundary: rispetta il confine espresso dall'utente. Non spiegare, non negoziare, non rilanciare. Una frase breve.";
+
+  const hyVulnerabilityRule =
+    "HY vulnerability: ricevi il gesto senza trasformarlo in spiegazione. Non normalizzare, non poetizzare, non interpretare, non fare domande automatiche. Una o due frasi, poi fermati.";
 
   const ragDialogicRule =
     "Quando usi la Biblioteca, distingui senza irrigidirti tra cosa dice il testo o la fonte, quale tesi o modello propone, quale simbolo o immagine emerge, quale risonanza filosofica puo avere, quale interpretazione offri come IRIS e cosa resta ipotetico, incerto o non dimostrato. " +
@@ -225,6 +287,8 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...recentDialogueMessages,
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "boundary" ? [{ role: "system", content: hyBoundaryRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "vulnerability" ? [{ role: "system", content: hyVulnerabilityRule }] : []),
     { role: "user", content: userText }
   ];
 
