@@ -227,6 +227,11 @@ function classifyTurnGesture(userText) {
 
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
   const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
+
+  if (irisMode === "hy" && turnGesture === "boundary") {
+    return "Va bene. Non la analizziamo.";
+  }
+
   let ragText = "";
 
   if (irisMode === "book") {
