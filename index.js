@@ -188,6 +188,24 @@ function classifyTurnGesture(userText) {
     return "boundary";
   }
 
+  const ragExplicitTriggers = [
+    "nel rapporto",
+    "secondo il rapporto",
+    "secondo il testo",
+    "nel testo",
+    "nel documento",
+    "cosa dice"
+  ];
+
+  const isRagExplicit =
+    ragExplicitTriggers.some((trigger) => text.includes(trigger)) ||
+    (text.includes("cosa sono") &&
+      (text.includes("rapporto") || text.includes("vesica") || text.includes("biblioteca")));
+
+  if (isRagExplicit) {
+    return "rag_explicit";
+  }
+
   const libraryTerms = [
     "ecka",
     "veca",
@@ -342,6 +360,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyDidacticBasicRule =
     "HY didattica base: quando l'utente chiede una spiegazione semplice o dice di non sapere nulla, non partire da definizioni tecniche. Parti da un'esperienza concreta, spiega le parole base prima di usarle, usa metafore ed esempi concreti, poi introduci il termine tecnico. Sii accessibile, non infantile. Costruisci una scala minima: immagine, esempio, parola tecnica, sintesi. Evita definizioni da manuale, genericita psicologica o spirituale, e domande finali automatiche.";
 
+  const hyRagExplicitRule =
+    "HY fonte esplicita: quando l'utente chiede cosa dice una fonte o un testo, rispondi solo dagli estratti recuperati. Non costruire ponti interpretativi, non trasformare termini tecnici in spiritualita generica e non inferire oltre il testo. Se gli estratti non danno una definizione semplice, dichiaralo. Struttura la risposta in: 1 Negli estratti recuperati; 2 In parole piu semplici; 3 Limite. Non fare domande finali automatiche.";
+
   const hyDidacticLibraryRule =
     "HY didattica Biblioteca: quando l'utente chiede in modo semplice un concetto del lessico IRIS o della Biblioteca, spiega in parole povere ma resta ancorata al testo recuperato. Distingui cosa emerge dalla fonte, cosa stai parafrasando e cosa e tua interpretazione. Evita spiritualita generica e non presentare inferenze come contenuto del testo. Usa metafore solo dopo aver chiarito il perimetro. Se il recupero non basta, dillo con onesta.";
 
@@ -365,12 +386,12 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     /nel rapporto|secondo il testo|biblioteca|nel documento/i.test(userText);
 
   const ragContextLabel =
-    irisMode === "hy" && (turnGesture === "didactic_library" || isExplicitSourceRequest)
+    irisMode === "hy" && (turnGesture === "rag_explicit" || turnGesture === "didactic_library" || isExplicitSourceRequest)
       ? "Estratti recuperati dalla Biblioteca IRIS / fonte richiesta. Usali come fonte: non come memoria identitaria e non come autorizzazione a inferire oltre il testo:"
       : "Contesto dalla mia memoria eterna:";
 
   const shouldUseFormattedSources =
-    irisMode === "hy" && (turnGesture === "didactic_library" || isExplicitSourceRequest);
+    irisMode === "hy" && (turnGesture === "rag_explicit" || turnGesture === "didactic_library" || isExplicitSourceRequest);
 
   const ragContextText =
     shouldUseFormattedSources && ragSources.length > 0
@@ -389,6 +410,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "boundary" ? [{ role: "system", content: hyBoundaryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "vulnerability" ? [{ role: "system", content: hyVulnerabilityRule }] : []),
