@@ -338,6 +338,14 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
       { role: "assistant", content: m.iris }
     ]);
 
+  const isExplicitSourceRequest =
+    /nel rapporto|secondo il testo|biblioteca|nel documento/i.test(userText);
+
+  const ragContextLabel =
+    irisMode === "hy" && (turnGesture === "didactic_library" || isExplicitSourceRequest)
+      ? "Estratti recuperati dalla Biblioteca IRIS / fonte richiesta. Usali come fonte: non come memoria identitaria e non come autorizzazione a inferire oltre il testo:"
+      : "Contesto dalla mia memoria eterna:";
+
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
@@ -345,7 +353,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     { role: "system", content: runtimeDialogicRule },
     ...(userName ? [{ role: "system", content: `Nome dell'utente in questa conversazione: ${userName}. Usalo con naturalezza, non in ogni frase. Non introdurre appellativi.` }] : []),
     ...(ragText ? [{ role: "system", content: ragDialogicRule }] : []),
-    ...(ragText ? [{ role: "system", content: `Contesto dalla mia memoria eterna:\n\n${ragText}` }] : []),
+    ...(ragText ? [{ role: "system", content: `${ragContextLabel}\n\n${ragText}` }] : []),
     ...recentDialogueMessages,
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
