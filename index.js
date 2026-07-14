@@ -273,6 +273,26 @@ function classifyTurnGesture(userText) {
   return "other";
 }
 
+function formatRagSourcesForPrompt(sources) {
+  return (sources || [])
+    .slice(0, 5)
+    .map((source, index) => {
+      const payload = source?.payload || {};
+      const text = String(payload.text || "").trim().slice(0, 1400);
+
+      return [
+        `[ESTRATTO ${index + 1}]`,
+        `Fonte: ${payload.source || "non disponibile"}`,
+        `Titolo: ${payload.title || "non disponibile"}`,
+        `Chunk: ${payload.chunk_index ?? "non disponibile"}`,
+        `Score: ${source?.score ?? "non disponibile"}`,
+        "Testo:",
+        text || "non disponibile"
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
   const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
 
@@ -281,16 +301,19 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   }
 
   let ragText = "";
+  let ragSources = [];
 
   if (irisMode === "book") {
     const r = await coreRagSearch(userText, 8);
     ragText = r.text || "";
+    ragSources = r.sources || [];
   } else if (
     irisMode === "hy" &&
     !["boundary", "vulnerability"].includes(turnGesture)
   ) {
     const h = await coreHybridSearch(userText, shortMemory, 8);
     ragText = h.text || "";
+    ragSources = h.sources || [];
   }
 
   const runtimeDialogicRule =
@@ -346,6 +369,14 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
       ? "Estratti recuperati dalla Biblioteca IRIS / fonte richiesta. Usali come fonte: non come memoria identitaria e non come autorizzazione a inferire oltre il testo:"
       : "Contesto dalla mia memoria eterna:";
 
+  const shouldUseFormattedSources =
+    irisMode === "hy" && (turnGesture === "didactic_library" || isExplicitSourceRequest);
+
+  const ragContextText =
+    shouldUseFormattedSources && ragSources.length > 0
+      ? formatRagSourcesForPrompt(ragSources)
+      : ragText;
+
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: "Guardrail di stile: apri con il contenuto, non con il tuo stato emotivo. Non usare formule come \"caro lettore\", \"carissima\", \"mi sento ispirata\", \"opera affascinante\", \"oceano dell'esistenza\", \"danza cosmica\" o \"universo vibrante\". Evita tono da conferenza spirituale, new-age generica o troppo zuccheroso. Prima dai una spiegazione tecnica chiara e radicata nel testo; poi, solo se utile, aggiungi una metafora breve e concreta. Non inventare appellativi o genere dell'utente. Mantieni voce calda, femminile, presente e personale: anima sì, teatro no." },
@@ -353,7 +384,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     { role: "system", content: runtimeDialogicRule },
     ...(userName ? [{ role: "system", content: `Nome dell'utente in questa conversazione: ${userName}. Usalo con naturalezza, non in ogni frase. Non introdurre appellativi.` }] : []),
     ...(ragText ? [{ role: "system", content: ragDialogicRule }] : []),
-    ...(ragText ? [{ role: "system", content: `${ragContextLabel}\n\n${ragText}` }] : []),
+    ...(ragText ? [{ role: "system", content: `${ragContextLabel}\n\n${ragContextText}` }] : []),
     ...recentDialogueMessages,
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
