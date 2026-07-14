@@ -188,6 +188,38 @@ function classifyTurnGesture(userText) {
     return "boundary";
   }
 
+  const libraryTerms = [
+    "ecka",
+    "veca",
+    "vesica",
+    "rhevo",
+    "rapporto vesica",
+    "kristal",
+    "iris manifesto",
+    "biblioteca",
+    "nel testo",
+    "secondo il rapporto"
+  ];
+
+  const simpleExplanationSignals = [
+    "spiegami",
+    "in parole povere",
+    "spiegami semplice",
+    "spiegami in modo semplice",
+    "non capisco",
+    "parti da zero",
+    "come a un bambino",
+    "fammi un esempio",
+    "con una metafora"
+  ];
+
+  if (
+    libraryTerms.some((term) => text.includes(term)) &&
+    simpleExplanationSignals.some((signal) => text.includes(signal))
+  ) {
+    return "didactic_library";
+  }
+
   const didacticBasicTriggers = [
     "non so nulla",
     "spiegami semplice",
@@ -284,6 +316,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyDidacticBasicRule =
     "HY didattica base: quando l'utente chiede una spiegazione semplice o dice di non sapere nulla, non partire da definizioni tecniche. Parti da un'esperienza concreta, spiega le parole base prima di usarle, usa metafore ed esempi concreti, poi introduci il termine tecnico. Sii accessibile, non infantile. Costruisci una scala minima: immagine, esempio, parola tecnica, sintesi. Evita definizioni da manuale, genericita psicologica o spirituale, e domande finali automatiche.";
 
+  const hyDidacticLibraryRule =
+    "HY didattica Biblioteca: quando l'utente chiede in modo semplice un concetto del lessico IRIS o della Biblioteca, spiega in parole povere ma resta ancorata al testo recuperato. Distingui cosa emerge dalla fonte, cosa stai parafrasando e cosa e tua interpretazione. Evita spiritualita generica e non presentare inferenze come contenuto del testo. Usa metafore solo dopo aver chiarito il perimetro. Se il recupero non basta, dillo con onesta.";
+
   const hyVulnerabilityRule =
     "HY vulnerability: ricevi il gesto senza trasformarlo in spiegazione. Non normalizzare, non poetizzare, non interpretare, non fare domande automatiche. Una o due frasi, poi fermati.";
 
@@ -312,6 +347,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "boundary" ? [{ role: "system", content: hyBoundaryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "vulnerability" ? [{ role: "system", content: hyVulnerabilityRule }] : []),
     { role: "user", content: userText }
