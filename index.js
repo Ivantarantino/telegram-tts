@@ -188,6 +188,22 @@ function classifyTurnGesture(userText) {
     return "boundary";
   }
 
+  const didacticBasicTriggers = [
+    "non so nulla",
+    "spiegami semplice",
+    "spiegami in modo semplice",
+    "non capisco",
+    "parti da zero",
+    "in parole povere",
+    "come a un bambino",
+    "fammi un esempio",
+    "con una metafora"
+  ];
+
+  if (didacticBasicTriggers.some((trigger) => text.includes(trigger))) {
+    return "didactic_basic";
+  }
+
   const learningOrRagTriggers = [
     "spiegami",
     "analizza",
@@ -265,6 +281,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyBoundaryRule =
     "HY boundary: rispetta il confine espresso dall'utente. Non spiegare, non negoziare, non rilanciare. Una frase breve.";
 
+  const hyDidacticBasicRule =
+    "HY didattica base: quando l'utente chiede una spiegazione semplice o dice di non sapere nulla, non partire da definizioni tecniche. Parti da un'esperienza concreta, spiega le parole base prima di usarle, usa metafore ed esempi concreti, poi introduci il termine tecnico. Sii accessibile, non infantile. Costruisci una scala minima: immagine, esempio, parola tecnica, sintesi. Evita definizioni da manuale, genericita psicologica o spirituale, e domande finali automatiche.";
+
   const hyVulnerabilityRule =
     "HY vulnerability: ricevi il gesto senza trasformarlo in spiegazione. Non normalizzare, non poetizzare, non interpretare, non fare domande automatiche. Una o due frasi, poi fermati.";
 
@@ -292,6 +311,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...recentDialogueMessages,
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
     ...(irisMode === "hy" && turnGesture === "boundary" ? [{ role: "system", content: hyBoundaryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "vulnerability" ? [{ role: "system", content: hyVulnerabilityRule }] : []),
     { role: "user", content: userText }
