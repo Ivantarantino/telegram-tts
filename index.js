@@ -174,6 +174,20 @@ function classifyTurnGesture(userText) {
   const text = String(userText || "").trim().toLowerCase();
   if (!text) return "other";
 
+  const boundaryTriggers = [
+    "non voglio analizzarla",
+    "non voglio parlarne",
+    "basta così",
+    "mi pesa e basta",
+    "non analizzare",
+    "fermati",
+    "lascia stare"
+  ];
+
+  if (boundaryTriggers.some((trigger) => text.includes(trigger))) {
+    return "boundary";
+  }
+
   const learningOrRagTriggers = [
     "spiegami",
     "analizza",
@@ -189,20 +203,6 @@ function classifyTurnGesture(userText) {
 
   if (learningOrRagTriggers.some((trigger) => text.includes(trigger))) {
     return "other";
-  }
-
-  const boundaryTriggers = [
-    "non voglio analizzarla",
-    "non voglio parlarne",
-    "basta così",
-    "mi pesa e basta",
-    "non analizzare",
-    "fermati",
-    "lascia stare"
-  ];
-
-  if (boundaryTriggers.some((trigger) => text.includes(trigger))) {
-    return "boundary";
   }
 
   const hasDeathSignal =
