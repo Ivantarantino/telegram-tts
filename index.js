@@ -311,6 +311,58 @@ function formatRagSourcesForPrompt(sources) {
     .join("\n\n");
 }
 
+function detectLibraryTermVariants(userText, ragSources) {
+  const normalizedUserText = String(userText || "").toLowerCase();
+
+  if (!/\b(ecka|ecka-sha|eckasha|veca|veca-sha|ecka-veca)\b/i.test(normalizedUserText)) {
+    return "";
+  }
+
+  const sourcesText = (ragSources || [])
+    .slice(0, 5)
+    .map((source) => source?.payload?.text || "")
+    .join("\n")
+    .toLowerCase();
+
+  const variantFamilies = [
+    {
+      label: "Ecka-sha/Ecka",
+      requested: ["ecka", "ecka-sha", "eckasha"],
+      variants: ["ecka-sha", "eckasha", "ecka-sha'-a", "ecka-sha'", "ecka sha", "ecka"]
+    },
+    {
+      label: "Veca-sha/Veca",
+      requested: ["veca", "veca-sha"],
+      variants: ["veca-sha", "veca sha-la-a", "veca-sha-la-a", "veca sha", "veca"]
+    },
+    {
+      label: "Ecka-Veca",
+      requested: ["ecka-veca"],
+      variants: ["ecka-veca"]
+    }
+  ];
+
+  const lines = variantFamilies
+    .map((family) => {
+      const wasRequested = family.requested.some((term) => normalizedUserText.includes(term));
+      if (!wasRequested) return "";
+
+      const foundVariants = family.variants.filter((variant) => sourcesText.includes(variant));
+      if (foundVariants.length === 0) return "";
+
+      return `Per "${family.label}" negli estratti compaiono forme correlate: ${foundVariants.join(", ")}.`;
+    })
+    .filter(Boolean);
+
+  if (lines.length === 0) return "";
+
+  return [
+    "[VARIANTI TERMINOLOGICHE RILEVATE]",
+    ...lines,
+    "Nota: queste sono varianti o forme correlate rilevate negli estratti; non trattarle come sinonimi perfetti se il testo non lo dice."
+  ].join("\n");
+}
+
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
   const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
 
@@ -393,9 +445,14 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const shouldUseFormattedSources =
     irisMode === "hy" && (turnGesture === "rag_explicit" || turnGesture === "didactic_library" || isExplicitSourceRequest);
 
+  const termVariantNote =
+    shouldUseFormattedSources
+      ? detectLibraryTermVariants(userText, ragSources)
+      : "";
+
   const ragContextText =
     shouldUseFormattedSources && ragSources.length > 0
-      ? formatRagSourcesForPrompt(ragSources)
+      ? [termVariantNote, formatRagSourcesForPrompt(ragSources)].filter(Boolean).join("\n\n")
       : ragText;
 
   const messages = [
