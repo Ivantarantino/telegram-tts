@@ -285,7 +285,10 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   if (irisMode === "book") {
     const r = await coreRagSearch(userText, 8);
     ragText = r.text || "";
-  } else if (irisMode === "hy" && turnGesture === "other") {
+  } else if (
+    irisMode === "hy" &&
+    !["boundary", "vulnerability"].includes(turnGesture)
+  ) {
     const h = await coreHybridSearch(userText, shortMemory, 8);
     ragText = h.text || "";
   }
