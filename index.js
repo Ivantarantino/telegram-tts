@@ -254,6 +254,40 @@ function classifyTurnGesture(userText) {
     return "didactic_basic";
   }
 
+  const generalExplanationTriggers = [
+    "spiegami",
+    "cos'è",
+    "che cos'è",
+    "cosa significa",
+    "a cosa serve",
+    "fammi capire"
+  ];
+
+  const technicalMarkers = [
+    "trasformata continua",
+    "trasformata discreta",
+    "dft",
+    "fft",
+    "spettro",
+    "dominio della frequenza",
+    "dominio del tempo",
+    "fase",
+    "ampiezza",
+    "convoluzione",
+    "kernel",
+    "serie di fourier",
+    "campionamento",
+    "aliasing",
+    "armoniche"
+  ];
+
+  if (
+    generalExplanationTriggers.some((trigger) => text.includes(trigger)) &&
+    !technicalMarkers.some((marker) => text.includes(marker))
+  ) {
+    return "didactic_basic";
+  }
+
   const learningOrRagTriggers = [
     "spiegami",
     "analizza",
