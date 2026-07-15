@@ -410,6 +410,28 @@ function detectLibraryConcreteAnchors(userText, ragSources) {
   ].join("\n");
 }
 
+function stripAutomaticFinalPrompt(answer, mode, turnGesture) {
+  if (mode !== "hy") return answer;
+
+  const guardedGestures = [
+    "rag_explicit",
+    "didactic_library",
+    "didactic_basic",
+    "vulnerability",
+    "boundary"
+  ];
+
+  if (!guardedGestures.includes(turnGesture)) return answer;
+
+  const text = String(answer || "").trim();
+  if (!text) return answer;
+
+  const finalPromptPattern =
+    /(?:\n\s*)?(?:se vuoi|se desideri|fammi sapere|posso aiutarti|vuoi che|ti interessa|se vuoi approfondire|se desideri approfondire)[^.!?\n]*[.!?]\s*$/i;
+
+  return text.replace(finalPromptPattern, "").trim();
+}
+
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
   const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
 
@@ -539,6 +561,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     });
 
     let reply = res.choices[0].message.content.trim();
+    reply = stripAutomaticFinalPrompt(reply, irisMode, turnGesture);
 
     // FIX SACRO: mai risposta vuota
     if (!reply || reply.length === 0) {
