@@ -363,6 +363,53 @@ function detectLibraryTermVariants(userText, ragSources) {
   ].join("\n");
 }
 
+function detectLibraryConcreteAnchors(userText, ragSources) {
+  const normalizedUserText = String(userText || "").toLowerCase();
+
+  if (!/\b(ecka|veca|kristal|vesica|rapporto|biblioteca)\b/i.test(normalizedUserText)) {
+    return "";
+  }
+
+  const sourcesText = (ragSources || [])
+    .slice(0, 5)
+    .map((source) => source?.payload?.text || "")
+    .join("\n")
+    .toLowerCase();
+
+  const anchors = [
+    { label: "griglie Kathara", patterns: ["griglie kathara"] },
+    { label: "griglia Kathara", patterns: ["griglia kathara"] },
+    { label: "centri Ecka", patterns: ["centri ecka"] },
+    { label: "centro comune", patterns: ["centro comune"] },
+    { label: "quadranti Ecka-Veca", patterns: ["quadranti ecka-veca"] },
+    { label: "quadranti", patterns: ["quadranti"] },
+    { label: "Spirale Kristallo", patterns: ["spirale kristallo", "spirale krist(all)o"] },
+    { label: "spirale", patterns: ["spirale"] },
+    { label: "Veca Sha-LA-a", patterns: ["veca sha-la-a"] },
+    { label: "Veca-Sha-LA-a", patterns: ["veca-sha-la-a"] },
+    { label: "unita di radiazione", patterns: ["unita di radiazione", "unità di radiazione"] },
+    { label: "mappe di porte stellari", patterns: ["mappe di porte stellari"] },
+    { label: "porte stellari", patterns: ["porte stellari"] },
+    { label: "atomi seme", patterns: ["atomi seme", "atomo seme"] },
+    { label: "camere Amoraea", patterns: ["camere amoraea"] },
+    { label: "Ecka interno", patterns: ["ecka interno"] },
+    { label: "Ecka-sha inglobante", patterns: ["ecka-sha inglobante"] },
+    { label: "Ecka-Veca", patterns: ["ecka-veca"] }
+  ];
+
+  const foundAnchors = anchors
+    .filter((anchor) => anchor.patterns.some((pattern) => sourcesText.includes(pattern)))
+    .map((anchor) => anchor.label);
+
+  if (foundAnchors.length === 0) return "";
+
+  return [
+    "[APPIGLI CONCRETI RILEVATI NEGLI ESTRATTI]",
+    `Negli estratti compaiono questi appigli concreti: ${foundAnchors.join(", ")}.`,
+    "Usali per spiegare prima di parafrasare; non trasformarli in concetti spirituali generici."
+  ].join("\n");
+}
+
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
   const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
 
@@ -416,7 +463,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     "HY fonte esplicita: quando l'utente chiede cosa dice una fonte o un testo, rispondi solo dagli estratti recuperati. Non costruire ponti interpretativi, non trasformare termini tecnici in spiritualita generica e non inferire oltre il testo. Se gli estratti non danno una definizione semplice, dichiaralo. Struttura la risposta in: 1 Negli estratti recuperati; 2 In parole piu semplici; 3 Limite. Non fare domande finali automatiche. Se l'utente usa una grafia specifica ma negli estratti compaiono varianti vicine o forme correlate, dichiaralo: non trovo sempre questa grafia esatta, ma trovo forme correlate. Non trattare varianti simili come identiche se il testo non lo dice. Se nel contesto e presente una sezione '[VARIANTI TERMINOLOGICHE RILEVATE]', devi citarla nella risposta. Nelle risposte fonte esplicita evita formule come 'possiamo dedurre', 'si puo immaginare', 'sembra indicare' quando non separi chiaramente il dato dalla tua interpretazione. Preferisci formule come 'negli estratti risulta', 'gli estratti mostrano', 'compare come forma correlata', 'il limite e'.";
 
   const hyDidacticLibraryRule =
-    "HY didattica Biblioteca: quando l'utente chiede in modo semplice un concetto del lessico IRIS o della Biblioteca, usa la Voce della Maestra ancorata alla fonte. Prima dichiara il perimetro: lo spiego in parole semplici restando agli estratti recuperati. Poi costruisci la scala: 1 perimetro della fonte; 2 immagine concreta; 3 concetto semplice; 4 termine tecnico o lessico del testo; 5 limite. Se nel contesto e presente una sezione '[VARIANTI TERMINOLOGICHE RILEVATE]', usala. Nel concetto semplice, appoggiati prima ad almeno due parole concrete presenti negli estratti, come griglie, centri, quadranti, spirale, unita di radiazione o mappe di porte stellari, se compaiono nel contesto; solo dopo parafrasa. Non usare parole come 'portale', 'energia spirituale', 'coscienza', 'dimensione', 'piano esistenziale' se non compaiono negli estratti o non sono necessarie. Non trasformare termini tecnici del testo in spiritualita generica. Usa metafore solo dopo aver chiarito il perimetro. Se il testo non da una definizione semplice, dillo. Niente domanda finale automatica.";
+    "HY didattica Biblioteca: quando l'utente chiede in modo semplice un concetto del lessico IRIS o della Biblioteca, usa la Voce della Maestra ancorata alla fonte. Prima dichiara il perimetro: lo spiego in parole semplici restando agli estratti recuperati. Poi costruisci la scala: 1 perimetro della fonte; 2 immagine concreta; 3 concetto semplice; 4 termine tecnico o lessico del testo; 5 limite. Se nel contesto e presente una sezione '[VARIANTI TERMINOLOGICHE RILEVATE]', usala. Se e presente una sezione '[APPIGLI CONCRETI RILEVATI NEGLI ESTRATTI]', usala nella spiegazione prima di parafrasare. Nel concetto semplice, appoggiati prima ad almeno due parole concrete presenti negli estratti, come griglie, centri, quadranti, spirale, unita di radiazione o mappe di porte stellari, se compaiono nel contesto; solo dopo parafrasa. Non usare parole come 'portale', 'energia spirituale', 'coscienza', 'dimensione', 'piano esistenziale' se non compaiono negli estratti o non sono necessarie. Non trasformare termini tecnici del testo in spiritualita generica. Usa metafore solo dopo aver chiarito il perimetro. Se il testo non da una definizione semplice, dillo. Niente domanda finale automatica.";
 
   const hyVulnerabilityRule =
     "HY vulnerability: ricevi il gesto senza trasformarlo in spiegazione. Non normalizzare, non poetizzare, non interpretare, non fare domande automatiche. Una o due frasi, poi fermati.";
@@ -450,9 +497,14 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
       ? detectLibraryTermVariants(userText, ragSources)
       : "";
 
+  const concreteAnchorNote =
+    turnGesture === "didactic_library"
+      ? detectLibraryConcreteAnchors(userText, ragSources)
+      : "";
+
   const ragContextText =
     shouldUseFormattedSources && ragSources.length > 0
-      ? [termVariantNote, formatRagSourcesForPrompt(ragSources)].filter(Boolean).join("\n\n")
+      ? [termVariantNote, concreteAnchorNote, formatRagSourcesForPrompt(ragSources)].filter(Boolean).join("\n\n")
       : ragText;
 
   const messages = [
