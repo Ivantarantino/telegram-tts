@@ -490,6 +490,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyDidacticLibraryFormRule =
     "HY forma Maestra Biblioteca: usa questa forma breve: 1 Perimetro degli estratti; 2 Appigli concreti del testo; 3 Spiegazione semplice; 4 Limite. Non aggiungere metafore non fondate negli estratti. Non chiudere con frasi generiche da assistente.";
 
+  const hyDidacticLibraryLexiconRule =
+    "HY lessico Maestra Biblioteca: preferisci parole descrittive presenti negli estratti, come griglia, centro, quadrante, mappa, spirale, relazione, struttura del testo. Evita parole generiche come spirituale, cosmico, universo, dimensione, vibrazione, frequenza, energia se non sono presenti negli estratti o strettamente necessarie. Non parlare di significato profondo se il testo non lo dice.";
+
   const hyVulnerabilityRule =
     "HY vulnerability: ricevi il gesto senza trasformarlo in spiegazione. Non normalizzare, non poetizzare, non interpretare, non fare domande automatiche. Una o due frasi, poi fermati.";
 
@@ -547,6 +550,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryFormRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryLexiconRule }] : []),
     ...(irisMode === "hy" && turnGesture === "boundary" ? [{ role: "system", content: hyBoundaryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "vulnerability" ? [{ role: "system", content: hyVulnerabilityRule }] : []),
     { role: "user", content: userText }
