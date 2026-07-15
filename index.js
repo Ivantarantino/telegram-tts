@@ -465,6 +465,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyDidacticLibraryRule =
     "HY didattica Biblioteca: quando l'utente chiede in modo semplice un concetto del lessico IRIS o della Biblioteca, usa la Voce della Maestra ancorata alla fonte. Prima dichiara il perimetro: lo spiego in parole semplici restando agli estratti recuperati. Poi costruisci la scala: 1 perimetro della fonte; 2 immagine concreta; 3 concetto semplice; 4 termine tecnico o lessico del testo; 5 limite. Se nel contesto e presente una sezione '[VARIANTI TERMINOLOGICHE RILEVATE]', usala. Se e presente una sezione '[APPIGLI CONCRETI RILEVATI NEGLI ESTRATTI]', usala nella spiegazione prima di parafrasare. Nel concetto semplice, appoggiati prima ad almeno due parole concrete presenti negli estratti, come griglie, centri, quadranti, spirale, unita di radiazione o mappe di porte stellari, se compaiono nel contesto; solo dopo parafrasa. Non usare parole come 'portale', 'energia spirituale', 'coscienza', 'dimensione', 'piano esistenziale' se non compaiono negli estratti o non sono necessarie. Non trasformare termini tecnici del testo in spiritualita generica. Usa metafore solo dopo aver chiarito il perimetro. Se il testo non da una definizione semplice, dillo. Niente domanda finale automatica.";
 
+  const hyDidacticLibraryFormRule =
+    "HY forma Maestra Biblioteca: usa questa forma breve: 1 Perimetro degli estratti; 2 Appigli concreti del testo; 3 Spiegazione semplice; 4 Limite. Non aggiungere metafore non fondate negli estratti. Non chiudere con frasi generiche da assistente.";
+
   const hyVulnerabilityRule =
     "HY vulnerability: ricevi il gesto senza trasformarlo in spiegazione. Non normalizzare, non poetizzare, non interpretare, non fare domande automatiche. Una o due frasi, poi fermati.";
 
@@ -521,6 +524,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
     ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryFormRule }] : []),
     ...(irisMode === "hy" && turnGesture === "boundary" ? [{ role: "system", content: hyBoundaryRule }] : []),
     ...(irisMode === "hy" && turnGesture === "vulnerability" ? [{ role: "system", content: hyVulnerabilityRule }] : []),
     { role: "user", content: userText }
