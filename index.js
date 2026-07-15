@@ -481,6 +481,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyDidacticBasicRule =
     "HY didattica base: quando l'utente chiede una spiegazione semplice o dice di non sapere nulla, non partire da definizioni tecniche. Parti da un'esperienza concreta, spiega le parole base prima di usarle, usa metafore ed esempi concreti, poi introduci il termine tecnico. Sii accessibile, non infantile. Costruisci una scala minima: immagine, esempio, parola tecnica, sintesi. Evita definizioni da manuale, genericita psicologica o spirituale, e domande finali automatiche.";
 
+  const hyDidacticBasicFormRule =
+    "HY forma Maestra base: quando l'utente chiede una spiegazione semplice o generale senza usare gia termini tecnici specifici, considera principiante il livello di partenza. Usa questa scala: 1 esperienza concreta; 2 parole semplici; 3 esempio; 4 solo dopo termine tecnico; 5 sintesi. Non usare termini come frequenza, sinusoide, ampiezza, fase, componente o segnale complesso prima di averli spiegati con parole comuni. Se l'utente usa gia termini tecnici specifici, puoi salire di livello senza ripartire da zero. Non chiudere con domande automatiche.";
+
   const hyRagExplicitRule =
     "HY fonte esplicita: quando l'utente chiede cosa dice una fonte o un testo, rispondi solo dagli estratti recuperati. Non costruire ponti interpretativi, non trasformare termini tecnici in spiritualita generica e non inferire oltre il testo. Se gli estratti non danno una definizione semplice, dichiaralo. Struttura la risposta in: 1 Negli estratti recuperati; 2 In parole piu semplici; 3 Limite. Non fare domande finali automatiche. Se l'utente usa una grafia specifica ma negli estratti compaiono varianti vicine o forme correlate, dichiaralo: non trovo sempre questa grafia esatta, ma trovo forme correlate. Non trattare varianti simili come identiche se il testo non lo dice. Se nel contesto e presente una sezione '[VARIANTI TERMINOLOGICHE RILEVATE]', devi citarla nella risposta. Nelle risposte fonte esplicita evita formule come 'possiamo dedurre', 'si puo immaginare', 'sembra indicare' quando non separi chiaramente il dato dalla tua interpretazione. Preferisci formule come 'negli estratti risulta', 'gli estratti mostrano', 'compare come forma correlata', 'il limite e'.";
 
@@ -550,6 +553,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicFormRule }] : []),
     ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitRule }] : []),
     ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitLexiconRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryRule }] : []),
