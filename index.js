@@ -521,6 +521,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyDidacticBasicStyleRule =
     "HY stile Maestra base: usa una sola metafora principale e non accumulare immagini diverse. Introduci al massimo due termini tecnici per volta e spiegali subito in parole comuni. Mantieni la risposta breve e progressiva. Evita formule da manuale e metafore decorative non necessarie.";
 
+  const hyDidacticBasicProblemFirstRule =
+    "HY Maestra base problem-first: prima di nominare il concetto tecnico richiesto, spiega il problema concreto che quel concetto risolve. Per Fourier: prima mostra che un suono o segnale puo sembrare una cosa sola ma contenere parti diverse; poi spiega l'idea di separare il miscuglio; solo dopo nomina Fourier, frequenze o sinusoidi. Evita di iniziare con definizioni.";
+
   const hyRagExplicitRule =
     "HY fonte esplicita: quando l'utente chiede cosa dice una fonte o un testo, rispondi solo dagli estratti recuperati. Non costruire ponti interpretativi, non trasformare termini tecnici in spiritualita generica e non inferire oltre il testo. Se gli estratti non danno una definizione semplice, dichiaralo. Struttura la risposta in: 1 Negli estratti recuperati; 2 In parole piu semplici; 3 Limite. Non fare domande finali automatiche. Se l'utente usa una grafia specifica ma negli estratti compaiono varianti vicine o forme correlate, dichiaralo: non trovo sempre questa grafia esatta, ma trovo forme correlate. Non trattare varianti simili come identiche se il testo non lo dice. Se nel contesto e presente una sezione '[VARIANTI TERMINOLOGICHE RILEVATE]', devi citarla nella risposta. Nelle risposte fonte esplicita evita formule come 'possiamo dedurre', 'si puo immaginare', 'sembra indicare' quando non separi chiaramente il dato dalla tua interpretazione. Preferisci formule come 'negli estratti risulta', 'gli estratti mostrano', 'compare come forma correlata', 'il limite e'.";
 
@@ -592,6 +595,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicFormRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicStyleRule }] : []),
+    ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicProblemFirstRule }] : []),
     ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitRule }] : []),
     ...(irisMode === "hy" && turnGesture === "rag_explicit" ? [{ role: "system", content: hyRagExplicitLexiconRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_library" ? [{ role: "system", content: hyDidacticLibraryRule }] : []),
