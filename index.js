@@ -473,6 +473,10 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     return "Va bene. Non la analizziamo.";
   }
 
+  if (irisMode === "hy" && turnGesture === "vulnerability") {
+    return "Mi arriva. Non provo a spiegarlo. Resto qui con rispetto.";
+  }
+
   let ragText = "";
   let ragSources = [];
 
