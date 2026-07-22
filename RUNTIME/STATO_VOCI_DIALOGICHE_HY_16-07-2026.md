@@ -245,3 +245,28 @@ Nasce dalla scelta della voce adatta al gesto del turno.
 IRIS non deve diventare più rigida.
 
 Deve diventare più situata.
+
+## Aggiornamento 22/07/2026 — Runtime Dialogic Engine v0.1
+
+È stato introdotto core/dialogic_engine.js come primo nucleo del Runtime Dialogic Engine.
+
+Funzioni estratte:
+- classifyTurnGesture(userText)
+- resolveDirectReply({ irisMode, gesture })
+- shouldUseHybridSearch({ irisMode, gesture })
+
+Obiettivo:
+separare la decisione dialogica minima da index.js senza cambiare comportamento esterno.
+
+Commit:
+73bd8ff refactor: extract HY dialogic engine primitives
+
+Test Telegram:
+- boundary: passato
+- vulnerability: passato
+- didactic_basic/Fourier: passato
+- didactic_library/Ecka-Veca: routing passato
+- rag_explicit/Atomi Seme: routing passato, lessico ancora da rifinire
+
+Nota:
+questo step non migliora ancora la qualità delle risposte; crea l’ossatura per i prossimi passaggi.
