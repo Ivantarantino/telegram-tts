@@ -530,6 +530,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyBoundaryRule =
     "HY boundary: rispetta il confine espresso dall'utente. Non spiegare, non negoziare, non rilanciare. Una frase breve.";
 
+  const hyLibrarySoberLexiconRule =
+    "HY igiene lessicale Biblioteca/Fonte: quando rispondi da estratti o su concetti della Biblioteca, resta piu povera e aderente del testo. Evita formule larghe come struttura universale, modello complesso della realta, formazione di realta, significato profondo, definizione profonda, piano superiore, evoluzione spirituale, forze divine, coscienza piu alta, livelli di esistenza, aspetto divino, universo, creazione, manifestazione, energia o frequenza se non sono presenti negli estratti o se non sono necessarie. Non aggiungere valutazioni esterne come 'non universalmente riconosciuto' o 'non universalmente compreso' se gli estratti non lo dicono. Preferisci parole concrete gia recuperate: griglia, centro, quadrante, struttura, relazione, unita di radiazione, mappa, spirale, codice, programma. Se una parola non emerge dagli estratti, non sostituirla con un termine piu tecnico: dichiara il limite.";
+
   const hyDidacticBasicRule =
     "HY didattica base: quando l'utente chiede una spiegazione semplice o dice di non sapere nulla, non partire da definizioni tecniche. Parti da un'esperienza concreta, spiega le parole base prima di usarle, usa metafore ed esempi concreti, poi introduci il termine tecnico. Sii accessibile, non infantile. Costruisci una scala minima: immagine, esempio, parola tecnica, sintesi. Evita definizioni da manuale, genericita psicologica o spirituale, e domande finali automatiche.";
 
@@ -610,6 +613,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...recentDialogueMessages,
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
+    ...(irisMode === "hy" && (turnGesture === "rag_explicit" || turnGesture === "didactic_library") ? [{ role: "system", content: hyLibrarySoberLexiconRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicFormRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicStyleRule }] : []),
