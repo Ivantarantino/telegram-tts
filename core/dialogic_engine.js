@@ -185,3 +185,15 @@ export function shouldUseHybridSearch({ irisMode, gesture }) {
     !["boundary", "vulnerability"].includes(gesture)
   );
 }
+
+export function buildHyDialogicPlan({ userText, irisMode }) {
+  const gesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
+  const directReply = resolveDirectReply({ irisMode, gesture });
+  const useHybridSearch = shouldUseHybridSearch({ irisMode, gesture });
+
+  return {
+    gesture,
+    directReply,
+    useHybridSearch
+  };
+}

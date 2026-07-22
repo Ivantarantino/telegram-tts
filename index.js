@@ -17,9 +17,7 @@ import { transcribeVoice } from "./core/stt_handler.js";
 import { handleCommand, sendEssenceSnapshot, sendStateSnapshot } from "./core/commands.js";
 import { handleDreamCommand, setDreamDialect, setDreamStyle } from "./core/dream_manager.js";
 import {
-  classifyTurnGesture,
-  resolveDirectReply,
-  shouldUseHybridSearch
+  buildHyDialogicPlan
 } from "./core/dialogic_engine.js";
 
 dotenv.config();
@@ -317,11 +315,11 @@ function stripAutomaticFinalPrompt(answer, mode, turnGesture) {
 }
 
 async function irisAnswer(userText, userName = null, dialogueHistory = [], shortMemory = dialogueHistory) {
-  const turnGesture = irisMode === "hy" ? classifyTurnGesture(userText) : "other";
-  const directReply = resolveDirectReply({ irisMode, gesture: turnGesture });
+  const dialogicPlan = buildHyDialogicPlan({ userText, irisMode });
+  const turnGesture = dialogicPlan.gesture;
 
-  if (directReply) {
-    return directReply;
+  if (dialogicPlan.directReply) {
+    return dialogicPlan.directReply;
   }
 
   let ragText = "";
@@ -331,7 +329,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     const r = await coreRagSearch(userText, 8);
     ragText = r.text || "";
     ragSources = r.sources || [];
-  } else if (shouldUseHybridSearch({ irisMode, gesture: turnGesture })) {
+  } else if (dialogicPlan.useHybridSearch) {
     const h = await coreHybridSearch(userText, shortMemory, 8);
     ragText = h.text || "";
     ragSources = h.sources || [];
