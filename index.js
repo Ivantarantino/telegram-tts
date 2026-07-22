@@ -216,7 +216,21 @@ function classifyTurnGesture(userText) {
     "iris manifesto",
     "biblioteca",
     "nel testo",
-    "secondo il rapporto"
+    "secondo il rapporto",
+    "kathara",
+    "griglie kathara",
+    "griglia kathara",
+    "atomi seme",
+    "atomo seme",
+    "spirale kristallo",
+    "unita di radiazione",
+    "unità di radiazione",
+    "camere amoraea",
+    "mappe di porte stellari",
+    "porte stellari",
+    "codici geomantici",
+    "programmi elettro-tonali",
+    "quadranti ecka-veca"
   ];
 
   const simpleExplanationSignals = [
