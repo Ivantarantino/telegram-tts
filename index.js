@@ -533,6 +533,9 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
   const hyLibrarySoberLexiconRule =
     "HY igiene lessicale Biblioteca/Fonte: quando rispondi da estratti o su concetti della Biblioteca, resta piu povera e aderente del testo. Evita formule larghe come struttura universale, modello complesso della realta, formazione di realta, significato profondo, definizione profonda, piano superiore, evoluzione spirituale, forze divine, coscienza piu alta, livelli di esistenza, aspetto divino, universo, creazione, manifestazione, energia o frequenza se non sono presenti negli estratti o se non sono necessarie. Non aggiungere valutazioni esterne come 'non universalmente riconosciuto' o 'non universalmente compreso' se gli estratti non lo dicono. Preferisci parole concrete gia recuperate: griglia, centro, quadrante, struttura, relazione, unita di radiazione, mappa, spirale, codice, programma. Se una parola non emerge dagli estratti, non sostituirla con un termine piu tecnico: dichiara il limite.";
 
+  const hyLibraryInternalLexiconRule =
+    "HY lessico interno Biblioteca/Fonte: quando negli estratti compaiono parole forti o dottrinali come Sorgente divina, Fiamma Eterna, coscienza divina, creazione, manifestazione, universo, energia, frequenza o livelli, puoi riportarle solo come lessico del testo. Usa formule come 'gli estratti usano il termine...', 'il testo lo chiama...', 'compare nel lessico del Rapporto...'. Non trasformare quei termini in una tua spiegazione naturale. Nella spiegazione semplice resta strutturale: parla di griglia, centro, relazione, codice, programma, mappa, unita di radiazione, limite degli estratti.";
+
   const hyDidacticBasicRule =
     "HY didattica base: quando l'utente chiede una spiegazione semplice o dice di non sapere nulla, non partire da definizioni tecniche. Parti da un'esperienza concreta, spiega le parole base prima di usarle, usa metafore ed esempi concreti, poi introduci il termine tecnico. Sii accessibile, non infantile. Costruisci una scala minima: immagine, esempio, parola tecnica, sintesi. Evita definizioni da manuale, genericita psicologica o spirituale, e domande finali automatiche.";
 
@@ -614,6 +617,7 @@ async function irisAnswer(userText, userName = null, dialogueHistory = [], short
     ...(irisMode === "free" ? [{ role: "system", content: freeTurnRule }] : []),
     ...(irisMode === "hy" ? [{ role: "system", content: hyTurnRule }] : []),
     ...(irisMode === "hy" && (turnGesture === "rag_explicit" || turnGesture === "didactic_library") ? [{ role: "system", content: hyLibrarySoberLexiconRule }] : []),
+    ...(irisMode === "hy" && (turnGesture === "rag_explicit" || turnGesture === "didactic_library") ? [{ role: "system", content: hyLibraryInternalLexiconRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicFormRule }] : []),
     ...(irisMode === "hy" && turnGesture === "didactic_basic" ? [{ role: "system", content: hyDidacticBasicStyleRule }] : []),
