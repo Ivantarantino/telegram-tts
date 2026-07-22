@@ -27,7 +27,7 @@ La distinzione tra le voci sta producendo risultati utili:
 - la Voce della Maestra Biblioteca resta più ancorata agli estratti;
 - la Voce della Maestra base sta imparando a partire dal problema concreto;
 - il rispetto del confine funziona quando è gestito in modo deterministico;
-- la Voce della Presenza resta il punto più delicato e non ancora stabilizzato.
+- la Voce della Presenza è agganciata in v0.1 tramite direct handler, con limiti noti.
 
 ## 3. Voce del Lettore — rag_explicit
 
@@ -142,7 +142,7 @@ Rischio residuo:
 
 ## 7. Voce della Presenza — vulnerability
 
-Stato: aperta.
+Stato: agganciata v0.1, con limiti noti.
 
 Si attiva nei casi di lutto, dolore vivo, vergogna, paura o affidamento emotivo esplicito.
 
@@ -152,20 +152,44 @@ Problema osservato:
 - il modello tende a parafrasare, normalizzare, poetizzare o fare pseudo-terapia;
 - la vulnerabilità richiede una gestione come evento del turno, non come atmosfera generale.
 
-Direzione desiderata:
+Intervento introdotto:
+
+- è stato aggiunto un direct handler per `turnGesture === "vulnerability"`;
+- il flusso evita RAG, memoria ibrida e chiamata OpenAI;
+- la risposta è volutamente rigida, breve e non interpretativa;
+- i primi test Telegram del 20/07/2026 sono positivi.
+
+Flusso confermato:
 
 ```text
-ricevere l'affidamento
-poche parole calde e sobrie
-nessuna analisi
-nessuna simbolizzazione
-nessuna domanda automatica
+turnGesture === "vulnerability"
+→ direct return
+→ no RAG
+→ no OpenAI call
+→ no terapia
+→ no normalizzazione
+→ no poesia emotiva
+→ no domanda finale
 ```
 
 Rischio residuo:
 
-- risposta troppo fredda se si limita alla parafrasi;
-- risposta invasiva se il modello tenta di consolare, interpretare o normalizzare.
+- la risposta è stabile ma poco variata;
+- resta da distinguere in futuro tra vulnerabilità pura e richiesta esplicita di elaborazione;
+- alcuni casi misti potrebbero richiedere una presenza sobria più modulata.
+
+## Test del direct handler — 20/07/2026
+
+```text
+Quando c'è silenzio sento il vuoto di quando è morto mio fratello.
+→ Mi arriva. Non provo a spiegarlo. Resto qui con rispetto.
+
+Ho paura.
+→ Mi arriva. Non provo a spiegarlo. Resto qui con rispetto.
+
+Mi vergogno.
+→ Mi arriva. Non provo a spiegarlo. Resto qui con rispetto.
+```
 
 ## 8. Principio di priorità
 
@@ -182,7 +206,7 @@ Priorità operativa attuale:
 5. vulnerability;
 6. other.
 
-Nota: la vulnerabilità resta concettualmente altissima, ma tecnicamente non è ancora stabilizzata.
+Nota: la vulnerabilità resta concettualmente altissima; tecnicamente è agganciata in v0.1, ma non ancora raffinata nei casi misti.
 
 ## 9. Stato dei micro-interventi
 
@@ -194,12 +218,13 @@ Interventi efficaci:
 - note su varianti terminologiche;
 - appigli concreti dagli estratti;
 - regole lessicali per Lettore e Maestra Biblioteca;
-- filtro finale per rilanci automatici.
+- filtro finale per rilanci automatici;
+- direct return per vulnerability.
 
 Interventi ancora da stabilizzare:
 
 - didactic_basic problem-first;
-- vulnerabilità come evento;
+- distinzione tra vulnerabilità pura e richiesta di elaborazione;
 - armonizzazione naturale delle forme 1-4 o 1-5;
 - futura distillazione delle molte regole locali.
 
@@ -208,7 +233,7 @@ Interventi ancora da stabilizzare:
 1. Testare didactic_basic dopo la regola problem-first.
 2. Verificare se Fourier viene spiegato partendo dal problema concreto.
 3. Non toccare ancora rag_explicit e didactic_library se i test restano stabili.
-4. Tornare sulla vulnerabilità solo con un micro-intervento separato e falsificabile.
+4. Raffinare la vulnerabilità solo distinguendo casi puri e casi che chiedono elaborazione.
 5. A medio termine, distillare le regole HY in una forma più compatta.
 
 ## 11. Chiusura
