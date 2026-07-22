@@ -270,3 +270,28 @@ Test Telegram:
 
 Nota:
 questo step non migliora ancora la qualità delle risposte; crea l’ossatura per i prossimi passaggi.
+
+
+## Aggiornamento 22/07/2026 — Minimal Dialogic Plan Builder
+
+È stato aggiunto `buildHyDialogicPlan({ userText, irisMode })` in `core/dialogic_engine.js`.
+
+Il piano dialogico minimo restituisce:
+
+- `gesture`
+- `directReply`
+- `useHybridSearch`
+
+Obiettivo dello step:
+
+- raccogliere in un solo oggetto la decisione dialogica minima;
+- evitare che `index.js` calcoli separatamente gesto, direct reply e uso del RAG HY;
+- mantenere comportamento esterno equivalente;
+- non spostare ancora regole HY, RAG, fonti, prompt, memoria o post-processing.
+
+Commit:
+
+```text
+a8a2689 refactor: add HY dialogic plan builder
+
+
